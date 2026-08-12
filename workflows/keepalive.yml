@@ -7,4 +7,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping site
-        run: curl -s -o /dev/null -w "%{http_code}" https://你的项目名.pages.dev/api/menu
+        run: curl -s -o /dev/null -w "%{http_code}" https://daydream7.pages.dev/api/menu
