@@ -5,6 +5,14 @@ function esc(s) {
   ));
 }
 
+function formatTime(s) {
+  if (!s) return '—';
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return s;
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function toast(msg, type = 'ok') {
   let box = document.getElementById('toast');
   if (!box) {
@@ -448,7 +456,7 @@ const App = {
                 <div class="comment-body">
                   <div class="comment-head">
                     <span class="comment-name">${esc(c.username)}</span>
-                    <span class="comment-time">${esc(c.created_at)}</span>
+                    <span class="comment-time">${esc(formatTime(c.created_at)}</span>
                   </div>
                   <div class="comment-content">${esc(c.content)}</div>
                 </div>
@@ -480,7 +488,7 @@ const App = {
         ${this.avatarHtml(u, 96)}
         <h2>${esc(u.username)}</h2>
         <p class="profile-role">${u.role === 'admin' ? '管理员' : '普通会员'}</p>
-        <p class="profile-since">加入于 ${esc(u.created_at || '—')}</p>
+        <p class="profile-since">加入于 ${esc(formatTime(u.created_at || '—')}</p>
         <div class="profile-avatar-edit">
           <h3>自定义头像</h3>
           <p class="hint">未设置头像时，默认显示用户名的第一个字。</p>
@@ -536,7 +544,7 @@ const App = {
               <td><span class="tag tag-${a.category}">${cn[a.category]}</span></td>
               <td>${a.category === 'main' ? `${a.chapter_no} · ${a.section_no}` : '—'}</td>
               <td class="td-title">${esc(a.category === 'main' ? a.section_title : a.title)}</td>
-              <td>${esc(a.updated_at)}</td>
+              <td>${esc(formatTime(a.updated_at)}</td>
               <td>
                 <button class="btn btn-small btn-ghost" data-action="edit-article" data-id="${a.id}">编辑</button>
                 <button class="btn btn-small btn-danger" data-action="delete-article" data-id="${a.id}">删除</button>
@@ -625,7 +633,7 @@ const App = {
               <td>${x.id}</td>
               <td>${esc(x.username)}</td>
               <td>${x.role === 'admin' ? '<span class="tag tag-main">管理员</span>' : '<span class="tag tag-personal">用户</span>'}</td>
-              <td>${esc(x.created_at)}</td>
+              <td>${esc(formatTime(x.created_at)}</td>
               <td>
                 ${x.username === this.state.user.username ? '<span class="hint">（当前账号）</span>' : `
                   <button class="btn btn-small btn-ghost" data-action="set-role" data-id="${x.id}"
