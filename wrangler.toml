@@ -1,0 +1,14 @@
+# Cloudflare Pages 配置
+name = "daydream-cafe"
+compatibility_date = "2024-11-01"
+
+# 静态资源发布目录
+pages_build_output_dir = "public"
+
+# D1 数据库绑定（binding 名必须为 DB）
+# 推荐在 Pages 控制台 Settings > Functions > D1 database bindings 里绑定，
+# 这里 database_id 可留占位符。
+[[d1_databases]]
+binding = "DB"
+database_name = "daydream"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
