@@ -11,4 +11,4 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "daydream"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "9e1972d0-750a-43ca-81a9-14b503cae89a"
