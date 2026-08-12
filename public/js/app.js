@@ -167,12 +167,12 @@ const App = {
       <div class="cover-scene">
         <div class="book-cover" id="bookCover">
           <div class="cover-inner">
-            <div class="cover-top">汐凪島 · 物語</div>
+            <div class="cover-top">绘空事</div>
             <div class="cover-illus">${coverSVG}</div>
             <h1 class="cover-title">白日梦</h1>
             <div class="cover-sub">— Daydream Café —</div>
             <div class="cover-line"></div>
-            <div class="cover-bottom">第一卷 · 如暖阳般和煦</div>
+            <div class="cover-bottom">如泡影破碎之梦</div>
           </div>
         </div>
         <button class="btn-cover" id="openBook">翻 开 这 本 书</button>
@@ -210,8 +210,7 @@ const App = {
             <button class="btn btn-primary btn-block" type="submit">进入咖啡馆</button>
           </form>
           <div class="demo-tip">
-            <p>管理员：<b>admin / admin123</b></p>
-            <p>普通用户：<b>demo / demo123</b></p>
+
           </div>
         </div>
       </div>
@@ -444,7 +443,7 @@ const App = {
       <div class="profile-card">
         ${this.avatarHtml(u, 96)}
         <h2>${esc(u.username)}</h2>
-        <p class="profile-role">${u.role === 'admin' ? '管理员' : '普通会员'}</p>
+        <p class="profile-role">${u.role === 'admin' ? '管理员' : '客人'}</p>
         <p class="profile-since">加入于 ${esc(u.created_at || '—')}</p>
         <div class="profile-avatar-edit">
           <h3>自定义头像</h3>
