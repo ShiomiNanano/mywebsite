@@ -6,7 +6,7 @@ const API = {
       opts.body = JSON.stringify(body);
     }
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 7000); // 7秒超时
+    const timer = setTimeout(() => ctrl.abort(), 30000); // 30秒超时
     opts.signal = ctrl.signal;
     try {
       const res = await fetch(url, opts);
