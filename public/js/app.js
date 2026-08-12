@@ -236,7 +236,7 @@ const App = {
           <div class="menu-card-icon">☂</div>
           <div class="menu-card-content">
             <h3>主线故事</h3>
-            <p>第一卷 · 如暖阳般和煦</p>
+            <p>梦的开始</p>
             <span class="menu-card-meta">${cc} 章 · ${sc} 节</span>
           </div>
           <div class="menu-card-arrow">→</div>
@@ -273,7 +273,7 @@ const App = {
       <div class="page-head">
         <span class="eyebrow">Main Story</span>
         <h1>主线故事</h1>
-        <p>第一卷 · 如暖阳般和煦</p>
+        <p>梦的开始</p>
       </div>
       <div class="chapter-list">
         ${m.main.length ? m.main.map(c => `
