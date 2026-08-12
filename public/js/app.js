@@ -664,7 +664,7 @@ const App = {
     const errEl = document.getElementById('loginError');
     try {
       if (this.authMode === 'register') {
-        if (password !== form.confirmPassword.value) throw new Error('两次输入的密码不一致');
+        if (password !== form.confirmPassword.value) throw new Error('密码错误');
         await API.post('/api/register', { username, password });
         toast('账号已创建，欢迎来到白日梦咖啡馆');
       } else {
