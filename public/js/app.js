@@ -243,8 +243,7 @@ const App = {
             <button class="btn btn-primary btn-block" type="submit">进入咖啡馆</button>
           </form>
           <div class="demo-tip">
-            <p>管理员：<b>admin / admin123</b></p>
-            <p>普通用户：<b>demo / demo123</b></p>
+            <p>咕咕嘎嘎</p>
           </div>
         </div>
       </div>
