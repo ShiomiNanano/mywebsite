@@ -310,8 +310,8 @@ const App = {
         <a class="menu-card menu-chat" href="#/chat">
           <div class="menu-card-icon">☕</div>
           <div class="menu-card-content">
-            <h3>与柒乃聊聊</h3>
-            <p>咖啡馆的常驻咖啡师 · 陪你聊一小会儿</p>
+            <h3>咖啡馆前台-Beta</h3>
+            <p>与某神秘鲸鱼女子聊聊</p>
             <span class="menu-card-meta">对话</span>
           </div>
           <div class="menu-card-arrow">→</div>
@@ -540,7 +540,7 @@ const App = {
               ${this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 44)}
               <div class="chat-nana-info">
                 <div class="chat-nana-name">潮見柒乃</div>
-                <div class="chat-nana-sub">白日梦咖啡馆 · 咖啡师</div>
+                <div class="chat-nana-sub">新的章节在写了。请不要催我。</div>
               </div>
             </div>
             ${cfg.enabled ? `<button class="btn btn-small btn-ghost" id="chatClearBtn">清空对话</button>` : ''}
@@ -554,7 +554,7 @@ const App = {
             ${bubbles}
             <div class="chat-typing" id="chatTyping" style="display:none">
               ${this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 32)}
-              <div class="chat-bubble">柒乃正在搅动咖啡……</div>
+              <div class="chat-bubble">柒乃：……</div>
             </div>
           </div>
           <form class="chat-input-row" id="chatForm">
