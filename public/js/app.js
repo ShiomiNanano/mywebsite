@@ -215,12 +215,12 @@ const App = {
       <div class="cover-scene">
         <div class="book-cover" id="bookCover">
           <div class="cover-inner">
-            <div class="cover-top">汐凪島 · 物語</div>
+            <div class="cover-top">汐凪島 · 绘空事</div>
             <div class="cover-illus">${coverSVG}</div>
             <h1 class="cover-title">白日梦</h1>
             <div class="cover-sub">— Daydream Café —</div>
             <div class="cover-line"></div>
-            <div class="cover-bottom">第一卷 · 如暖阳般和煦</div>
+            <div class="cover-bottom">梦从此刻开始</div>
           </div>
         </div>
         <button class="btn-cover" id="openBook">翻 开 这 本 书</button>
@@ -258,8 +258,7 @@ const App = {
             <button class="btn btn-primary btn-block" type="submit">进入咖啡馆</button>
           </form>
           <div class="demo-tip">
-            <p>管理员：<b>admin / admin123</b></p>
-            <p>普通用户：<b>demo / demo123</b></p>
+            <p>咕咕嘎嘎</p>
           </div>
         </div>
       </div>
@@ -285,7 +284,7 @@ const App = {
           <div class="menu-card-icon">☂</div>
           <div class="menu-card-content">
             <h3>主线故事</h3>
-            <p>第一卷 · 如暖阳般和煦</p>
+            <p>梦从此刻开始</p>
             <span class="menu-card-meta">${cc} 章 · ${sc} 节</span>
           </div>
           <div class="menu-card-arrow">→</div>
@@ -331,7 +330,7 @@ const App = {
       <div class="page-head">
         <span class="eyebrow">Main Story</span>
         <h1>主线故事</h1>
-        <p>第一卷 · 如暖阳般和煦</p>
+        <p>梦从此刻开始</p>
       </div>
       <div class="chapter-list">
         ${m.main.length ? m.main.map(c => `
