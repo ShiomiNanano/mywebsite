@@ -73,6 +73,9 @@ input, button, textarea, select { font: inherit; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .size-38 { width: 38px; height: 38px; font-size: 17px; }
 .size-36 { width: 36px; height: 36px; font-size: 16px; }
+.size-44 { width: 44px; height: 44px; font-size: 19px; }
+.size-32 { width: 32px; height: 32px; font-size: 14px; }
+.size-40 { width: 40px; height: 40px; font-size: 17px; }
 .size-56 { width: 56px; height: 56px; font-size: 24px; }
 .size-96 { width: 96px; height: 96px; font-size: 40px; }
 
