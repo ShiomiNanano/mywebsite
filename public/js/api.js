@@ -6,7 +6,7 @@ const API = {
       opts.body = JSON.stringify(body);
     }
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeout || 8000);
+    const timer = setTimeout(() => ctrl.abort(), timeout || 80000);
     opts.signal = ctrl.signal;
     try {
       const res = await fetch(url, opts);
