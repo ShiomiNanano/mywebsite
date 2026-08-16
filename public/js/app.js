@@ -81,8 +81,8 @@ const App = {
 
   async init() {
     try {
-      const { user } = await API.get('/api/me');
-      this.state.user = user;
+      const me = await API.get('/api/me');
+      this.state.user = me && me.user;
     } catch (e) {}
     window.addEventListener('hashchange', () => this.route());
     this.route();
@@ -901,8 +901,17 @@ const App = {
         await API.post('/api/login', { username, password });
         toast('欢迎回来，' + username);
       }
-      const { user } = await API.get('/api/me');
-      this.state.user = user;
+      // 获取登录用户信息（带自动重试，避免偶发的响应异常导致登录失败）
+      let me = null;
+      for (let i = 0; i < 3; i++) {
+        try {
+          me = await API.get('/api/me');
+          if (me && me.user) break;
+        } catch (err) { /* 重试 */ }
+        await new Promise(r => setTimeout(r, 600));
+      }
+      if (!me || !me.user) throw new Error('登录状态异常，请再试一次');
+      this.state.user = me.user;
       location.hash = '#/menu';
     } catch (err) {
       errEl.textContent = err.message;
