@@ -506,3 +506,10 @@ html[data-theme="paper"] .profile-role { background: rgba(36,66,74,.1); }
   .menu-card-content h3 { font-size: 18px; }
   .chat-panel { height: calc(100vh - 200px); }
 }
+
+/* ============ 桌面端：阅读内容居中（手机端保持原样） ============ */
+@media (min-width: 768px) {
+  .reading {
+    margin: 28px auto 0;
+  }
+}
