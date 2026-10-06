@@ -459,7 +459,7 @@ const App = {
           </div>
           <div class="menu-card-arrow">→</div>
         </a>
-        <a class="menu-card" href="#/personal">
+        <a class="menu-card menu-personal" href="#/personal">
           <div class="menu-card-icon">✉</div>
           <div class="menu-card-content">
             <h3>个人章</h3>
@@ -468,7 +468,7 @@ const App = {
           </div>
           <div class="menu-card-arrow">→</div>
         </a>
-        <a class="menu-card" href="#/settings">
+        <a class="menu-card menu-settings" href="#/settings">
           <div class="menu-card-icon">❖</div>
           <div class="menu-card-content">
             <h3>设定</h3>
@@ -550,7 +550,7 @@ const App = {
         <h1>个人章</h1>
         <p>每一篇，都是一段被妥善安放的心事。</p>
       </div>
-      <div class="article-grid">
+      <div class="article-grid grid-personal">
         ${m.personal.length ? m.personal.map(a => `
           <a class="article-card" href="#/read/${a.id}">
             <div class="card-ico">✉</div>
@@ -575,7 +575,7 @@ const App = {
         <h1>设定</h1>
         <p>人物 · 岛屿 · 咖啡馆的来客。</p>
       </div>
-      <div class="article-grid">
+      <div class="article-grid grid-settings">
         ${m.settings.length ? m.settings.map(a => `
           <a class="article-card" href="#/read/${a.id}">
             <div class="card-ico">❖</div>
@@ -636,7 +636,7 @@ const App = {
     <div class="page">
       ${this.topbar()}
       <div class="breadcrumb">${this.catCrumb(article)}</div>
-      <article class="reading" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
+      <article class="reading reading-cat-${article.category}" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
         <header class="reading-head">
           <span class="eyebrow">${this.eyebrow(article)}</span>
           <h1>${esc(heading)}</h1>
@@ -927,6 +927,47 @@ const App = {
     </div>`;
   },
 
+  /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
+  reduceMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  },
+
+  // 只有"精确指针 + 允许动效"时才启用：触摸设备完全不参与，也不会有额外开销
+  initTilt() {
+    let fine = false;
+    try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
+    if (!fine || this.reduceMotion()) return;
+
+    const cards = document.querySelectorAll('.menu-card, .article-card, .chapter-card, .section-card');
+    if (!cards.length) return;
+    const MAX = 7;                       // 最大倾斜角度（度）
+
+    Array.prototype.forEach.call(cards, (el) => {
+      let raf = 0;
+      el.classList.add('js-tilt');
+      el.addEventListener('pointermove', (e) => {
+        if (raf) return;                 // rAF 节流，避免每次移动都算布局
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          const r = el.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          const px = (e.clientX - r.left) / r.width;    // 0..1
+          const py = (e.clientY - r.top) / r.height;
+          el.style.setProperty('--ry', ((px - 0.5) * MAX * 2).toFixed(2) + 'deg');
+          el.style.setProperty('--rx', ((0.5 - py) * MAX * 2).toFixed(2) + 'deg');
+          // 高光位置用 px，让它靠 transform 移动（不触发重绘）
+          el.style.setProperty('--mx', (px * r.width).toFixed(0) + 'px');
+          el.style.setProperty('--my', (py * r.height).toFixed(0) + 'px');
+        });
+      });
+      el.addEventListener('pointerleave', () => {
+        ['--rx', '--ry', '--mx', '--my'].forEach((k) => {
+          try { el.style.removeProperty(k); } catch (err) {}
+        });
+      });
+    });
+  },
+
   /* ---------- 事件绑定 ---------- */
   afterRender() {
     const openBtn = document.getElementById('openBook');
@@ -1011,6 +1052,9 @@ const App = {
     // 留言异步加载：文章先出，留言后到，互不阻塞
     const commentList = document.getElementById('commentList');
     if (commentList) this.loadCommentsAsync(commentList.dataset.article, commentList);
+
+    // 卡片跟随鼠标的 3D 倾斜（触摸设备和"减少动态效果"下会自动跳过）
+    this.initTilt();
   },
 
   /* ---------- 阅读页的滚动装饰：顶部进度条 + 回到顶部 ---------- */

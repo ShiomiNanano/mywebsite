@@ -1201,3 +1201,194 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
   }
   .menu-card:hover, .article-card:hover, .chapter-card:hover, .section-card:hover { transform: none; }
 }
+
+/* ============================================================================
+   颜色与动效层
+   ----------------------------------------------------------------------------
+   这一层解决两件事：色调单调、缺少动效。思路：
+
+   1. 每个内容模块给一个自己的色相 —— 主线=海蓝 / 个人章=松绿 / 设定=暮紫 /
+      继续阅读=陶土红。页面不再是一片蓝加金色，而是有节奏的配色。
+   2. 动效一律走"合成层友好"的属性（transform / opacity），不每帧重绘。
+   3. 卡片跟随鼠标做轻微 3D 倾斜（最大 7°），并在**光标所在处**亮起一团高光
+      （关键是高光用 transform 移动，而不是改 background-position —— 后者每帧重绘）。
+   4. 全部动效都在 prefers-reduced-motion 下关闭。
+   ============================================================================ */
+
+/* ======================= 1. 分类色 ======================= */
+:root,
+html[data-theme="ocean"] {
+  --c-main: #2f6ea8;
+  --c-personal: #2f7d64;
+  --c-settings: #6d5aa8;
+  --c-continue: #b0563c;
+  --c-main-soft: rgba(47, 110, 168, .13);
+  --c-personal-soft: rgba(47, 125, 100, .13);
+  --c-settings-soft: rgba(109, 90, 168, .13);
+  --c-continue-soft: rgba(176, 86, 60, .13);
+  --glow-3: rgba(198, 134, 74, .14);
+}
+html[data-theme="paper"] {
+  --c-main: #24565f;
+  --c-personal: #4c6b3a;
+  --c-settings: #6b5170;
+  --c-continue: #9c5433;
+  --c-main-soft: rgba(36, 86, 95, .13);
+  --c-personal-soft: rgba(76, 107, 58, .13);
+  --c-settings-soft: rgba(107, 81, 112, .13);
+  --c-continue-soft: rgba(156, 84, 51, .13);
+  --glow-3: rgba(200, 144, 74, .16);
+}
+html[data-theme="night"] {
+  --c-main: #74abd8;
+  --c-personal: #68b795;
+  --c-settings: #a996e2;
+  --c-continue: #e2956f;
+  --c-main-soft: rgba(116, 171, 216, .17);
+  --c-personal-soft: rgba(104, 183, 149, .17);
+  --c-settings-soft: rgba(169, 150, 226, .17);
+  --c-continue-soft: rgba(226, 149, 111, .17);
+  --glow-3: rgba(198, 132, 72, .13);
+}
+
+/* ======================= 2. 背景多一层暖光，并缓慢漂移 ======================= */
+/* body::before 是冷调柔光 + 纸纹（原有），这里用 ::after 再加一层暖光并让它慢慢漂。
+   用 transform 动画而不是 background-position，前者是合成层，不重绘。 */
+body::after {
+  content: ""; position: fixed; inset: -12%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(760px 560px at 12% 96%, var(--glow-3), transparent 66%),
+    radial-gradient(620px 460px at 94% 74%, var(--glow-2), transparent 62%),
+    radial-gradient(520px 420px at 68% 8%, var(--c-personal-soft), transparent 68%);
+  animation: bgDrift 38s ease-in-out infinite;
+}
+@keyframes bgDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-1.6%, 1.4%, 0) scale(1.05); }
+}
+
+/* ======================= 3. 卡片跟随鼠标的 3D 倾斜 + 光标高光 ======================= */
+/* .js-tilt 由 JS 加上（只有"精确指针 + 允许动效"时才加），所以触摸设备完全不受影响 */
+.js-tilt {
+  position: relative; overflow: hidden;
+  transform:
+    perspective(900px)
+    rotateX(var(--rx, 0deg))
+    rotateY(var(--ry, 0deg))
+    translateY(var(--ty, 0px));
+  transition: transform .2s var(--ease), box-shadow .3s var(--ease), border-color .3s var(--ease);
+}
+.js-tilt:hover { --ty: -4px; }
+/* 高光：固定尺寸的小圆，用 transform 跟着光标走（合成层，不重绘） */
+.js-tilt::before {
+  content: ""; position: absolute; left: 0; top: 0; width: 260px; height: 260px;
+  border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, var(--card-hi, rgba(255, 255, 255, .22)), transparent 70%);
+  transform: translate3d(calc(var(--mx, -999px) - 130px), calc(var(--my, -999px) - 130px), 0);
+  transition: opacity .35s var(--ease);
+}
+.js-tilt:hover::before { opacity: 1; }
+
+/* ======================= 4. 书架卡片用上分类色 ======================= */
+.menu-main     { --cat: var(--c-main);     --cat-soft: var(--c-main-soft);     --card-hi: rgba(150, 205, 255, .26); }
+.menu-continue { --cat: var(--c-continue); --cat-soft: var(--c-continue-soft); --card-hi: rgba(255, 226, 190, .28); }
+.menu-personal { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); --card-hi: rgba(178, 245, 214, .22); }
+.menu-settings { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); --card-hi: rgba(214, 200, 255, .22); }
+
+/* 左侧竖线：原来是金色，现在跟随分类色 */
+.menu-card::after { background: var(--cat, var(--gold-2)); }
+
+/* 图标底色/字色跟随分类色（主卡是深色底，保持它自己的浅色图标） */
+.menu-card-icon { transition: transform .35s var(--ease), background-color .3s var(--ease), color .3s var(--ease); }
+.menu-card:not(.menu-main):not(.menu-continue) .menu-card-icon { color: var(--cat); background: var(--cat-soft); }
+.menu-card:hover .menu-card-icon { transform: translateY(-2px) rotate(-6deg) scale(1.08); }
+
+/* 悬停时卡片浮起带一点自己的颜色 */
+.menu-card:hover { border-color: var(--cat, var(--line-2)); }
+.menu-card:hover { box-shadow: 0 2px 4px rgba(var(--shadow), .05), 0 20px 40px -22px var(--cat, rgba(var(--shadow), .5)); }
+
+/* 主卡的金色导轨做一次缓慢呼吸，把视线拉过去 */
+.menu-main::after { animation: railPulse 4.5s ease-in-out infinite; }
+@keyframes railPulse {
+  0%, 100% { opacity: .35; }
+  50%      { opacity: .85; }
+}
+
+/* ======================= 5. 文章卡片 / 章列表 也用上分类色 ======================= */
+.article-card { position: relative; }
+.article-card::after {
+  content: ""; position: absolute; inset: 0 0 auto; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cat, var(--gold-2)), transparent);
+}
+.grid-personal { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
+.grid-settings { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
+.grid-personal .article-card .card-ico,
+.grid-settings .article-card .card-ico { color: var(--cat); background: var(--cat-soft); }
+.article-card .card-ico { transition: transform .35s var(--ease), background-color .3s var(--ease), color .3s var(--ease); }
+.article-card:hover .card-ico { transform: translateY(-2px) rotate(-6deg) scale(1.08); }
+.article-card:hover { border-color: var(--cat, var(--line-2)); }
+.article-card .card-meta { color: var(--cat, var(--gold)); }
+
+/* 章列表：让色相轮转起来，一眼看过去有节奏 */
+.chapter-list > *:nth-child(3n+1) { --cat: var(--c-main);     --cat-soft: var(--c-main-soft); }
+.chapter-list > *:nth-child(3n+2) { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
+.chapter-list > *:nth-child(3n+3) { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
+.chapter-card .chapter-num { color: var(--cat, var(--gold)); }
+.chapter-card .chapter-arrow { color: var(--cat, var(--gold)); }
+.chapter-card::after {
+  content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--cat, var(--gold-2)); opacity: .55;
+  transition: top .3s var(--ease), bottom .3s var(--ease), opacity .3s var(--ease);
+}
+.chapter-card:hover::after { top: 8%; bottom: 8%; opacity: 1; }
+.chapter-card { position: relative; overflow: hidden; padding-left: calc(var(--sp-5) + 6px); }
+
+/* 节列表：序号用分类色（沿用当前章的颜色） */
+.section-list { --cat: var(--c-main); --cat-soft: var(--c-main-soft); }
+.section-card { position: relative; overflow: hidden; }
+.section-card .section-index { color: var(--cat, var(--accent)); background: var(--cat-soft, var(--surface-2)); }
+.section-card:hover { border-color: var(--cat, var(--line-2)); }
+.section-card .section-arrow { color: var(--cat, var(--gold)); }
+
+/* ======================= 6. 阅读页：按分类上色 ======================= */
+.reading-cat-main     { --cat: var(--c-main);     --cat-soft: var(--c-main-soft); }
+.reading-cat-personal { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
+.reading-cat-settings { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
+.reading .eyebrow { color: var(--cat, var(--gold)); }
+.reading-meta { color: var(--cat, var(--ink-3)); }
+.reading-tools .btn { border-color: var(--cat-soft, var(--line-2)); color: var(--cat, var(--accent)); }
+.reading-tools .btn:hover { border-color: var(--cat, var(--accent)); background: var(--cat-soft, var(--accent-soft)); }
+.reading-progress { background: linear-gradient(90deg, var(--cat, var(--accent)), var(--gold)); }
+
+/* ======================= 7. 入场动效（淡入 + 去模糊，错开） ======================= */
+/* 只动 opacity 和 filter —— 不碰 transform，免得和上面的倾斜打架 */
+@keyframes cardIn {
+  from { opacity: 0; filter: blur(7px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+.menu-cards > *, .chapter-list > *, .article-grid > *, .section-list > * {
+  animation: cardIn .5s var(--ease) backwards;
+}
+.menu-cards > *:nth-child(1), .chapter-list > *:nth-child(1),
+.article-grid > *:nth-child(1), .section-list > *:nth-child(1) { animation-delay: .04s; }
+.menu-cards > *:nth-child(2), .chapter-list > *:nth-child(2),
+.article-grid > *:nth-child(2), .section-list > *:nth-child(2) { animation-delay: .10s; }
+.menu-cards > *:nth-child(3), .chapter-list > *:nth-child(3),
+.article-grid > *:nth-child(3), .section-list > *:nth-child(3) { animation-delay: .16s; }
+.menu-cards > *:nth-child(4), .chapter-list > *:nth-child(4),
+.article-grid > *:nth-child(4), .section-list > *:nth-child(4) { animation-delay: .22s; }
+.menu-cards > *:nth-child(5), .chapter-list > *:nth-child(5),
+.article-grid > *:nth-child(5), .section-list > *:nth-child(5) { animation-delay: .28s; }
+.menu-cards > *:nth-child(n+6), .chapter-list > *:nth-child(n+6),
+.article-grid > *:nth-child(n+6), .section-list > *:nth-child(n+6) { animation-delay: .32s; }
+
+/* ======================= 8. 尊重"减少动态效果" ======================= */
+@media (prefers-reduced-motion: reduce) {
+  body::after { animation: none; }
+  .menu-cards > *, .chapter-list > *, .article-grid > *, .section-list > * { animation: none; }
+  .js-tilt { transform: none; }
+  .js-tilt::before { display: none; }
+  .menu-main::after { animation: none; opacity: .6; }
+  .menu-card:hover .menu-card-icon,
+  .article-card:hover .card-ico { transform: none; }
+}
