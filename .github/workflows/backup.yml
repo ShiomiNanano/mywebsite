@@ -1,0 +1,44 @@
+name: Backup D1
+
+# 每周一 UTC 03:00 自动把 D1 里的文章导出成 SQL，也可以在 Actions 页面手动 Run workflow。
+#
+# 需要先在仓库里配置两个 Secrets（Settings → Secrets and variables → Actions）：
+#   CLOUDFLARE_API_TOKEN   权限至少要有 D1:Edit
+#   CLOUDFLARE_ACCOUNT_ID
+#
+# ⚠️ 导出的 SQL 里包含你的全部小说正文。
+#    这里用 artifact 保存（90 天），不会提交回仓库；
+#    如果这个仓库是公开的，千万不要改成 commit 到仓库里，否则等于把小说公开发布。
+#    想长期保存可以改成上传到私有的 R2 桶。
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Export D1 database
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # 如果这条命令的参数在你的 wrangler 版本里不同，先跑：
+          #   npx wrangler d1 export --help
+          npx --yes wrangler@latest d1 export daydream --remote --output=backup-daydream.sql
+          ls -lh backup-daydream.sql
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup-${{ github.run_number }}
+          path: backup-daydream.sql
+          retention-days: 90

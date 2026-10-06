@@ -27,30 +27,79 @@ function toast(msg, type = 'ok') {
   toast._t = setTimeout(() => box.classList.remove('show'), 2400);
 }
 
+// 本地图片 → 正方形缩略图（默认 128px webp，约 10KB），避免把 2MB 原图塞进数据库
+function shrinkImage(file, size = 128) {
+  return new Promise((resolve, reject) => {
+    const draw = (src, cleanup) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = c.height = size;
+          const s = Math.min(img.width, img.height);
+          const ctx = c.getContext('2d');
+          ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+          resolve(c.toDataURL('image/webp', 0.85));
+        } catch (e) { reject(e); } finally { cleanup && cleanup(); }
+      };
+      img.onerror = () => { cleanup && cleanup(); reject(new Error('图片读取失败')); };
+      img.src = src;
+    };
+    const url = URL.createObjectURL(file);
+    draw(url, () => URL.revokeObjectURL(url));
+  });
+}
+
+// 封面插画：按小说的意象来 —— 星海巨鲸、它头顶悬着的那颗黑洞、月亮与海
 const coverSVG = `
-<svg viewBox="0 0 320 200" class="cover-svg" aria-hidden="true">
-  <defs><radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
-    <stop offset="0%" stop-color="rgba(240,220,170,0.32)"/><stop offset="100%" stop-color="rgba(240,220,170,0)"/>
-  </radialGradient></defs>
-  <circle cx="252" cy="52" r="60" fill="url(#moonGlow)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" class="cover-svg" aria-hidden="true">
+  <defs>
+    <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(240,220,170,0.30)"/>
+      <stop offset="100%" stop-color="rgba(240,220,170,0)"/>
+    </radialGradient>
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(240,223,174,0.20)"/>
+      <stop offset="100%" stop-color="rgba(240,223,174,0)"/>
+    </radialGradient>
+    <linearGradient id="whaleBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dceefb" stop-opacity=".20"/>
+      <stop offset="100%" stop-color="#8fc3e4" stop-opacity=".05"/>
+    </linearGradient>
+  </defs>
+
+  <g fill="#d6ecf8">
+    <circle cx="36" cy="34" r="1.4" opacity=".85"/><circle cx="70" cy="20" r="1.1" opacity=".7"/>
+    <circle cx="150" cy="30" r="1.2" opacity=".75"/><circle cx="196" cy="54" r="1.3" opacity=".8"/>
+    <circle cx="26" cy="76" r="1.1" opacity=".6"/><circle cx="174" cy="82" r="1" opacity=".65"/>
+    <circle cx="222" cy="98" r="1.2" opacity=".7"/><circle cx="52" cy="52" r="1" opacity=".6"/>
+    <circle cx="242" cy="76" r="1.1" opacity=".65"/><circle cx="120" cy="16" r="1" opacity=".55"/>
+  </g>
+
+  <circle cx="250" cy="46" r="52" fill="url(#moonGlow)"/>
   <path d="M 238 22 A 26 26 0 1 0 254 62 A 21 21 0 0 1 238 22 Z" fill="#f0dfae"/>
-  <g fill="#d6ecf8" opacity="0.85">
-    <circle cx="60" cy="40" r="1.6"/><circle cx="120" cy="70" r="1.2"/><circle cx="40" cy="90" r="1.4"/>
-    <circle cx="200" cy="112" r="1.2"/><circle cx="286" cy="122" r="1.5"/><circle cx="70" cy="150" r="1.3"/>
-    <circle cx="160" cy="28" r="1.1"/><circle cx="18" cy="130" r="1.3"/>
+
+  <ellipse cx="106" cy="62" rx="38" ry="25" fill="url(#eyeGlow)"/>
+  <path d="M 76 62 Q 106 40 136 62 Q 106 84 76 62 Z" fill="#05090d" stroke="rgba(240,223,174,.45)" stroke-width="1"/>
+  <circle cx="106" cy="62" r="3" fill="none" stroke="rgba(240,223,174,.5)" stroke-width=".9"/>
+
+  <g fill="url(#whaleBody)" stroke="rgba(206,232,247,.5)" stroke-width="1.3" stroke-linejoin="round">
+    <path d="M 28 130 C 52 104 98 92 146 96 C 190 100 222 114 244 130 C 224 144 178 156 126 156 C 78 156 44 146 28 130 Z"/>
+    <path d="M 238 124 C 250 112 262 102 272 96 C 268 116 268 138 272 158 C 260 148 248 136 236 134 Z"/>
+    <path d="M 116 146 C 122 162 136 170 150 168 C 140 160 130 152 126 144 Z"/>
   </g>
-  <g fill="none" stroke="rgba(208,232,247,0.55)" stroke-width="1.4" stroke-linecap="round">
-    <path d="M0 150 Q 20 142 40 150 T 80 150 T 120 150 T 160 150 T 200 150 T 240 150 T 280 150 T 320 150"/>
-    <path d="M0 162 Q 25 155 50 162 T 100 162 T 150 162 T 200 162 T 250 162 T 300 162 T 320 162"/>
-  </g>
+
   <g fill="#eaf5fb">
-    <path d="M 60 150 C 58 130 52 120 52 106 C 52 90 66 80 80 80 C 94 80 106 90 106 106 C 106 120 100 132 94 150 Z"/>
-    <circle cx="77" cy="78" r="14"/>
-    <path d="M 66 70 L 60 52 L 75 64 Z"/><path d="M 82 66 L 92 50 L 92 70 Z"/>
-    <path d="M 98 138 C 112 136 118 122 114 112 C 112 106 106 104 102 108" fill="none" stroke="#eaf5fb" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="62" cy="132" r="1.5"/><circle cx="98" cy="124" r="1.1"/>
+    <circle cx="140" cy="127" r="1.3"/><circle cx="176" cy="134" r="1"/>
+    <circle cx="206" cy="141" r="1.2"/>
   </g>
-  <g fill="none" stroke="#0c2033" stroke-width="2" stroke-linecap="round">
-    <path d="M 69 80 Q 74 76 79 80"/><path d="M 84 80 Q 89 76 94 80"/>
+  <path d="M 44 134 C 82 148 152 152 224 140" fill="none" stroke="rgba(206,232,247,.20)" stroke-width="1"/>
+  <path d="M 30 129 C 38 125 46 125 54 128" fill="none" stroke="rgba(206,232,247,.38)" stroke-width="1.1" stroke-linecap="round"/>
+
+  <g fill="none" stroke="rgba(208,232,247,.4)" stroke-width="1.3" stroke-linecap="round">
+    <path d="M0 170 Q 20 162 40 170 T 80 170 T 120 170 T 160 170 T 200 170 T 240 170 T 280 170 T 320 170"/>
+    <path d="M0 184 Q 26 177 52 184 T 104 184 T 156 184 T 208 184 T 260 184 T 312 184"/>
   </g>
 </svg>`;
 
@@ -71,40 +120,114 @@ function bindSwipe(el) {
   }, { passive: true });
 }
 
+const DEFAULT_TITLE = '白日梦咖啡馆 · 绘空事';
+
 /* =================================================== 应用主体 */
 const App = {
-  state: { user: null, menu: null },
+  state: { user: null, menu: null, config: { turnstile_site_key: '' } },
   authMode: 'login',
   pendingAvatar: null,
-  chatHistory: [],     // 本次对话（只存在内存，离开即清空）
-  chatBusy: false,
+  pageTitle: DEFAULT_TITLE,
 
   async init() {
-    try {
-      const me = await API.get('/api/me');
-      this.state.user = me && me.user;
-    } catch (e) {}
-    // 应用已保存的主题（默认海洋蓝）
-    let t = 'ocean';
-    try { t = localStorage.getItem('daydream-theme') || 'ocean'; } catch (e) {}
+    // 主题已由 js/theme-boot.js 在首屏绘制前设好，这里只做同步；万一没有就按系统偏好兜底
+    let t = document.documentElement.getAttribute('data-theme');
+    if (!t) {
+      let dark = false;
+      try { dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+      t = dark ? 'night' : 'ocean';
+    }
     this.applyTheme(t);
+
+    // 阅读字号（0 小 / 1 中 / 2 大）
+    try { document.documentElement.setAttribute('data-font', localStorage.getItem('daydream-font-size') || '0'); } catch (e) {}
+
+    // 字体延后注入：正文优先用系统字体，装饰/标题字体不再阻塞首屏。
+    // （国内直连 fonts.googleapis.com 经常超时，放在这里加载失败也不影响阅读）
+    try {
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@600;700&display=swap';
+      document.head.appendChild(fontLink);
+    } catch (e) {}
+
+    // 登录态与站点配置并行拉取，互不阻塞
+    const [me, cfg] = await Promise.all([
+      API.get('/api/me').catch(() => null),
+      API.get('/api/config').catch(() => null),
+    ]);
+    this.state.user = (me && me.user) || null;
+    this.state.config = { turnstile_site_key: (cfg && cfg.turnstile_site_key) || '' };
+
     window.addEventListener('hashchange', () => this.route());
     this.route();
   },
 
+  themes: ['ocean', 'paper', 'night'],
+  themeNames: { ocean: '海洋', paper: '暖纸', night: '夜读' },
+  themeBg: { ocean: '#e8f0f6', paper: '#f3ecdd', night: '#0c1822' },
+
+  themeIcon(theme) {
+    if (theme === 'paper') {
+      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7.2C10.4 5.9 8.4 5.2 5.8 5.2H3.5v13.6h2.3c2.6 0 4.6.7 6.2 2 1.6-1.3 3.6-2 6.2-2h2.3V5.2h-2.3c-2.6 0-4.6.7-6.2 2z"/><path d="M12 7.2v13.6"/></svg>';
+    }
+    if (theme === 'night') {
+      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.8A8.6 8.6 0 0 1 9.2 3.8a8.6 8.6 0 1 0 11 11z"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M4.4 4.4L6 6M18 18l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>';
+  },
+
   applyTheme(t) {
-    const theme = (t === 'paper') ? 'paper' : 'ocean';
+    const theme = this.themes.indexOf(t) > -1 ? t : 'ocean';
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem('daydream-theme', theme); } catch (e) {}
     const btn = document.getElementById('themeBtn');
-    if (btn) btn.textContent = theme === 'paper' ? '☀️' : '🌙';
+    if (btn) {
+      btn.innerHTML = this.themeIcon(theme);
+      btn.setAttribute('title', '当前主题：' + this.themeNames[theme] + '（点击切换）');
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', this.themeBg[theme] || this.themeBg.ocean);
   },
 
   toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme') === 'paper' ? 'paper' : 'ocean';
-    const next = cur === 'paper' ? 'ocean' : 'paper';
+    const cur = document.documentElement.getAttribute('data-theme') || 'ocean';
+    const next = this.themes[(this.themes.indexOf(cur) + 1) % this.themes.length] || 'ocean';
     this.applyTheme(next);
-    toast(next === 'paper' ? '已切换到暖纸主题' : '已切换到海洋主题');
+    toast('已切换到「' + this.themeNames[next] + '」主题');
+  },
+
+  applyFont(n) {
+    const v = String(Math.min(2, Math.max(0, parseInt(n, 10) || 0)));
+    document.documentElement.setAttribute('data-font', v);
+    try { localStorage.setItem('daydream-font-size', v); } catch (e) {}
+  },
+
+  /* ---------- 上次读到哪儿 ---------- */
+  lastRead() {
+    try { return JSON.parse(localStorage.getItem('daydream-last-read') || 'null'); } catch (e) { return null; }
+  },
+  rememberRead(a) {
+    try { localStorage.setItem('daydream-last-read', JSON.stringify({ id: a.id, ts: Date.now() })); } catch (e) {}
+  },
+  // 在已缓存的目录里按 id 找一篇文章
+  findArticle(id) {
+    const m = this.state.menu;
+    if (!m) return null;
+    const all = [];
+    (m.main || []).forEach(ch => all.push(...(ch.sections || [])));
+    (m.personal || []).forEach(a => all.push(a));
+    (m.settings || []).forEach(a => all.push(a));
+    return all.find(x => x.id === Number(id)) || null;
+  },
+  titleOf(a) {
+    if (!a) return '';
+    return a.category === 'main' ? (a.chapter_title + ' · ' + a.section_title) : a.title;
+  },
+  // 书架上显示的留言数不用整份重取，直接改缓存即可
+  bumpCommentCount(id, d) {
+    const a = this.findArticle(id);
+    if (a) a.comment_count = Math.max(0, (a.comment_count || 0) + d);
   },
 
   async route() {
@@ -116,6 +239,7 @@ const App = {
       document.getElementById('app').innerHTML = this.loadingSkeleton(parts[0]);
       window.scrollTo(0, 0);
     }
+    this.pageTitle = DEFAULT_TITLE;
     let view = '';
     try {
       if (parts.length === 0) view = this.renderLanding();
@@ -126,26 +250,26 @@ const App = {
       else if (parts[0] === 'personal') view = await this.renderPersonal();
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
-      else if (parts[0] === 'chat') view = await this.renderChat();
+      // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
+      else if (parts[0] === 'chat') { location.hash = '#/menu'; return ''; }
       else if (parts[0] === 'profile') view = this.renderProfile();
       else if (parts[0] === 'admin') {
         const sub = parts[1];
         if (sub === 'new') view = await this.renderAdminForm();
         else if (sub === 'edit') view = await this.renderAdminForm(parts[2]);
         else if (sub === 'users') view = await this.renderAdminUsers();
-        else if (sub === 'chat') view = await this.renderAdminChat();
         else view = await this.renderAdminArticles();
       }
       else view = this.renderLanding();
     } catch (e) {
       view = `<div class="page">${this.topbar()}<div class="notfound">${esc(e.message)}</div></div>`;
     }
-    // 离开对话页时清空本次会话（不永久保存）
-    if (parts[0] !== 'chat') this.chatHistory = [];
     const isOutside = parts.length === 0 || parts[0] === 'login';
-    const showNav = this.state.user && !isOutside;
+    // 游客也能看书，所以底部导航对所有人显示（登录/封面页除外）
+    const showNav = !isOutside;
     const active = !showNav ? '' : (['menu', 'main', 'personal', 'settings'].includes(parts[0]) ? parts[0] : '');
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
+    document.title = this.pageTitle || DEFAULT_TITLE;
     window.scrollTo(0, 0);
     this.afterRender();
   },
@@ -175,16 +299,24 @@ const App = {
   },
 
   bottomNav(active) {
-    const item = (key, ico, txt) => `
-      <a class="bn-item ${active === key ? 'active' : ''}" href="#/${key}">
-        <span class="bn-ico">${ico}</span><span class="bn-txt">${txt}</span>
+    // 用矢量图标代替原来的 ☾☂✉❖ 文本符号
+    const icons = {
+      menu: '<path d="M4 5.2h5.2v13.6H4z"/><path d="M9.2 5.2h4.4v13.6H9.2z"/><path d="M15.4 6.6l3.9 1-3 12.2-3.9-1z"/>',
+      main: '<path d="M12 7.2C10.4 5.9 8.4 5.2 5.8 5.2H3.5v13.6h2.3c2.6 0 4.6.7 6.2 2 1.6-1.3 3.6-2 6.2-2h2.3V5.2h-2.3c-2.6 0-4.6.7-6.2 2z"/><path d="M12 7.2v13.6"/>',
+      personal: '<path d="M3.5 6.4h17v11.2h-17z"/><path d="M3.8 6.9l8.2 5.8 8.2-5.8"/>',
+      settings: '<path d="M12 3.4l8.4 4.7-8.4 4.7-8.4-4.7z"/><path d="M3.6 12.6l8.4 4.7 8.4-4.7"/><path d="M3.6 16.8l8.4 4.7 8.4-4.7"/>',
+    };
+    const item = (key, txt) => `
+      <a class="bn-item ${active === key ? 'active' : ''}" href="#/${key}"${active === key ? ' aria-current="page"' : ''}>
+        <span class="bn-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${icons[key]}</svg></span>
+        <span class="bn-txt">${txt}</span>
       </a>`;
     return `
     <nav class="bottom-nav">
-      ${item('menu', '☾', '书架')}
-      ${item('main', '☂', '主线')}
-      ${item('personal', '✉', '个人')}
-      ${item('settings', '❖', '设定')}
+      ${item('menu', '书架')}
+      ${item('main', '主线')}
+      ${item('personal', '个人')}
+      ${item('settings', '设定')}
     </nav>`;
   },
 
@@ -198,7 +330,7 @@ const App = {
 
   topbar() {
     const u = this.state.user;
-    const isPaper = document.documentElement.getAttribute('data-theme') === 'paper';
+    const theme = document.documentElement.getAttribute('data-theme') || 'ocean';
     return `
     <header class="topbar">
       <a class="brand" href="#/menu">
@@ -206,7 +338,7 @@ const App = {
         <span class="brand-name">白日梦咖啡馆</span>
       </a>
       <div class="topbar-right">
-        <button class="theme-btn" id="themeBtn" title="切换主题">${isPaper ? '☀️' : '🌙'}</button>
+        <button class="icon-btn" id="themeBtn" title="切换主题（海洋 / 暖纸 / 夜读）" aria-label="切换主题">${this.themeIcon(theme)}</button>
         ${u ? `
           <a class="topbar-item topbar-hide-mobile" href="#/menu">书架</a>
           ${u.role === 'admin' ? `<a class="topbar-item" href="#/admin/articles">管理</a>` : ''}
@@ -216,17 +348,17 @@ const App = {
     </header>`;
   },
 
-  async ensureMenu() {
-    if (!this.state.menu) {
+  async ensureMenu(force) {
+    if (force || !this.state.menu) {
       const m = await API.get('/api/menu');
       this.state.menu = { main: m.main || [], personal: m.personal || [], settings: m.settings || [] };
     }
     return this.state.menu;
   },
 
+  // 摘要由后端生成（目录接口不再返回全文）
   excerpt(a) {
-    const txt = (a.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    return txt.length > 42 ? txt.slice(0, 42) + '…' : txt;
+    return (a && a.excerpt) || '';
   },
 
   /* ---------- 1. 书封面 ---------- */
@@ -252,6 +384,7 @@ const App = {
   /* ---------- 2. 登录 / 注册 ---------- */
   renderLogin() {
     if (this.state.user) { location.hash = '#/menu'; return ''; }
+    const siteKey = (this.state.config && this.state.config.turnstile_site_key) || '';
     return `
     <div class="page login-page">
       ${this.topbar()}
@@ -270,14 +403,18 @@ const App = {
             <label>用户名</label>
             <input name="username" placeholder="2-20位用户名" autocomplete="username" required>
             <label>密码</label>
-            <input name="password" type="password" placeholder="至少4位" autocomplete="current-password" required>
+            <input name="password" type="password" placeholder="至少8位" autocomplete="current-password" required>
             <div id="confirmRow">
               <label>确认密码</label>
               <input name="confirmPassword" type="password" placeholder="再次输入密码">
             </div>
+            ${siteKey ? `<div class="turnstile-box" id="turnstileBox" data-sitekey="${esc(siteKey)}"></div>` : ''}
             <div class="login-error" id="loginError"></div>
             <button class="btn btn-primary btn-block" type="submit">进入咖啡馆</button>
           </form>
+          <div class="login-guest">
+            <a href="#/menu">只想看看书？以访客身份进入 →</a>
+          </div>
           <div class="demo-tip">
             <p>咕咕嘎嘎</p>
           </div>
@@ -288,18 +425,30 @@ const App = {
 
   /* ---------- 3. 书架（三大入口 + 与柒乃聊聊） ---------- */
   async renderMenu() {
-    if (!this.state.user) { location.hash = '#/login'; return ''; }
     const m = await this.ensureMenu();
+    const u = this.state.user;
     const cc = m.main.length;
     const sc = m.main.reduce((s, c) => s + (c.sections || []).length, 0);
+    const last = this.lastRead();
+    const lastArticle = last ? this.findArticle(last.id) : null;
     return `
     <div class="page">
       ${this.topbar()}
       <div class="menu-hero">
-        <p class="menu-greet">晚安，${esc(this.state.user.username)}。</p>
+        <p class="menu-greet">${u ? '晚安，' + esc(u.username) + '。' : '欢迎来到白日梦咖啡馆。'}</p>
         <p class="menu-quote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
       </div>
       <div class="menu-cards">
+        ${lastArticle ? `
+        <a class="menu-card menu-continue" href="#/read/${lastArticle.id}">
+          <div class="menu-card-icon">❧</div>
+          <div class="menu-card-content">
+            <h3>继续阅读</h3>
+            <p>${esc(this.titleOf(lastArticle))}</p>
+            <span class="menu-card-meta">上次读到这里</span>
+          </div>
+          <div class="menu-card-arrow">→</div>
+        </a>` : ''}
         <a class="menu-card menu-main" href="#/main">
           <div class="menu-card-badge">主 线</div>
           <div class="menu-card-icon">☂</div>
@@ -328,15 +477,6 @@ const App = {
           </div>
           <div class="menu-card-arrow">→</div>
         </a>
-        <a class="menu-card menu-chat" href="#/chat">
-          <div class="menu-card-icon">☕</div>
-          <div class="menu-card-content">
-            <h3>咖啡馆前台-Beta</h3>
-            <p>与某神秘鲸鱼女子聊聊</p>
-            <span class="menu-card-meta">对话</span>
-          </div>
-          <div class="menu-card-arrow">→</div>
-        </a>
       </div>
     </div>`;
   },
@@ -344,6 +484,7 @@ const App = {
   /* ---------- 4. 主线：章列表 ---------- */
   async renderMainList() {
     const m = await this.ensureMenu();
+    this.pageTitle = '主线故事 · 白日梦咖啡馆';
     return `
     <div class="page">
       ${this.topbar()}
@@ -372,6 +513,7 @@ const App = {
     const m = await this.ensureMenu();
     const c = m.main.find(x => String(x.chapter_no) === String(chapterNo));
     if (!c) return `<div class="page">${this.topbar()}<div class="notfound">这一章还不存在。</div></div>`;
+    this.pageTitle = c.chapter_title + ' · 白日梦咖啡馆';
     const secs = c.sections || [];
     return `
     <div class="page">
@@ -398,6 +540,7 @@ const App = {
   /* ---------- 6. 个人章 ---------- */
   async renderPersonal() {
     const m = await this.ensureMenu();
+    this.pageTitle = '个人章 · 白日梦咖啡馆';
     return `
     <div class="page">
       ${this.topbar()}
@@ -422,6 +565,7 @@ const App = {
   /* ---------- 7. 设定 ---------- */
   async renderSettings() {
     const m = await this.ensureMenu();
+    this.pageTitle = '设定 · 白日梦咖啡馆';
     return `
     <div class="page">
       ${this.topbar()}
@@ -456,7 +600,11 @@ const App = {
   },
 
   async renderRead(id) {
-    const article = await API.get('/api/article/' + id);
+    // 直接深链进来时目录还是空的，和正文并行加载，这样上下篇按钮不会消失
+    const [article] = await Promise.all([
+      API.get('/api/article/' + id),
+      this.ensureMenu().catch(() => null),
+    ]);
     if (!article) return `<div class="page">${this.topbar()}<div class="notfound">文章不存在。</div></div>`;
 
     // 上下篇用前端已缓存的目录计算，不额外请求数据库
@@ -477,6 +625,13 @@ const App = {
       }
     }
 
+    const heading = article.category === 'main' ? article.section_title : article.title;
+    // 正文字数（去掉标签和空白），阅读页显示"约 N 字"
+    const plainLen = String(article.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
+    const articleChars = plainLen.toLocaleString('zh-CN');
+    this.pageTitle = heading + ' · 白日梦咖啡馆';
+    this.rememberRead(article);
+
     return `
     <div class="page">
       ${this.topbar()}
@@ -484,16 +639,22 @@ const App = {
       <article class="reading" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
         <header class="reading-head">
           <span class="eyebrow">${this.eyebrow(article)}</span>
-          <h1>${esc(article.category === 'main' ? article.section_title : article.title)}</h1>
+          <h1>${esc(heading)}</h1>
+          <div class="reading-meta">${esc(formatTime(article.updated_at))} 更新 · 约 ${articleChars} 字</div>
           <div class="reading-divider"><span>❧</span></div>
         </header>
+        <div class="reading-tools">
+          <span class="reading-tools-label">字号</span>
+          <button class="btn btn-small btn-ghost" id="fontSmaller" title="缩小字号">A－</button>
+          <button class="btn btn-small btn-ghost" id="fontLarger" title="放大字号">A＋</button>
+        </div>
         <div class="reading-content">${article.content}</div>
         <footer class="reading-foot"><span>— 全文完 —</span></footer>
         <div class="reading-nav">
           ${prev_id ? `<a class="btn btn-small btn-ghost" href="#/read/${prev_id}">← 上一篇</a>` : '<span></span>'}
           ${next_id ? `<a class="btn btn-small btn-ghost" href="#/read/${next_id}">下一篇 →</a>` : '<span></span>'}
         </div>
-        <p class="reading-swipe-hint">手机上左右滑动可切换上一篇 / 下一篇</p>
+        <p class="reading-swipe-hint">手机上左右滑动、电脑上按 ← → 可切换上一篇 / 下一篇</p>
       </article>
 
       <section class="comments">
@@ -502,31 +663,65 @@ const App = {
         <div class="comments-list" id="commentList" data-article="${article.id}">
           <p class="comments-empty">留言加载中……</p>
         </div>
+        <div class="comments-more-wrap" id="commentMoreWrap"></div>
       </section>
     </div>`;
   },
 
+  commentHtml(c) {
+    return `
+      <div class="comment" data-id="${c.id}">
+        ${this.avatarHtml({ username: c.username, avatar: c.avatar }, 36)}
+        <div class="comment-body">
+          <div class="comment-head">
+            <span class="comment-name">${esc(c.username)}</span>
+            <span class="comment-time">${esc(formatTime(c.created_at))}</span>
+          </div>
+          <div class="comment-content">${esc(c.content)}</div>
+        </div>
+      </div>`;
+  },
+
   async loadCommentsAsync(articleId, listEl) {
     try {
-      const comments = await API.get('/api/article/' + articleId + '/comments');
-      const cmts = comments || [];
+      const data = await API.get('/api/article/' + articleId + '/comments?limit=20');
+      const items = (data && data.items) || [];
       const countEl = document.getElementById('commentCount');
-      if (countEl) countEl.textContent = cmts.length;
-      listEl.innerHTML = cmts.length === 0
+      if (countEl) countEl.textContent = (data && typeof data.total === 'number') ? data.total : items.length;
+      listEl.innerHTML = items.length === 0
         ? '<p class="comments-empty">还没有留言，来占个位置吧。</p>'
-        : cmts.map(c => `
-          <div class="comment">
-            ${this.avatarHtml({ username: c.username, avatar: c.avatar }, 36)}
-            <div class="comment-body">
-              <div class="comment-head">
-                <span class="comment-name">${esc(c.username)}</span>
-                <span class="comment-time">${esc(formatTime(c.created_at))}</span>
-              </div>
-              <div class="comment-content">${esc(c.content)}</div>
-            </div>
-          </div>`).join('');
+        : items.map(c => this.commentHtml(c)).join('');
+      const wrap = document.getElementById('commentMoreWrap');
+      if (wrap) {
+        wrap.innerHTML = (data && data.has_more)
+          ? '<button class="btn btn-small btn-ghost" id="loadMoreComments">加载更早的留言</button>'
+          : '';
+      }
     } catch (e) {
       listEl.innerHTML = '<p class="comments-empty">留言加载失败，请刷新重试。</p>';
+    }
+  },
+
+  async loadMoreComments(btn) {
+    const listEl = document.getElementById('commentList');
+    if (!listEl) return;
+    const first = listEl.querySelector('.comment');
+    const before = first ? first.dataset.id : '';
+    btn.disabled = true;
+    btn.textContent = '加载中…';
+    try {
+      const data = await API.get('/api/article/' + listEl.dataset.article + '/comments?limit=20&before=' + encodeURIComponent(before));
+      const items = (data && data.items) || [];
+      if (items.length) listEl.insertAdjacentHTML('afterbegin', items.map(c => this.commentHtml(c)).join(''));
+      if (data && data.has_more) {
+        btn.disabled = false;
+        btn.textContent = '加载更早的留言';
+      } else {
+        btn.remove();
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = '加载失败，点击重试';
     }
   },
 
@@ -541,105 +736,11 @@ const App = {
     </form>`;
   },
 
-  /* ---------- 9. 与柒乃聊天（咖啡馆对话页） ---------- */
-  async renderChat() {
-    if (!this.state.user) { location.hash = '#/login'; return ''; }
-    let cfg = { enabled: true, greeting: '欢迎来到白日梦咖啡馆。今天想聊点什么？' };
-    try { cfg = await API.get('/api/chat/config'); } catch (e) {}
-    const bubbles = this.chatHistory.map(mm => `
-      <div class="chat-msg ${mm.role}">
-        ${mm.role === 'assistant' ? this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 32) : this.avatarHtml(this.state.user, 32)}
-        <div class="chat-bubble">${esc(mm.content)}</div>
-      </div>`).join('');
-    return `
-    <div class="page chat-page">
-      ${this.topbar()}
-      <div class="chat-wrap">
-        <div class="chat-panel">
-          <div class="chat-head">
-            <div class="chat-nana">
-              ${this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 44)}
-              <div class="chat-nana-info">
-                <div class="chat-nana-name">潮見柒乃</div>
-                <div class="chat-nana-sub">新的章节在写了。请不要催我。</div>
-              </div>
-            </div>
-            ${cfg.enabled ? `<button class="btn btn-small btn-ghost" id="chatClearBtn">清空对话</button>` : ''}
-          </div>
-          ${cfg.enabled ? `
-          <div class="chat-body" id="chatBody">
-            <div class="chat-msg nana">
-              ${this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 32)}
-              <div class="chat-bubble">${esc(cfg.greeting)}</div>
-            </div>
-            ${bubbles}
-            <div class="chat-typing" id="chatTyping" style="display:none">
-              ${this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 32)}
-              <div class="chat-bubble">柒乃：……</div>
-            </div>
-          </div>
-          <form class="chat-input-row" id="chatForm">
-            <input class="chat-input" name="text" placeholder="和柒乃说点什么……" autocomplete="off" maxlength="2000" required>
-            <button class="btn btn-small btn-primary chat-send" type="submit">发送</button>
-          </form>
-          ` : `
-          <div class="chat-closed"><p>柒乃现在休息中，请稍后再来。</p></div>
-          `}
-        </div>
-      </div>
-    </div>`;
-  },
-
-  appendChatBubble(role, content) {
-    const body = document.getElementById('chatBody');
-    if (!body) return;
-    const div = document.createElement('div');
-    div.className = 'chat-msg ' + role;
-    const avatar = role === 'assistant'
-      ? this.avatarHtml({ username: '潮見柒乃', avatar: '' }, 32)
-      : this.avatarHtml(this.state.user, 32);
-    div.innerHTML = avatar + `<div class="chat-bubble">${esc(content)}</div>`;
-    body.appendChild(div);
-    body.scrollTop = body.scrollHeight;
-  },
-
-  async handleChatSend(e) {
-    e.preventDefault();
-    const form = e.target;
-    const text = form.text.value.trim();
-    if (!text || this.chatBusy) return;
-    form.text.value = '';
-    this.chatHistory.push({ role: 'user', content: text });
-    this.appendChatBubble('user', text);
-    const typing = document.getElementById('chatTyping');
-    const body = document.getElementById('chatBody');
-    if (typing) typing.style.display = 'flex';
-    if (body) body.scrollTop = body.scrollHeight;
-    this.chatBusy = true;
-    let reply;
-    try {
-      const data = await API.post('/api/chat', { messages: this.chatHistory }, 60000);
-      reply = data.reply;
-    } catch (err) {
-      reply = '（' + err.message + '）';
-    } finally {
-      this.chatBusy = false;
-      if (typing) typing.style.display = 'none';
-    }
-    this.chatHistory.push({ role: 'assistant', content: reply });
-    this.appendChatBubble('assistant', reply);
-  },
-
-  handleChatClear() {
-    if (this.chatBusy) { toast('柒乃正在说话，稍等片刻', 'err'); return; }
-    this.chatHistory = [];
-    this.route();
-  },
-
-  /* ---------- 10. 个人中心 ---------- */
+  /* ---------- 9. 个人中心 ---------- */
   renderProfile() {
     const u = this.state.user;
     if (!u) { location.hash = '#/login'; return ''; }
+    this.pageTitle = '个人中心 · 白日梦咖啡馆';
     return `
     <div class="page">
       ${this.topbar()}
@@ -650,9 +751,9 @@ const App = {
         <p class="profile-since">加入于 ${esc(formatTime(u.created_at))}</p>
         <div class="profile-avatar-edit">
           <h3>自定义头像</h3>
-          <p class="hint">未设置头像时，默认显示用户名的第一个字。</p>
+          <p class="hint">未设置头像时，默认显示用户名的第一个字。本地上传会自动压缩成 128×128。</p>
           <div class="avatar-edit-row">
-            <input type="text" id="avatarUrl" placeholder="粘贴图片链接（http/https）" value="${esc(u.avatar || '')}">
+            <input type="text" id="avatarUrl" placeholder="粘贴图片链接（https://…）" value="${esc(u.avatar && u.avatar.startsWith('http') ? u.avatar : '')}">
           </div>
           <div class="avatar-edit-row">
             <label class="btn btn-small btn-ghost btn-file">选择本地图片<input type="file" id="avatarFile" accept="image/*" hidden></label>
@@ -661,7 +762,7 @@ const App = {
             <button class="btn btn-small btn-primary" id="saveAvatar">保存头像</button>
             ${u.avatar ? `<button class="btn btn-small btn-ghost" id="clearAvatar">恢复默认</button>` : ''}
           </div>
-          <div class="avatar-preview"><span>预览</span>${this.avatarHtml(u, 56)}</div>
+          <div class="avatar-preview"><span>预览</span><span id="avatarPreview">${this.avatarHtml(u, 56)}</span></div>
         </div>
         <div class="profile-actions">
           <button class="btn btn-small btn-ghost" id="logoutBtn">退出登录</button>
@@ -671,18 +772,18 @@ const App = {
     </div>`;
   },
 
-  /* ---------- 11. 管理后台 ---------- */
+  /* ---------- 10. 管理后台 ---------- */
   adminNav(active) {
     return `<div class="admin-nav">
       <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
       <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
-      <a class="${active === 'chat' ? 'active' : ''}" href="#/admin/chat">对话设定</a>
     </div>`;
   },
 
   async renderAdminArticles() {
     const u = this.state.user;
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = '文章管理 · 白日梦咖啡馆';
     const articles = await API.get('/api/admin/articles');
     const list = articles || [];
     const cn = { main: '主线', personal: '个人章', settings: '设定' };
@@ -719,10 +820,14 @@ const App = {
   async renderAdminForm(id) {
     const u = this.state.user;
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = (id ? '编辑文章' : '新增文章') + ' · 白日梦咖啡馆';
+    this.docImport = null;      // 每次进表单都清掉上一次导入的文件
     let a = null;
     if (id) a = await API.get('/api/admin/articles/' + id);
     const category = a ? a.category : 'main';
     const isMain = category === 'main';
+    const rich = !!(a && a.rich);
+    const body = a ? (rich ? a.content : a.content_text) : '';
     return `
     <div class="page">
       ${this.topbar()}
@@ -736,6 +841,14 @@ const App = {
               <option value="personal" ${category === 'personal' ? 'selected' : ''}>个人章</option>
               <option value="settings" ${category === 'settings' ? 'selected' : ''}>设定</option>
             </select>
+          </div>
+          <div class="form-row">
+            <label>从文件导入 <span class="hint">（Word 的 .docx，或 .txt / .md）</span></label>
+            <div class="doc-import">
+              <label class="btn btn-small btn-ghost btn-file">选择文件<input type="file" id="docFile" accept=".docx,.txt,.md,.doc" hidden></label>
+              <span class="doc-import-state" id="docState">也可以把文件直接拖到下面任意位置；旧的 .doc 请先在 Word 里另存为 .docx</span>
+            </div>
+            <div class="doc-summary" id="docSummary" hidden></div>
           </div>
           <div class="form-row inline" id="mainFields" ${isMain ? '' : 'style="display:none"'}>
             <div>
@@ -763,7 +876,11 @@ const App = {
           </div>
           <div class="form-row">
             <label>正文内容 <span class="hint">（段落之间用空行分隔）</span></label>
-            <textarea name="content" rows="14" placeholder="在此粘贴正文……">${a ? esc(a.content_text) : ''}</textarea>
+            <textarea name="content" rows="14" placeholder="在此粘贴正文……">${a ? esc(body) : ''}</textarea>
+          </div>
+          <div class="form-row">
+            <label class="switch-row"><input type="checkbox" id="rawHtml" ${rich ? 'checked' : ''}> 原始 HTML 模式（高级）</label>
+            <p class="hint">勾选后正文会原样保存，不会自动转成 &lt;p&gt; 段落，也不会被转义。用于人物卡这类带结构的内容。</p>
           </div>
           <div class="form-row">
             <button class="btn btn-primary" type="submit">${id ? '保存修改' : '发布文章'}</button>
@@ -777,6 +894,7 @@ const App = {
   async renderAdminUsers() {
     const u = this.state.user;
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = '用户管理 · 白日梦咖啡馆';
     const users = await API.get('/api/admin/users');
     const list = users || [];
     return `
@@ -809,44 +927,13 @@ const App = {
     </div>`;
   },
 
-  async renderAdminChat() {
-    const u = this.state.user;
-    if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
-    const cfg = await API.get('/api/admin/chat-config');
-    return `
-    <div class="page">
-      ${this.topbar()}
-      ${this.adminNav('chat')}
-      <div class="admin-head"><h2>对话设定</h2></div>
-      <div class="admin-form-wrap">
-        <form id="adminChatForm" class="admin-form">
-          <div class="form-row">
-            <label>启用对话</label>
-            <label class="switch-row"><input type="checkbox" id="chatEnabled" ${cfg.enabled ? 'checked' : ''}> 允许读者与柒乃聊天</label>
-          </div>
-          <div class="form-row">
-            <label>柒乃的开场白</label>
-            <input type="text" id="chatGreeting" value="${esc(cfg.greeting)}">
-          </div>
-          <div class="form-row">
-            <label>柒乃的人格设定（system prompt，决定她怎么说话）</label>
-            <textarea id="chatPersona" rows="8">${esc(cfg.persona)}</textarea>
-          </div>
-          <div class="form-row">
-            <button class="btn btn-primary" type="submit">保存设定</button>
-          </div>
-        </form>
-      </div>
-    </div>`;
-  },
-
   /* ---------- 事件绑定 ---------- */
   afterRender() {
     const openBtn = document.getElementById('openBook');
     if (openBtn) {
       openBtn.onclick = () => {
         document.getElementById('bookCover').classList.add('turning');
-        setTimeout(() => { location.hash = this.state.user ? '#/menu' : '#/login'; }, 900);
+        setTimeout(() => { location.hash = '#/menu'; }, 900);
       };
     }
 
@@ -855,12 +942,21 @@ const App = {
     });
     const loginForm = document.getElementById('loginForm');
     if (loginForm) loginForm.onsubmit = (e) => this.handleLogin(e);
+    const turnstileBox = document.getElementById('turnstileBox');
+    if (turnstileBox) this.ensureTurnstile(turnstileBox);
 
     const commentForm = document.querySelector('.comment-form');
     if (commentForm) commentForm.onsubmit = (e) => this.handleComment(e);
+    const moreBtn = document.getElementById('loadMoreComments');
+    if (moreBtn) moreBtn.onclick = () => this.loadMoreComments(moreBtn);
 
     const themeBtn = document.getElementById('themeBtn');
     if (themeBtn) themeBtn.onclick = () => this.toggleTheme();
+
+    const fontSmaller = document.getElementById('fontSmaller');
+    if (fontSmaller) fontSmaller.onclick = () => this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) - 1);
+    const fontLarger = document.getElementById('fontLarger');
+    if (fontLarger) fontLarger.onclick = () => this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) + 1);
 
     const saveAvatar = document.getElementById('saveAvatar');
     if (saveAvatar) saveAvatar.onclick = () => this.handleSaveAvatar();
@@ -872,31 +968,125 @@ const App = {
     if (logoutBtn) logoutBtn.onclick = () => this.handleLogout();
 
     const adminForm = document.getElementById('adminForm');
-    if (adminForm) adminForm.onsubmit = (e) => this.handleAdminForm(e);
+    if (adminForm) {
+      adminForm.onsubmit = (e) => this.handleAdminForm(e);
+      // 文件直接拖到表单上也能导入
+      adminForm.ondragover = (e) => { e.preventDefault(); adminForm.classList.add('dragging'); };
+      adminForm.ondragleave = () => adminForm.classList.remove('dragging');
+      adminForm.ondrop = (e) => {
+        e.preventDefault();
+        adminForm.classList.remove('dragging');
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) this.handleDocFile(f);
+      };
+    }
+    const docFile = document.getElementById('docFile');
+    if (docFile) {
+      docFile.onchange = (e) => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = '';        // 清掉才能重复选同一个文件
+        if (f) this.handleDocFile(f);
+      };
+    }
     const catSelect = document.getElementById('articleCategory');
     if (catSelect) {
       catSelect.onchange = () => {
         const isMain = catSelect.value === 'main';
         document.getElementById('mainFields').style.display = isMain ? '' : 'none';
         document.getElementById('titleRow').style.display = isMain ? 'none' : '';
+        if (this.docImport) { this.applyDocToForm(this.docImport); this.renderDocSummary(); }
       };
     }
 
-    bindSwipe(document.querySelector('.reading'));
+    const readingEl = document.querySelector('.reading');
+    bindSwipe(readingEl);
+    this.updateReadingChrome(readingEl);
+    // 桌面端键盘翻页（用 onkeydown 赋值，避免每次渲染都往 document 上叠加监听）
+    document.onkeydown = readingEl ? (e) => {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (e.key === 'ArrowLeft' && readingEl.dataset.prev) location.hash = '#/read/' + readingEl.dataset.prev;
+      else if (e.key === 'ArrowRight' && readingEl.dataset.next) location.hash = '#/read/' + readingEl.dataset.next;
+    } : null;
 
     // 留言异步加载：文章先出，留言后到，互不阻塞
     const commentList = document.getElementById('commentList');
     if (commentList) this.loadCommentsAsync(commentList.dataset.article, commentList);
+  },
 
-    // 对话功能
-    const chatForm = document.getElementById('chatForm');
-    if (chatForm) chatForm.onsubmit = (e) => this.handleChatSend(e);
-    const chatClear = document.getElementById('chatClearBtn');
-    if (chatClear) chatClear.onclick = () => this.handleChatClear();
-    const chatBody = document.getElementById('chatBody');
-    if (chatBody) chatBody.scrollTop = chatBody.scrollHeight;
-    const adminChatForm = document.getElementById('adminChatForm');
-    if (adminChatForm) adminChatForm.onsubmit = (e) => this.handleAdminChat(e);
+  /* ---------- 阅读页的滚动装饰：顶部进度条 + 回到顶部 ---------- */
+  readingChrome() {
+    if (this._chrome) return this._chrome;
+    const bar = document.createElement('div');
+    bar.id = 'readingProgress';
+    bar.className = 'reading-progress';
+    const top = document.createElement('button');
+    top.type = 'button';
+    top.id = 'toTop';
+    top.className = 'to-top';
+    top.setAttribute('aria-label', '回到顶部');
+    top.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/></svg>';
+    top.onclick = () => {
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+    };
+    document.body.appendChild(bar);
+    document.body.appendChild(top);
+    this._chrome = { bar, top };
+    return this._chrome;
+  },
+
+  updateReadingChrome(readingEl) {
+    const chrome = this.readingChrome();
+    const reading = readingEl || document.querySelector('.reading');
+    if (!reading) {
+      chrome.bar.classList.remove('on');
+      chrome.top.classList.remove('on');
+      window.onscroll = null;
+      return;
+    }
+    chrome.bar.classList.add('on');
+    // 用 onscroll 赋值而不是 addEventListener，避免每次渲染都叠加监听
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      const y = window.scrollY || 0;
+      const p = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+      chrome.bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+      chrome.top.classList.toggle('on', y > 560);
+    };
+    window.onscroll = onScroll;
+    onScroll();
+  },
+
+  /* ---------- 人机验证（仅在配置了 TURNSTILE_SITE_KEY 时启用） ---------- */
+  ensureTurnstile(el) {
+    const sitekey = el.dataset.sitekey;
+    if (!sitekey) return;
+    const render = () => {
+      try { window.turnstile.render(el, { sitekey }); } catch (e) {}
+    };
+    if (window.turnstile) { render(); return; }
+    if (!document.getElementById('cfTurnstileScript')) {
+      const s = document.createElement('script');
+      s.id = 'cfTurnstileScript';
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.defer = true;
+      s.onload = render;
+      document.head.appendChild(s);
+    } else {
+      let tries = 0;
+      const timer = setInterval(() => {
+        if (window.turnstile) { clearInterval(timer); render(); }
+        else if (++tries > 50) clearInterval(timer);
+      }, 200);
+    }
+  },
+  turnstileToken() {
+    const input = document.querySelector('[name="cf-turnstile-response"]');
+    return input ? input.value : '';
+  },
+  turnstileReset() {
+    try { if (window.turnstile) window.turnstile.reset(); } catch (e) {}
   },
 
   switchAuthTab(tab) {
@@ -917,12 +1107,16 @@ const App = {
     const password = form.password.value;
     const errEl = document.getElementById('loginError');
     try {
+      const payload = { username, password };
+      const token = this.turnstileToken();
+      if (token) payload.turnstile_token = token;
       if (this.authMode === 'register') {
         if (password !== form.confirmPassword.value) throw new Error('两次输入的密码不一致');
-        await API.post('/api/register', { username, password });
+        if (password.length < 8) throw new Error('密码至少8位');
+        await API.post('/api/register', payload);
         toast('账号已创建，欢迎来到白日梦咖啡馆');
       } else {
-        await API.post('/api/login', { username, password });
+        await API.post('/api/login', payload);
         toast('欢迎回来，' + username);
       }
       // 获取登录用户信息（带自动重试，避免偶发的响应异常导致登录失败）
@@ -939,6 +1133,7 @@ const App = {
       location.hash = '#/menu';
     } catch (err) {
       errEl.textContent = err.message;
+      this.turnstileReset();
     }
   },
 
@@ -949,21 +1144,25 @@ const App = {
       await API.post('/api/article/' + form.dataset.article + '/comments',
         { content: form.content.value.trim() });
       toast('留言已发布');
-      this.state.menu = null;
+      // 只改缓存里的计数，不整份重取目录
+      this.bumpCommentCount(Number(form.dataset.article), 1);
       this.route();
     } catch (err) { toast(err.message, 'err'); }
   },
 
-  handleAvatarFile(e) {
+  async handleAvatarFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast('图片请小于 2MB', 'err'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.pendingAvatar = reader.result;
-      toast('已读取图片，点击“保存头像”生效');
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) { toast('图片请小于 8MB', 'err'); return; }
+    try {
+      // 压缩后再上传：2MB 的原图 → 约 10KB 的 128×128 webp
+      this.pendingAvatar = await shrinkImage(file, 128);
+      const box = document.getElementById('avatarPreview');
+      if (box) box.innerHTML = `<img class="avatar size-56" src="${esc(this.pendingAvatar)}" alt="">`;
+      toast('图片已压缩，点击“保存头像”生效');
+    } catch (err) {
+      toast('图片处理失败，请换一张试试', 'err');
+    }
   },
 
   async handleSaveAvatar() {
@@ -982,6 +1181,7 @@ const App = {
     try {
       const { user } = await API.put('/api/me/avatar', { avatar: '' });
       this.state.user = user;
+      this.pendingAvatar = null;
       toast('已恢复默认头像');
       this.route();
     } catch (err) { toast(err.message, 'err'); }
@@ -995,12 +1195,114 @@ const App = {
     location.hash = '#/';
   },
 
+  /* ---------- 后台：从 Word / 文本文件导入 ---------- */
+  async handleDocFile(file) {
+    const stateEl = document.getElementById('docState');
+    const say = (t) => { if (stateEl) stateEl.textContent = t; };
+    if (!file) return;
+    const D = window.DocxImport;
+    if (!D) { say('解析脚本没加载成功，刷新页面再试'); return; }
+    this.docImport = null;
+    say('正在解析 ' + file.name + ' …');
+    try {
+      const r = await D.parseFile(file);
+      this.docImport = r;
+      this.applyDocToForm(r);
+      this.renderDocSummary();
+      say(file.name + ' 解析完成');
+      toast('已识别 ' + r.chars.toLocaleString('zh-CN') + ' 字，确认后点发布');
+    } catch (err) {
+      say(err.message || '解析失败');
+      toast(err.message || '解析失败', 'err');
+    }
+  },
+
+  // 填进表单：结构字段只填空着的，正文总是覆盖
+  applyDocToForm(r) {
+    const form = document.getElementById('adminForm');
+    if (!form || !r) return;
+    const m = r.meta || {};
+    if (form.category.value === 'main') {
+      if (m.chapter_no && !form.chapter_no.value) form.chapter_no.value = m.chapter_no;
+      if (m.chapter_title && !form.chapter_title.value) form.chapter_title.value = m.chapter_title;
+      if (m.section_no && !form.section_no.value) form.section_no.value = m.section_no;
+      if (m.section_title && !form.section_title.value) form.section_title.value = m.section_title;
+    } else if (m.title && !form.title.value) {
+      form.title.value = m.title;
+    }
+    form.content.value = r.plain;
+  },
+
+  // 导入摘要：显示识别结果，并给出「按节拆分」选项
+  renderDocSummary() {
+    const box = document.getElementById('docSummary');
+    if (!box) return;
+    const D = window.DocxImport;
+    const r = this.docImport;
+    if (!D || !r) { box.hidden = true; box.innerHTML = ''; return; }
+    const form = document.getElementById('adminForm');
+    const isMain = !!(form && form.category.value === 'main');
+    const groups = isMain ? D.splitSections(r.blocks) : [];
+    const canSplit = groups.length > 1;
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="doc-summary-line">已识别 <b>${r.chars.toLocaleString('zh-CN')}</b> 字 · ${r.blocks.length} 段${r.headings ? ' · ' + r.headings + ' 个标题' : ''}</div>
+      ${canSplit ? `<label class="switch-row"><input type="checkbox" id="docSplit" ${r.hasSectionMarkers ? 'checked' : ''}> 按「第 N 节」拆成 ${groups.length} 篇分别发布</label>` : ''}
+      <div class="doc-summary-hint">${canSplit ? '勾选拆分时，下面正文输入框的内容会被忽略，每篇的正文直接从文件里取。' : '正文已经填到下面的输入框，可以再改，确认后点发布。'}</div>`;
+  },
+
+  // 这一章里目前最大的节号，用来给没写节号的篇目续号
+  nextSectionNo(chapterNo, menu) {
+    let max = 0;
+    if (menu && menu.main) {
+      const ch = menu.main.find(c => String(c.chapter_no) === String(chapterNo));
+      if (ch) (ch.sections || []).forEach(s => { if (Number(s.section_no) > max) max = Number(s.section_no); });
+    }
+    return max + 1;
+  },
+
+  // 按标题拆成多篇，依次发布
+  async publishSplit(form, groups, meta) {
+    if (!confirm('将按标题拆成 ' + groups.length + ' 篇文章依次发布，确定吗？')) return;
+    const cn = parseInt(form.chapter_no.value, 10) || meta.chapter_no || 1;
+    const ct = String(form.chapter_title.value || '').trim() || meta.chapter_title || ('第' + cn + '章');
+    const menu = await this.ensureMenu(true).catch(() => null);
+    let next = this.nextSectionNo(cn, menu);
+    let done = 0;
+    const failed = [];
+    for (const g of groups) {
+      const no = g.no || next++;
+      const title = g.title || ('第' + no + '节');
+      try {
+        await API.post('/api/admin/articles', {
+          category: 'main', chapter_no: cn, chapter_title: ct,
+          section_no: no, section_title: title, content: g.text,
+        });
+        done++;
+      } catch (err) {
+        failed.push(title + '（' + err.message + '）');
+      }
+    }
+    this.state.menu = null;
+    this.docImport = null;
+    if (failed.length) toast('发布完成：成功 ' + done + ' 篇，失败 ' + failed.length + ' 篇', 'err');
+    else toast('已发布 ' + done + ' 篇文章');
+    location.hash = '#/admin/articles';
+  },
+
   async handleAdminForm(e) {
     e.preventDefault();
     const form = e.target;
     const id = form.dataset.id || null;
     const category = form.category.value;
-    const payload = { category, content: form.content.value.trim() };
+    // 从文件导入、并且勾了「按节拆分」→ 走批量发布
+    const splitBox = document.getElementById('docSplit');
+    if (!id && category === 'main' && splitBox && splitBox.checked && this.docImport) {
+      const groups = window.DocxImport.splitSections(this.docImport.blocks);
+      if (groups.length > 1) return this.publishSplit(form, groups, this.docImport.meta || {});
+    }
+    const rawHtml = !!(document.getElementById('rawHtml') && document.getElementById('rawHtml').checked);
+    const payload = { category, content: form.content.value.trim(), raw_html: rawHtml };
     if (category === 'main') {
       payload.chapter_no = parseInt(form.chapter_no.value, 10);
       payload.chapter_title = form.chapter_title.value.trim();
@@ -1012,20 +1314,8 @@ const App = {
     try {
       if (id) { await API.put('/api/admin/articles/' + id, payload); toast('文章已更新'); }
       else { await API.post('/api/admin/articles', payload); toast('文章已发布'); }
-      this.state.menu = null;
+      this.state.menu = null;   // 目录变了，重新拉一次
       location.hash = '#/admin/articles';
-    } catch (err) { toast(err.message, 'err'); }
-  },
-
-  async handleAdminChat(e) {
-    e.preventDefault();
-    try {
-      await API.put('/api/admin/chat-config', {
-        enabled: document.getElementById('chatEnabled').checked,
-        persona: document.getElementById('chatPersona').value.trim(),
-        greeting: document.getElementById('chatGreeting').value.trim(),
-      });
-      toast('对话设定已保存');
     } catch (err) { toast(err.message, 'err'); }
   },
 };

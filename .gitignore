@@ -1,0 +1,19 @@
+# 本地预览（假后端 + 回归测试脚本）：不提交、也不会被部署
+# .preview/ 不在 public/ 里，Cloudflare Pages 只发布 public/，所以就算提交了也不会部署；
+# 但里面是本地调试用的东西，还是排除掉比较干净。
+.preview/
+
+# 依赖与构建残留
+node_modules/
+.wrangler/
+dist/
+
+# D1 导出的备份（含小说全文，别提交）
+*.sql
+!schema.sql
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

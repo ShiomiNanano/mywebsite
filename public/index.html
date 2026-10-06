@@ -3,17 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0c2033">
+  <!-- 手机地址栏颜色：由 js/theme-boot.js 按当前主题设定，切换主题时同步更新 -->
+  <meta name="theme-color" content="#e8f0f6">
   <meta name="format-detection" content="telephone=no">
+
   <title>白日梦咖啡馆 · 绘空事</title>
+  <meta name="description" content="汐凪岛上的白日梦咖啡馆，潮見柒乃与来客们的故事。一部正在连载的中文长篇小说：主线故事、个人章与世界设定。">
+  <meta name="author" content="ShiomiNanano">
+  <link rel="canonical" href="https://daydream7.pages.dev/">
+
+  <!-- 图标：内联 SVG，省一个请求 -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="favicon.svg">
+
+  <!-- 分享卡片（微信 / QQ / Twitter 等）。有配图后把 og:image 指向一张 1200×630 的 PNG 效果最好 -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="白日梦咖啡馆 · 绘空事">
+  <meta property="og:title" content="白日梦咖啡馆 · 绘空事">
+  <meta property="og:description" content="汐凪岛上的白日梦咖啡馆，潮見柒乃与来客们的故事。">
+  <meta property="og:url" content="https://daydream7.pages.dev/">
+  <meta name="twitter:card" content="summary">
+
+  <!-- 主题引导：要在 CSS 之前执行，否则深色主题会闪一下白屏 -->
+  <script src="js/theme-boot.js"></script>
+
+  <!-- 字体由 js/app.js 延后注入：正文用系统字体，装饰字体不阻塞首屏 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="app"></div>
+  <noscript>
+    <p style="padding:24px;font-family:sans-serif">本站需要开启 JavaScript 才能阅读。</p>
+  </noscript>
   <script src="js/api.js"></script>
+  <script src="js/docx.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
