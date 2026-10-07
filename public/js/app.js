@@ -497,7 +497,7 @@ const App = {
       <div class="chapter-list">
         ${m.main.length ? m.main.map(c => `
           <a class="chapter-card" href="#/main/${c.chapter_no}">
-            <div class="chapter-num">第 ${String(c.chapter_no).padStart(2, '0')} 章</div>
+            <div class="chapter-num">${this.chapterLabel(c.chapter_no, c.chapter_title)}</div>
             <div class="chapter-body">
               <h3>${esc(c.chapter_title)}</h3>
               <p>共 ${(c.sections || []).length} 节</p>
@@ -520,7 +520,7 @@ const App = {
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/main">主线故事</a> / ${esc(c.chapter_title)}</div>
       <div class="page-head">
-        <span class="eyebrow">第 ${c.chapter_no} 章</span>
+        <span class="eyebrow">${this.chapterLabel(c.chapter_no, c.chapter_title)}</span>
         <h1>${esc(c.chapter_title)}</h1>
       </div>
       <div class="section-list">
@@ -594,7 +594,7 @@ const App = {
     return `<a href="#/settings">设定</a> / ${esc(a.title)}`;
   },
   eyebrow(a) {
-    if (a.category === 'main') return `主线 · 第 ${a.chapter_no} 章 · 第 ${a.section_no} 节`;
+    if (a.category === 'main') return `主线 · ${this.chapterLabel(a.chapter_no, a.chapter_title)} · 第 ${a.section_no} 节`;
     if (a.category === 'personal') return '个人章 · 独立篇目';
     return '设定 · 世界档案';
   },
@@ -803,7 +803,7 @@ const App = {
             <tr>
               <td>${a.id}</td>
               <td><span class="tag tag-${a.category}">${cn[a.category]}</span></td>
-              <td>${a.category === 'main' ? `${a.chapter_no} · ${a.section_no}` : '—'}</td>
+              <td>${a.category === 'main' ? `${a.chapter_no === 0 ? '序章' : a.chapter_no} · ${a.section_no}` : '—'}</td>
               <td class="td-title">${esc(a.category === 'main' ? a.section_title : a.title)}</td>
               <td>${esc(formatTime(a.updated_at))}</td>
               <td>
@@ -853,7 +853,7 @@ const App = {
           <div class="form-row inline" id="mainFields" ${isMain ? '' : 'style="display:none"'}>
             <div>
               <label>章号</label>
-              <input name="chapter_no" type="number" min="1" placeholder="如 1" value="${a ? a.chapter_no : ''}">
+              <input name="chapter_no" type="number" min="0" placeholder="0 = 序章" value="${a ? a.chapter_no : ''}">
             </div>
             <div>
               <label>章节标题</label>
@@ -928,6 +928,14 @@ const App = {
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
+  // 章号 0、或标题像"序章/楔子/引子"的，列表里一律显示成「序章」
+  chapterLabel(no, title) {
+    const n = Number(no);
+    if (!Number.isFinite(n) || n <= 0) return '序章';
+    if (/^\s*(序章|序言|序幕|序曲|楔子|引子|前言)/.test(String(title || ''))) return '序章';
+    return '第 ' + String(n).padStart(2, '0') + ' 章';
+  },
+
   reduceMotion() {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
   },

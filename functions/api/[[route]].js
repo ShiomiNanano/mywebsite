@@ -533,8 +533,9 @@ export async function onRequest(context) {
       let values;
       if (category === 'main') {
         const cn = parseInt(body.chapter_no, 10), sn = parseInt(body.section_no, 10);
-        if (!cn || !sn) return json({ error: '章号与节号必须为数字' }, 400);
-        const ct = String(body.chapter_title || '').trim() || ('第' + cn + '章');
+        if (!Number.isFinite(cn) || cn < 0) return json({ error: '章号必须是 0 或正整数（0 = 序章）' }, 400);
+        if (!Number.isFinite(sn) || sn < 1) return json({ error: '节号必须是正整数' }, 400);
+        const ct = String(body.chapter_title || '').trim() || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || ('第' + sn + '节');
         values = [category, cn, ct, sn, st, st, content];
       } else {
@@ -556,8 +557,10 @@ export async function onRequest(context) {
       const content = makeContent(body) || old.content;
       let values;
       if (category === 'main') {
-        const cn = parseInt(body.chapter_no, 10) || old.chapter_no, sn = parseInt(body.section_no, 10) || old.section_no;
-        const ct = String(body.chapter_title || '').trim() || old.chapter_title || ('第' + cn + '章');
+        const cnRaw = parseInt(body.chapter_no, 10), snRaw = parseInt(body.section_no, 10);
+        const cn = Number.isFinite(cnRaw) ? cnRaw : old.chapter_no;
+        const sn = Number.isFinite(snRaw) && snRaw >= 1 ? snRaw : old.section_no;
+        const ct = String(body.chapter_title || '').trim() || old.chapter_title || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || old.section_title || ('第' + sn + '节');
         values = [category, cn, ct, sn, st, st, content];
       } else {

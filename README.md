@@ -110,6 +110,14 @@ npx wrangler pages dev public --d1 DB=daydream
 用浏览器自带的 `DecompressionStream('deflate-raw')` 解开 `word/document.xml`，
 再用正则取 `<w:p>` / `<w:t>` 拼出段落。（这样也就不需要给站点加构建步骤或 npm 依赖。）
 
+### 序章怎么写
+
+章号填 **`0`** 就表示序章（表单和接口都允许 `0`，节号仍然必须 ≥ 1）。
+
+显示上做了处理：**章号为 0、或章标题以「序章 / 序言 / 序幕 / 序曲 / 楔子 / 引子 / 前言」开头**的，
+在章列表、章节页眉标、阅读页眉标里都会显示成「序章」，而不是「第 00 章」。
+数据库里存的章号仍然是 0，只是列表显示时做了换算（见 `public/js/app.js` 的 `chapterLabel()`）。
+
 ## 备份（很重要）
 
 整本小说只存在 D1 里。`.github/workflows/backup.yml` 每周一自动导出一次 SQL 并保存为 Actions artifact（保留 90 天）。
