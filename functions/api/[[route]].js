@@ -137,9 +137,15 @@ async function verifyToken(token, secret) {
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
-// 纯文本 → HTML：默认转义，避免粘贴进来的 <script> 被当成标签执行
+// 纯文本 → HTML（后台粘贴正文用）。默认转义，避免粘贴进来的 <script> 被当成标签执行。
+//   整篇一个空行都没有 → 每行自动算一段（从 Word / 网页直接粘过来就是这种形态，作者不用手动补空行）
+//   整篇有空行        → 按空行分段，段内的单个换行保留为 <br>
+// 这样"手动粘贴"和"Word 导入"两条路径都能自动分段，旧文重新编辑也不会变形。
 function plainToHtml(text) {
-  return (text || '').trim().split(/\n\s*\n/).map(b => {
+  const src = String(text == null ? '' : text).replace(/\r\n?/g, '\n').trim();
+  if (!src) return '';
+  const blocks = /\n[ \t]*\n/.test(src) ? src.split(/\n[ \t]*\n+/) : src.split('\n');
+  return blocks.map(b => {
     b = b.trim();
     return b ? '<p>' + escapeHtml(b).replace(/\n/g, '<br>') + '</p>' : '';
   }).join('');
@@ -147,7 +153,7 @@ function plainToHtml(text) {
 function htmlToPlain(h) {
   return (h || '').replace(/<\/p>/g, '\n\n').replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
-// 后台表单：勾了「原始 HTML」就原样存，否则按空行转段落
+// 后台表单：勾了「原始 HTML」就原样存，否则交给 plainToHtml 自动分段
 function makeContent(body) {
   const raw = String(body.content || '').trim();
   if (body.raw_html === true) return raw.slice(0, MAX_CONTENT);
@@ -619,3 +625,6 @@ export async function onRequest(context) {
     return json({ error: '服务器错误，请稍后再试' }, 500);
   }
 }
+
+// 导出这两个纯函数，方便测试直接验证「纯文本 → 段落」的规则（Pages 只认 onRequest*，多余导出会被忽略）
+export { plainToHtml, htmlToPlain };

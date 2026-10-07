@@ -875,8 +875,9 @@ const App = {
             <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
           </div>
           <div class="form-row">
-            <label>正文内容 <span class="hint">（段落之间用空行分隔）</span></label>
+            <label>正文内容 <span class="hint">（从 Word 直接粘贴即可：整篇没有空行时，每行自动算一段）</span></label>
             <textarea name="content" rows="14" placeholder="在此粘贴正文……">${a ? esc(body) : ''}</textarea>
+            <p class="hint" id="paraHint"></p>
           </div>
           <div class="form-row">
             <label class="switch-row"><input type="checkbox" id="rawHtml" ${rich ? 'checked' : ''}> 原始 HTML 模式（高级）</label>
@@ -928,6 +929,25 @@ const App = {
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
+  // 段落计数：必须和后台 plainToHtml 的规则一致（测试会逐条比对两边结果，防跑偏）
+  countParagraphs(text) {
+    const src = String(text == null ? '' : text).replace(/\r\n?/g, '\n').trim();
+    if (!src) return 0;
+    const blocks = /\n[ \t]*\n/.test(src) ? src.split(/\n[ \t]*\n+/) : src.split('\n');
+    return blocks.filter(b => b.trim()).length;
+  },
+
+  // 正文框下面的提示：让作者当场看到"会被识别成几段"
+  updateParaHint() {
+    const el = document.querySelector('textarea[name="content"]');
+    const hint = document.getElementById('paraHint');
+    if (!el || !hint) return;
+    const n = this.countParagraphs(el.value);
+    hint.textContent = n === 0
+      ? '正文还是空的'
+      : '将生成 ' + n + ' 段（整篇没有空行时每行算一段；有空行时按空行分段）';
+  },
+
   // 标题像"序章/楔子/引子"的，都按序章对待
   isPrologueTitle(title) {
     return /^\s*(序章|序言|序幕|序曲|楔子|引子|前言)/.test(String(title || ''));
@@ -1007,6 +1027,13 @@ const App = {
     const turnstileBox = document.getElementById('turnstileBox');
     if (turnstileBox) this.ensureTurnstile(turnstileBox);
 
+    // 正文框：实时显示会识别成几段
+    const contentBox = document.querySelector('textarea[name="content"]');
+    if (contentBox) {
+      contentBox.addEventListener('input', () => this.updateParaHint());
+      this.updateParaHint();
+    }
+
     const commentForm = document.querySelector('.comment-form');
     if (commentForm) commentForm.onsubmit = (e) => this.handleComment(e);
     const moreBtn = document.getElementById('loadMoreComments');
@@ -1056,7 +1083,7 @@ const App = {
         const isMain = catSelect.value === 'main';
         document.getElementById('mainFields').style.display = isMain ? '' : 'none';
         document.getElementById('titleRow').style.display = isMain ? 'none' : '';
-        if (this.docImport) { this.applyDocToForm(this.docImport); this.renderDocSummary(); }
+        if (this.docImport) { this.applyDocToForm(this.docImport); this.renderDocSummary(); this.updateParaHint(); }
       };
     }
 

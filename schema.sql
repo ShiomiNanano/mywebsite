@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS articles (
   section_no    INTEGER,
   section_title TEXT,
   title         TEXT,
-  content       TEXT    NOT NULL DEFAULT '',   -- HTML（由后台的「段落之间空行」转成 <p>，或用 RAW 模式直接写）
+  content       TEXT    NOT NULL DEFAULT '',   -- HTML（由 plainToHtml 自动分段转成 <p>，或用 RAW 模式直接写）
   sort_order    INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT,
   updated_at    TEXT
