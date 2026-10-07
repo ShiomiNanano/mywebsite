@@ -928,12 +928,25 @@ const App = {
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
-  // 章号 0、或标题像"序章/楔子/引子"的，列表里一律显示成「序章」
+  // 标题像"序章/楔子/引子"的，都按序章对待
+  isPrologueTitle(title) {
+    return /^\s*(序章|序言|序幕|序曲|楔子|引子|前言)/.test(String(title || ''));
+  },
+
+  // 列表与页眉标统一用这个：章号 0（或标题像序章）显示成「序章」
   chapterLabel(no, title) {
     const n = Number(no);
     if (!Number.isFinite(n) || n <= 0) return '序章';
-    if (/^\s*(序章|序言|序幕|序曲|楔子|引子|前言)/.test(String(title || ''))) return '序章';
+    if (this.isPrologueTitle(title)) return '序章';
     return '第 ' + String(n).padStart(2, '0') + ' 章';
+  },
+
+  // 表单里填的章号优先（填 0 就是序章，不能被当成"没填"）；
+  // 没填时用导入解析出来的（0 视为"没解析到"），最后兜底第 1 章。
+  pickChapterNo(typed, meta) {
+    if (Number.isFinite(typed)) return typed;
+    const m = Number(meta && meta.chapter_no);
+    return (Number.isFinite(m) && m > 0) ? m : 1;
   },
 
   reduceMotion() {
@@ -1275,7 +1288,11 @@ const App = {
     if (!form || !r) return;
     const m = r.meta || {};
     if (form.category.value === 'main') {
-      if (m.chapter_no && !form.chapter_no.value) form.chapter_no.value = m.chapter_no;
+      if (!form.chapter_no.value) {
+        // 标题是序章/楔子/引子的，章号自动填 0；否则用文件名里解析到的章号
+        if (this.isPrologueTitle(m.chapter_title)) form.chapter_no.value = 0;
+        else if (m.chapter_no) form.chapter_no.value = m.chapter_no;
+      }
       if (m.chapter_title && !form.chapter_title.value) form.chapter_title.value = m.chapter_title;
       if (m.section_no && !form.section_no.value) form.section_no.value = m.section_no;
       if (m.section_title && !form.section_title.value) form.section_title.value = m.section_title;
@@ -1316,8 +1333,8 @@ const App = {
   // 按标题拆成多篇，依次发布
   async publishSplit(form, groups, meta) {
     if (!confirm('将按标题拆成 ' + groups.length + ' 篇文章依次发布，确定吗？')) return;
-    const cn = parseInt(form.chapter_no.value, 10) || meta.chapter_no || 1;
-    const ct = String(form.chapter_title.value || '').trim() || meta.chapter_title || ('第' + cn + '章');
+    const cn = this.pickChapterNo(parseInt(form.chapter_no.value, 10), meta);
+    const ct = String(form.chapter_title.value || '').trim() || meta.chapter_title || (cn === 0 ? '序章' : ('第' + cn + '章'));
     const menu = await this.ensureMenu(true).catch(() => null);
     let next = this.nextSectionNo(cn, menu);
     let done = 0;
