@@ -1468,3 +1468,92 @@ html[data-wallpaper="on"] .notfound { text-shadow: var(--wp-halo); }
 
 /* 书架页的加载骨架也跟着暗一点，别在照片上显得突兀 */
 html[data-wallpaper="on"] .shelf-skeleton span { opacity: .82; }
+/* ============================================================================
+   书架四张模块卡的半透明样式
+   ----------------------------------------------------------------------------
+   · 只作用于 .menu-card —— 也就是书架页的四个模块：
+     继续阅读 / 主线故事 / 个人章 / 设定
+   · 章节列表、节列表、个人章、设定的卡片一律保持原来的实底
+   · 顶栏与底部导航保持原来的不透明度
+   · 文章页没有 data-wallpaper，本来就不受影响
+   浓度收在变量里，想更透/更实改这里：
+     --glass-card   普通模块卡
+     --glass-main   主线卡（书架的"主角"，比别的实一点）
+     --glass-gold   继续阅读那张金卡（要保持够亮，否则深色字会读不出来）
+     --glass-blur   背景模糊半径
+   ============================================================================ */
+html[data-wallpaper="on"] {
+  --glass-card: rgba(19, 33, 44, .55);
+  --glass-main: rgba(19, 33, 44, .72);
+  --glass-gold: rgba(247, 236, 212, .86);
+  --glass-gold-2: rgba(227, 206, 162, .80);
+  --glass-line: rgba(231, 239, 245, .14);
+  --glass-blur: 12px;
+  --glass-hi: rgba(255, 255, 255, .07);   /* 玻璃顶部那道光 */
+}
+
+/* ---------- 四个模块卡：半透明 + 背景模糊 ---------- */
+html[data-wallpaper="on"] .menu-card {
+  background:
+    linear-gradient(180deg, var(--glass-hi), rgba(255, 255, 255, 0) 46%),
+    var(--glass-card);
+  border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+/* 卡里的小色块跟着透一点，不然像贴上去的实心补丁。
+   （继续阅读那张是浅色卡，在它上面加白底等于什么也看不见，所以排除。） */
+html[data-wallpaper="on"] .menu-card:not(.menu-continue) .menu-card-icon { background: rgba(255, 255, 255, .08); }
+html[data-wallpaper="on"] .menu-card:not(.menu-continue) .menu-card-meta { background: rgba(255, 255, 255, .05); }
+
+/* ---------- 主线卡：深色主角卡，比别的实一点，但不再是死板纯色 ---------- */
+html[data-wallpaper="on"] .menu-main {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(150deg, rgba(36, 80, 111, .68), rgba(13, 35, 55, .82) 72%);
+  border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
+
+/* ---------- 继续阅读那张金卡 ----------
+   浅色卡配深色字，透明度不能低：太透会合成一片脏灰，深色字就读不出来了。 */
+html[data-wallpaper="on"] .menu-continue {
+  background: linear-gradient(160deg, var(--glass-gold), var(--glass-gold-2));
+  border-color: rgba(59, 47, 24, .28);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+}
+
+/* ---------- 降级：背景模糊被系统/浏览器关掉时，改用更实的底 ---------- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper="on"] .menu-card { background: rgba(19, 33, 44, .88); }
+  html[data-wallpaper="on"] .menu-main {
+    background: linear-gradient(150deg, rgba(36, 80, 111, .92), rgba(13, 35, 55, .95) 72%);
+  }
+  html[data-wallpaper="on"] .menu-continue {
+    background: linear-gradient(160deg, rgba(247, 236, 212, .95), rgba(227, 206, 162, .93));
+  }
+}
+
+/* ============================================================================
+   主线模块的「有新章节」小提示
+   —— 点进「主线故事」模块就会消失（不需要特地去看具体是哪一章）
+   ============================================================================ */
+.menu-new {
+  position: absolute; top: 14px; right: 14px; z-index: 2;
+  padding: 3px 10px; border-radius: var(--r-full);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .14em;
+  /* fixed-color: 金色小徽标上的深色字 */
+  color: #241a0c;                                   /* 亮金底上要用深字才看得清 */
+  background: linear-gradient(135deg, var(--gold-2), var(--gold));
+  box-shadow: 0 2px 10px -2px rgba(var(--shadow), .6), inset 0 0 0 1px rgba(255, 255, 255, .2);
+  animation: newPulse 2.6s var(--ease) infinite;
+}
+@keyframes newPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.07); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-new { animation: none; }
+}

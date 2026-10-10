@@ -166,6 +166,8 @@ const App = {
   },
 
   /* ---------- 上次读到哪儿 ---------- */
+  // 注意：书架的「继续阅读」卡片已下线（见 archive/continue-reading.js），
+  // 但"上次读到哪"仍然在记录 —— 留着它，哪天想恢复那个模块，改回来就能直接用。
   lastRead() {
     try { return JSON.parse(localStorage.getItem('daydream-last-read') || 'null'); } catch (e) { return null; }
   },
@@ -314,7 +316,10 @@ const App = {
   async ensureMenu(force) {
     if (force || !this.state.menu) {
       const m = await API.get('/api/menu');
-      this.state.menu = { main: m.main || [], personal: m.personal || [], settings: m.settings || [] };
+      this.state.menu = {
+        main: m.main || [], personal: m.personal || [], settings: m.settings || [],
+        latest: m.latest || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
+      };
     }
     return this.state.menu;
   },
@@ -395,10 +400,11 @@ const App = {
   async renderMenu() {
     const m = await this.ensureMenu();
     const u = this.state.user;
+    // 第一次来先静默记下当前进度（不弹 New!），之后靠时间戳比较决定要不要提示
+    if (!this.mainSeenTs()) this.markMainSeen();
+    const showNew = this.hasNewMain();
     const cc = m.main.length;
     const sc = m.main.reduce((s, c) => s + (c.sections || []).length, 0);
-    const last = this.lastRead();
-    const lastArticle = last ? this.findArticle(last.id) : null;
     return `
     <div class="page">
       ${this.topbar()}
@@ -407,18 +413,9 @@ const App = {
         <p class="menu-quote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
       </div>
       <div class="menu-cards">
-        ${lastArticle ? `
-        <a class="menu-card menu-continue" href="#/read/${lastArticle.id}">
-          <div class="menu-card-icon">❧</div>
-          <div class="menu-card-content">
-            <h3>继续阅读</h3>
-            <p>${esc(this.titleOf(lastArticle))}</p>
-            <span class="menu-card-meta">上次读到这里</span>
-          </div>
-          <div class="menu-card-arrow">→</div>
-        </a>` : ''}
         <a class="menu-card menu-main" href="#/main">
           <div class="menu-card-badge">主 线</div>
+          ${showNew ? '<span class="menu-new">NEW</span>' : ''}
           <div class="menu-card-icon">☂</div>
           <div class="menu-card-content">
             <h3>主线故事</h3>
@@ -452,6 +449,7 @@ const App = {
   /* ---------- 4. 主线：章列表 ---------- */
   async renderMainList() {
     const m = await this.ensureMenu();
+    this.markMainSeen();   // 进了这个模块就算看过，New! 消失
     this.pageTitle = '主线故事 · 白日梦咖啡馆';
     return `
     <div class="page">
@@ -479,6 +477,7 @@ const App = {
   /* ---------- 5. 主线：某章的节列表 ---------- */
   async renderChapter(chapterNo) {
     const m = await this.ensureMenu();
+    this.markMainSeen();   // 进了主线模块里的任一章节，同样算看过
     const c = m.main.find(x => String(x.chapter_no) === String(chapterNo));
     if (!c) return `<div class="page">${this.topbar()}<div class="notfound">这一章还不存在。</div></div>`;
     this.pageTitle = c.chapter_title + ' · 白日梦咖啡馆';
@@ -897,6 +896,40 @@ const App = {
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
+  /* ---------- 「主线故事」有新章节的小提示 ---------- */
+  // SQLite 存的是 UTC 的 "YYYY-MM-DD HH:MM:SS"。不补 Z 的话 Date.parse 会按本地时间算，
+  // 时区一偏就会把"刚更新"判成"早看过了"（或者反过来一直显示 New!）。
+  tsOf(s) {
+    // 只接受字符串：传数字 0 进来会变成 Date.parse('0Z')，
+    // 那在 Chrome 里是 2000-01-01 而不是 0 —— 假值判断会被它骗过去。
+    const t = typeof s === 'string' ? s.trim() : '';
+    if (!t) return 0;
+    const norm = t.indexOf('T') > -1 ? t : t.replace(' ', 'T');
+    const ms = Date.parse(/[Zz]$|[+-]\d\d:?\d\d$/.test(norm) ? norm : norm + 'Z');
+    return Number.isFinite(ms) ? ms : 0;
+  },
+  mainLatest() {
+    const m = this.state.menu;
+    return this.tsOf(m && m.latest ? m.latest.main : 0);
+  },
+  mainSeenTs() {
+    try {
+      const v = Number(localStorage.getItem('daydream-main-seen') || 0);
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    } catch (e) { return 0; }
+  },
+  // 首次访问（还没有记录）不提示，否则每个新访客一进书架就看到 New!
+  hasNewMain() {
+    const cur = this.mainLatest(), seen = this.mainSeenTs();
+    return cur > 0 && seen > 0 && cur > seen;
+  },
+  // 点进「主线故事」模块就算看过了 —— 不需要特地去看具体是哪一章
+  markMainSeen() {
+    const cur = this.mainLatest();
+    if (!cur) return;
+    try { localStorage.setItem('daydream-main-seen', String(cur)); } catch (e) {}
+  },
+
   // 哪些页面铺壁纸背景：封面页和文章页不铺，其余主要页面都铺。
   // 未知路由会回落到封面页，所以也按"不铺"处理。
   wallpaperOnRoute(route) {

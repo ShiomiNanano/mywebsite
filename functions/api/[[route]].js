@@ -394,12 +394,16 @@ export async function onRequest(context) {
       // 注意：这里只取正文的前 400 字用来生成摘要，绝不把全文带进目录接口。
       // 否则每次打开书架都要下载整本小说。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
-        a.section_no, a.section_title, a.title,
+        a.section_no, a.section_title, a.title, a.created_at,
         substr(a.content, 1, 400) AS head,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
       const main = [], mmap = {}, personal = [], settings = [];
+      // 每个分类里最新一篇文章的发布时间（UTC 的 "YYYY-MM-DD HH:MM:SS"，字符串比较即时间先后）。
+      // 只回这一个时间戳，不给每条都带上 created_at —— 那样目录接口会白胖一圈。
+      const latest = { main: '', personal: '', settings: '' };
       for (const a of rows.results) {
+        if (a.created_at && a.created_at > (latest[a.category] || '')) latest[a.category] = a.created_at;
         const it = {
           id: a.id, category: a.category,
           chapter_no: a.chapter_no, chapter_title: a.chapter_title,
@@ -415,7 +419,7 @@ export async function onRequest(context) {
         } else if (a.category === 'personal') personal.push(it);
         else settings.push(it);
       }
-      return jsonPublic({ main, personal, settings }, 60);
+      return jsonPublic({ main, personal, settings, latest }, 60);
     }
 
     // 文章详情：只查文章本身（上下篇由前端用已缓存的目录计算）
