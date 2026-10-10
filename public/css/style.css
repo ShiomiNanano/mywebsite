@@ -350,8 +350,6 @@ select { appearance: none; background-image: none; cursor: pointer; }
   font-family: var(--font-serif); font-size: var(--fs-xs);
   color: rgba(214,236,248,.82); letter-spacing: .5em; text-indent: .5em;
 }
-.cover-illus { width: 100%; }
-.cover-illus svg { display: block; width: 100%; height: auto; }
 .cover-title {
   /* fixed-color: 封面上的字 */
   font-family: var(--font-serif); font-size: clamp(38px, 12vw, 50px); font-weight: 700;
@@ -1389,20 +1387,6 @@ body::after {
   box-shadow: 0 0 40px -8px var(--wp-glow, rgba(130, 190, 230, .5));
 }
 
-/* ======================= 封面插画跟着壁纸调色 ======================= */
-/* 注意：SVG 的 fill 属性里不能用 var()，所以这里用类名从 CSS 覆盖；属性里的原色留作兜底 */
-.cover-svg .cv-stars, .cover-svg .cv-stars-w { fill: var(--wp-ink, #d6ecf8); }
-.cover-svg .cv-moon { fill: var(--wp-accent, #f0dfae); }
-.cover-svg .cv-hole { fill: var(--wp-deep, #05090d); }
-.cover-svg .cv-ring { stroke: var(--wp-accent, rgba(240, 223, 174, .5)); }
-.cover-svg .cv-whale { stroke: var(--wp-line, rgba(206, 232, 247, .5)); }
-.cover-svg .cv-line { stroke: var(--wp-line, rgba(206, 232, 247, .38)); }
-.cover-svg .cv-line-soft { stroke: var(--wp-line-soft, rgba(206, 232, 247, .2)); }
-.cover-svg .cv-wave { stroke: var(--wp-line, rgba(208, 232, 247, .4)); }
-.cover-svg #moonGlow stop, .cover-svg #eyeGlow stop { stop-color: var(--wp-accent, #f0dfae); }
-.cover-svg #whaleBody stop:first-child { stop-color: var(--wp-ink, #dceefb); }
-.cover-svg #whaleBody stop:last-child { stop-color: var(--wp-accent, #8fc3e4); }
-
 /* 减少动态效果：JS 不会去加载视频，这里再兜一层 */
 @media (prefers-reduced-motion: reduce) {
   .wp-video { display: none; }
@@ -1703,3 +1687,25 @@ html[data-wallpaper="on"] .menu-continue {
   .editor-split .editor-preview { display: none; }
   .editor-split:not(.preview-off) .editor-preview { display: block; }
 }
+
+/* ============================================================================
+   封面主图案：logo（金色烫印效果）
+   ----------------------------------------------------------------------------
+   不是把图片贴上去 —— 而是把 logo 当作 CSS 蒙版、用当前配色（从壁纸提取的暖金）
+   上色，再叠一层微光和投影，看起来像烫印在封面布面上，而不是一张贴纸。
+   换 logo 只需跑 tools/make-logo.py 重新生成蒙版，这里一行都不用改。
+   ============================================================================ */
+.cover-logo {
+  width: 76%;
+  aspect-ratio: 659 / 553;                 /* 与蒙版一致，保证不变形 */
+  background: linear-gradient(168deg,
+    var(--wp-accent-2, #f0dfae) 0%,
+    var(--wp-accent, #d3b37e) 52%,
+    var(--wp-accent-ink, #8a6c3f) 100%);
+  -webkit-mask: url('/media/logo-mask.png') center / contain no-repeat;
+  mask: url('/media/logo-mask.png') center / contain no-repeat;
+  filter:
+    drop-shadow(0 2px 3px rgba(0, 0, 0, .5))
+    drop-shadow(0 0 18px var(--wp-glow, rgba(120, 180, 220, .3)));
+}
+@media (max-width: 520px) { .cover-logo { width: 82%; } }
