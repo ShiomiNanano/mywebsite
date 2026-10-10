@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS articles (
   title         TEXT,
   content       TEXT    NOT NULL DEFAULT '',   -- HTML（由 plainToHtml 自动分段转成 <p>，或用 RAW 模式直接写）
   sort_order    INTEGER NOT NULL DEFAULT 0,
+  source        TEXT,                     -- 富文本标记原文（后台编辑时回填，读者接口不返回）
   created_at    TEXT,
   updated_at    TEXT
 );

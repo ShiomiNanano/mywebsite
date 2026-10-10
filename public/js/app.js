@@ -842,8 +842,26 @@ const App = {
             <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
           </div>
           <div class="form-row">
-            <label>正文内容 <span class="hint">（从 Word 直接粘贴即可：整篇没有空行时，每行自动算一段）</span></label>
-            <textarea name="content" rows="14" placeholder="在此粘贴正文……">${a ? esc(body) : ''}</textarea>
+            <label>正文内容 <span class="hint">（一行就是一段；工具栏可以插人物卡、图片等）</span></label>
+            <div class="editor-toolbar" id="editorToolbar">
+              <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
+              <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
+              <span class="et-sep"></span>
+              <button type="button" class="et-btn" data-act="h2">小标题</button>
+              <button type="button" class="et-btn" data-act="h3">次级标题</button>
+              <button type="button" class="et-btn" data-act="quote">引用</button>
+              <button type="button" class="et-btn" data-act="hr">分隔线</button>
+              <span class="et-sep"></span>
+              <button type="button" class="et-btn et-key" data-act="card">人物卡</button>
+              <button type="button" class="et-btn" data-act="note">提示块</button>
+              <button type="button" class="et-btn" data-act="image">图片</button>
+              <span class="et-sep"></span>
+              <button type="button" class="et-btn" data-act="preview" id="etPreviewBtn">显示预览</button>
+            </div>
+            <div class="editor-split" id="editorSplit">
+              <textarea name="content" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
+              <div class="editor-preview" id="editorPreview"><div class="reading-content"></div></div>
+            </div>
             <p class="hint" id="paraHint"></p>
           </div>
           <div class="form-row">
@@ -986,6 +1004,82 @@ const App = {
     return blocks.filter(b => b.trim()).length;
   },
 
+  /* ---------- 后台正文编辑器：工具栏 + 实时预览 ---------- */
+  initEditor() {
+    const box = document.querySelector('textarea[name="content"]');
+    const bar = document.getElementById('editorToolbar');
+    const wrap = document.getElementById('editorSplit');
+    const pane = document.getElementById('editorPreview');
+    if (!box || !bar || !window.Rich) return;
+    const R = window.Rich;
+
+    const paint = () => {
+      const holder = pane && pane.firstElementChild;
+      if (!holder) return;
+      const html = R.render(box.value);
+      holder.innerHTML = html || '<p class="ph">（还没有内容，左边写完这里就会实时显示）</p>';
+    };
+    let timer = 0;
+    const lazyPaint = () => { clearTimeout(timer); timer = setTimeout(paint, 120); };
+
+    const PLACEHOLDERS = { bold: '加粗文字', italic: '斜体文字' };
+    const doAct = (act) => {
+      if (act === 'bold') R.surround(box, '**', '**', PLACEHOLDERS.bold);
+      else if (act === 'italic') R.surround(box, '*', '*', PLACEHOLDERS.italic);
+      else if (act === 'h2') R.prefixLines(box, '## ');
+      else if (act === 'h3') R.prefixLines(box, '### ');
+      else if (act === 'quote') R.prefixLines(box, '> ');
+      else if (act === 'hr') R.insertBlock(box, '---');
+      else if (act === 'note') R.insertBlock(box, ':::note 提示标题\n写在这里\n:::', 8, 12);
+      else if (act === 'image') R.insertBlock(box, '![图片说明](https://图片地址)', 2, 6);
+      else if (act === 'card') {
+        const tpl = ':::card 名字 | 别名\n@ 一句话简介（年龄 / 身份 之类）\n正文……\n:::';
+        R.insertBlock(box, tpl, 8, 10);
+      } else if (act === 'preview') {
+        const on = wrap.classList.toggle('preview-off');
+        const btn = document.getElementById('etPreviewBtn');
+        if (btn) btn.textContent = on ? '显示预览' : '隐藏预览';
+      }
+      paint();
+      const n = this.countParagraphs(box.value);
+      const hint = document.getElementById('paraHint');
+      if (hint) hint.textContent = '共 ' + n + ' 段（一行一段；工具栏插入的块也算在内）';
+    };
+
+    bar.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-act]');
+      if (!btn) return;
+      ev.preventDefault();
+      doAct(btn.dataset.act);
+      box.focus();
+    });
+
+    box.addEventListener('input', () => {
+      lazyPaint();
+      this.updateParaHint();
+    });
+
+    // Ctrl/Cmd + B / I
+    box.addEventListener('keydown', (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      const k = (ev.key || '').toLowerCase();
+      if (k !== 'b' && k !== 'i') return;
+      ev.preventDefault();
+      doAct(k === 'b' ? 'bold' : 'italic');
+    });
+
+    paint();
+
+    // 老文章：异步取回标记原文回填。只有用户还没动过输入框才覆盖，
+    // 免得网络慢的时候把刚敲的字冲掉。
+    const m = location.hash.match(/admin\/edit\/(\d+)/);
+    if (!m) return;
+    const initial = box.value;
+    API.get('/api/admin/source/' + m[1]).then(r => {
+      if (r && r.source && box.value === initial) { box.value = r.source; paint(); this.updateParaHint(); }
+    }).catch(() => {});
+  },
+
   // 正文框下面的提示：让作者当场看到"会被识别成几段"
   updateParaHint() {
     const el = document.querySelector('textarea[name="content"]');
@@ -994,7 +1088,7 @@ const App = {
     const n = this.countParagraphs(el.value);
     hint.textContent = n === 0
       ? '正文还是空的'
-      : '将生成 ' + n + ' 段（整篇没有空行时每行算一段；有空行时按空行分段）';
+      : '共 ' + n + ' 段（一行就是一段）';
   },
 
   // 标题像"序章/楔子/引子"的，都按序章对待
@@ -1076,12 +1170,8 @@ const App = {
     const turnstileBox = document.getElementById('turnstileBox');
     if (turnstileBox) this.ensureTurnstile(turnstileBox);
 
-    // 正文框：实时显示会识别成几段
-    const contentBox = document.querySelector('textarea[name="content"]');
-    if (contentBox) {
-      contentBox.addEventListener('input', () => this.updateParaHint());
-      this.updateParaHint();
-    }
+    // 后台正文编辑器（工具栏 + 实时预览）；不在后台页会自动跳过
+    this.initEditor();
 
     const commentForm = document.querySelector('.comment-form');
     if (commentForm) commentForm.onsubmit = (e) => this.handleComment(e);
@@ -1448,6 +1538,8 @@ const App = {
     }
     const rawHtml = !!(document.getElementById('rawHtml') && document.getElementById('rawHtml').checked);
     const payload = { category, content: form.content.value.trim(), raw_html: rawHtml };
+    // 富文本模式：把标记原文交给后端，由后端统一渲染成正文（前端那份只用来做预览）
+    if (!rawHtml) payload.source = form.content.value;
     if (category === 'main') {
       payload.chapter_no = parseInt(form.chapter_no.value, 10);
       payload.chapter_title = form.chapter_title.value.trim();

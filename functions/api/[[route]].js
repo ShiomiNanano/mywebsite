@@ -137,6 +137,95 @@ async function verifyToken(token, secret) {
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
+/* ---------- 简易富文本标记 → HTML ----------
+   ⚠️ 必须和 public/js/rich.js 里的 render() 保持一致：前端用它做实时预览，
+      后端用它生成正式正文。两边不一致，作者看到的和发布的就不一样了。
+      （测试里有一条"逐条比对两边输出"守这个。）
+   先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签执行。 */
+function richInline(s) {
+  return escapeHtml(String(s == null ? '' : s))
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+}
+function richParas(buf, cls) {
+  return buf.map(b => b.trim()).filter(Boolean)
+    .map(b => '<p' + (cls ? ' class="' + cls + '"' : '') + '>' + richInline(b) + '</p>')
+    .join('');
+}
+function richCard(head, buf) {
+  const parts = String(head || '').split('|');
+  const name = (parts[0] || '').trim();
+  const note = (parts[1] || '').trim();
+  const lines = buf.slice();
+  let meta = '';
+  if (lines.length && /^@\s?/.test(lines[0].trim())) meta = lines.shift().trim().replace(/^@\s?/, '');
+  return '<div class="char-block">' +
+    ((name || note)
+      ? '<div class="char-head">' +
+        (name ? '<span class="char-name">' + richInline(name) + '</span>' : '') +
+        (note ? '<span class="char-note">' + richInline(note) + '</span>' : '') +
+        '</div>'
+      : '') +
+    (meta ? '<p class="char-meta">' + richInline(meta) + '</p>' : '') +
+    richParas(lines, 'char-desc') +
+    '</div>';
+}
+function richNote(head, buf) {
+  return '<div class="rc-note">' +
+    (head ? '<p class="rc-note-title">' + richInline(head) + '</p>' : '') +
+    richParas(buf) +
+    '</div>';
+}
+function richToHtml(text) {
+  const src = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+  const lines = src.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const t = raw.trim();
+    if (!t) { i++; continue; }
+
+    const img = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(t);
+    if (img) {
+      out.push('<figure><img src="' + img[2] + '" alt="' + escapeHtml(img[1]) + '" loading="lazy" decoding="async">' +
+        (img[1] ? '<figcaption>' + escapeHtml(img[1]) + '</figcaption>' : '') + '</figure>');
+      i++; continue;
+    }
+    if (/^(?:-\s*){3,}$/.test(t) || /^(?:\*\s*){3,}$/.test(t)) { out.push('<hr>'); i++; continue; }
+
+    const h = /^(#{2,3})\s+(.+)$/.exec(t);
+    if (h) {
+      const lv = h[1].length;
+      out.push('<h' + lv + '>' + richInline(h[2]) + '</h' + lv + '>');
+      i++; continue;
+    }
+    if (/^>\s?/.test(t)) {
+      const q = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) { q.push(lines[i].replace(/^\s*>\s?/, '').trim()); i++; }
+      out.push('<blockquote>' + richParas(q) + '</blockquote>');
+      continue;
+    }
+    const blk = /^:::(card|note)\s*(.*)$/.exec(t);
+    if (blk) {
+      const kind = blk[1], head = blk[2].trim(), buf = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== ':::') { buf.push(lines[i]); i++; }
+      i++;
+      out.push(kind === 'card' ? richCard(head, buf) : richNote(head, buf));
+      continue;
+    }
+    let html = richInline(t);
+    while (/ {2}$/.test(lines[i]) && i + 1 < lines.length && lines[i + 1].trim()) {
+      i++;
+      html += '<br>' + richInline(lines[i].trim());
+    }
+    out.push('<p>' + html + '</p>');
+    i++;
+  }
+  return out.join('\n');
+}
+
 // 纯文本 → HTML（后台粘贴正文用）。默认转义，避免粘贴进来的 <script> 被当成标签执行。
 //   整篇一个空行都没有 → 每行自动算一段（从 Word / 网页直接粘过来就是这种形态，作者不用手动补空行）
 //   整篇有空行        → 按空行分段，段内的单个换行保留为 <br>
@@ -155,9 +244,19 @@ function htmlToPlain(h) {
 }
 // 后台表单：勾了「原始 HTML」就原样存，否则交给 plainToHtml 自动分段
 function makeContent(body) {
+  // 富文本模式：编辑器把标记原文放在 source 里，正文 HTML 由后端统一生成
+  if (typeof body.source === 'string' && body.raw_html !== true) {
+    return richToHtml(body.source).slice(0, MAX_CONTENT);
+  }
   const raw = String(body.content || '').trim();
   if (body.raw_html === true) return raw.slice(0, MAX_CONTENT);
   return plainToHtml(raw);
+}
+// 标记原文：只有富文本模式才存；切到原始 HTML 模式就清空，
+// 否则下次打开编辑器会拿旧的标记覆盖掉刚写的 HTML。
+function makeSource(body) {
+  return (typeof body.source === 'string' && body.raw_html !== true)
+    ? body.source.slice(0, MAX_CONTENT) : '';
 }
 // 判断正文里是否有 <p>/<br> 之外的富文本结构（用于后台自动切换 HTML 模式）
 function looksRich(html) {
@@ -173,6 +272,13 @@ function makeExcerpt(head) {
 let schemaReady = false;
 async function ensureSchema(env) {
   if (schemaReady) return;
+  // 老库没有 articles.source（富文本编辑器的标记原文），这里补一下
+  try {
+    const cols = await env.DB.prepare('PRAGMA table_info(articles)').all();
+    if (cols && cols.results && !cols.results.some(c => c.name === 'source')) {
+      await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run();
+    }
+  } catch (e) { /* 表还不存在时交给下面的建表语句 */ }
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_usage (user_id INTEGER PRIMARY KEY, minute INTEGER NOT NULL, cnt INTEGER NOT NULL)`),
@@ -427,7 +533,19 @@ export async function onRequest(context) {
     if (method === 'GET' && m) {
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(Number(m[1])).first();
       if (!a) return json({ error: '文章不存在' }, 404);
-      return jsonPublic(a, 300);
+      // source 是作者的标记原文，只走后台接口；塞进给读者的响应会让它大一倍
+      const pub = Object.assign({}, a);
+      delete pub.source;
+      return jsonPublic(pub, 300);
+    }
+
+    // 后台编辑用：取标记原文（只有管理员拿得到，而且不缓存）
+    m = path.match(/^\/admin\/source\/(\d+)$/);
+    if (method === 'GET' && m) {
+      const e = needAdmin(); if (e) return e;
+      const row = await env.DB.prepare('SELECT source, content FROM articles WHERE id=?').bind(Number(m[1])).first();
+      if (!row) return json({ error: '文章不存在' }, 404);
+      return json({ source: row.source || '' });
     }
 
     m = path.match(/^\/article\/(\d+)\/comments$/);
@@ -540,6 +658,7 @@ export async function onRequest(context) {
       if (!['main', 'personal', 'settings'].includes(category)) return json({ error: '分类无效' }, 400);
       const content = makeContent(body);
       if (!content) return json({ error: '正文不能为空' }, 400);
+      const source = makeSource(body);
       let values;
       if (category === 'main') {
         const cn = parseInt(body.chapter_no, 10), sn = parseInt(body.section_no, 10);
@@ -547,13 +666,13 @@ export async function onRequest(context) {
         if (!Number.isFinite(sn) || sn < 1) return json({ error: '节号必须是正整数' }, 400);
         const ct = String(body.chapter_title || '').trim() || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content];
+        values = [category, cn, ct, sn, st, st, content, source];
       } else {
         const t = String(body.title || '').trim();
         if (!t) return json({ error: '标题不能为空' }, 400);
-        values = [category, null, null, null, null, t, content];
+        values = [category, null, null, null, null, t, content, source];
       }
-      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
+      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
       return json(a, 201);
     }
@@ -565,6 +684,7 @@ export async function onRequest(context) {
       const category = body.category || old.category;
       if (!['main', 'personal', 'settings'].includes(category)) return json({ error: '分类无效' }, 400);
       const content = makeContent(body) || old.content;
+      const source = makeSource(body);
       let values;
       if (category === 'main') {
         const cnRaw = parseInt(body.chapter_no, 10), snRaw = parseInt(body.section_no, 10);
@@ -572,12 +692,12 @@ export async function onRequest(context) {
         const sn = Number.isFinite(snRaw) && snRaw >= 1 ? snRaw : old.section_no;
         const ct = String(body.chapter_title || '').trim() || old.chapter_title || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || old.section_title || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content];
+        values = [category, cn, ct, sn, st, st, content, source];
       } else {
         const t = String(body.title || '').trim() || old.title || '未命名';
-        values = [category, null, null, null, null, t, content];
+        values = [category, null, null, null, null, t, content, source];
       }
-      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
+      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
       return json(a);
     }

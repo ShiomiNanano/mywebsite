@@ -213,7 +213,9 @@
       }).filter(function (b) { return b.text.trim() !== ''; });
     }
 
-    var plain = blocks.map(function (b) { return b.text.trim(); }).join('\n\n');
+    // 段内的软换行（Word 里的 Shift+Enter）写成"行尾两个空格"，
+  // 这样正文换成富文本标记后仍然是软换行，而不会被拆成两段
+  var plain = blocks.map(function (b) { return b.text.trim().replace(/\n/g, '  \n'); }).join('\n\n');
     var headings = blocks.filter(function (b) { return b.heading; });
     var meta = parseStruct(file.name);
 

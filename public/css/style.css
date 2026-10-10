@@ -1557,3 +1557,149 @@ html[data-wallpaper="on"] .menu-continue {
 @media (prefers-reduced-motion: reduce) {
   .menu-new { animation: none; }
 }
+/* ============================================================================
+   富文本块：人物卡 / 提示块 / 引用 / 分隔线 / 图片 / 小标题
+   ----------------------------------------------------------------------------
+   这些是后台编辑器（标记式）产出的 HTML 对应的样式，都挂在 .reading-content 下。
+   人物卡沿用站点已有的 .char-block 系列类名 —— 所以店长手动写的那种人物简介
+   不用改一个字，也会跟着一起变精致。
+   ============================================================================ */
+
+/* ---------- 人物卡 ---------- */
+.char-block {
+  position: relative;
+  margin: 0 0 var(--sp-5); padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0) 42%),
+    var(--surface-3);
+  border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 2px rgba(var(--shadow), .05), 0 14px 30px -26px rgba(var(--shadow), .6);
+}
+.char-head {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--sp-2);
+  margin-bottom: 6px;
+}
+.char-name {
+  /* fixed-color: 沿用站点原有的深色字设定，这里只调整排版 */
+  display: inline; font-family: var(--font-serif);
+  font-size: var(--fs-xl); font-weight: 700;
+  color: var(--accent); letter-spacing: .04em;
+}
+.char-note {
+  display: inline; font-family: var(--font-body);
+  font-size: var(--fs-xs); font-weight: 500; color: var(--gold); letter-spacing: .08em;
+}
+.char-meta {
+  margin: 0 0 var(--sp-4) !important;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  color: var(--ink-2); letter-spacing: .04em; text-indent: 0 !important;
+}
+.reading-content .char-block p {
+  text-indent: 0; margin-bottom: .6em;
+  font-size: var(--fs-base); line-height: 1.95; text-align: left;
+}
+.reading-content .char-block p:last-child { margin-bottom: 0; }
+.char-desc { color: var(--ink); }
+
+/* ---------- 提示块 ---------- */
+.rc-note {
+  margin: 0 0 var(--sp-5); padding: var(--sp-4) var(--sp-5);
+  background: var(--gold-soft);
+  border: 1px solid var(--frame-line); border-left: 3px solid var(--gold-2);
+  border-radius: var(--r-md);
+}
+.reading-content .rc-note p { text-indent: 0; margin-bottom: .6em; font-size: var(--fs-base); }
+.reading-content .rc-note p:last-child { margin-bottom: 0; }
+.rc-note-title {
+  font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: .12em; color: var(--gold);
+}
+
+/* ---------- 引用 ---------- */
+.reading-content blockquote {
+  margin: 0 0 var(--sp-5); padding: var(--sp-2) 0 var(--sp-2) var(--sp-5);
+  border-left: 2px solid var(--frame-line);
+  color: var(--ink-2);
+}
+.reading-content blockquote p {
+  text-indent: 0; margin-bottom: .5em; font-size: var(--fs-base); text-align: left;
+}
+.reading-content blockquote p:last-child { margin-bottom: 0; }
+
+/* ---------- 分隔线：做成站点一贯的「线 — 菱形 — 线」装饰 ---------- */
+.reading-content hr {
+  height: 9px; margin: var(--sp-6) auto; border: 0;
+  width: min(160px, 42%);
+  background: var(--ornament);
+  opacity: .8;
+}
+
+/* ---------- 小标题 ---------- */
+.reading-content h2,
+.reading-content h3 {
+  margin: var(--sp-6) 0 var(--sp-3);
+  font-family: var(--font-serif); color: var(--ink);
+  letter-spacing: .04em; text-indent: 0;
+}
+.reading-content h2 { font-size: var(--fs-xl); }
+.reading-content h3 { font-size: var(--fs-lg); color: var(--gold-2); }
+.reading-content h2::after {
+  content: ""; display: block; width: 46px; height: 2px;
+  margin-top: 8px; border-radius: 2px; background: var(--gold);
+  opacity: .7;
+}
+
+/* ---------- 图片 ---------- */
+.reading-content figure { margin: var(--sp-5) 0; text-align: center; }
+.reading-content figure img {
+  max-width: 100%; height: auto; border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px -18px rgba(var(--shadow), .8);
+}
+.reading-content figcaption {
+  margin-top: 8px; font-family: var(--font-body);
+  font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .04em;
+}
+
+/* ============================================================================
+   后台的正文编辑器：工具栏 + 左写右预览
+   ============================================================================ */
+.editor-toolbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 8px; padding: 7px 8px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.et-btn {
+  min-height: 30px; padding: 4px 11px;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .04em;
+  color: var(--ink-2); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  cursor: pointer; transition: var(--t);
+}
+.et-btn:hover { color: var(--ink); border-color: var(--line-2); background: var(--surface-3); }
+.et-btn.et-key { color: var(--accent); border-color: var(--frame-line); }
+.et-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+
+.editor-split { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
+.editor-split textarea { min-height: 320px; line-height: 1.75; font-family: var(--font-body); }
+.editor-preview {
+  min-height: 320px; max-height: 60vh; overflow: auto;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.editor-preview .ph { color: var(--ink-3); font-size: var(--fs-sm); }
+/* 预览里的字号收回正常大小，别把阅读页那套放大带进来 */
+.editor-preview .reading-content p { font-size: var(--fs-base); }
+/* 窄屏默认收起预览，点工具栏的「显示预览」再展开 */
+.editor-split.preview-off .editor-preview { display: none; }
+
+@media (min-width: 900px) {
+  .editor-split { grid-template-columns: 1fr 1fr; }
+  .editor-split.preview-off { grid-template-columns: 1fr; }
+}
+@media (max-width: 899px) {
+  .editor-split .editor-preview { display: none; }
+  .editor-split:not(.preview-off) .editor-preview { display: block; }
+}
