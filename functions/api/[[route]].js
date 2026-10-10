@@ -537,15 +537,6 @@ export async function onRequest(context) {
       return jsonPublic(pub, 300);
     }
 
-    // 后台编辑用：取标记原文（只有管理员拿得到，而且不缓存）
-    m = path.match(/^\/admin\/source\/(\d+)$/);
-    if (method === 'GET' && m) {
-      const e = needAdmin(); if (e) return e;
-      const row = await env.DB.prepare('SELECT source, content FROM articles WHERE id=?').bind(Number(m[1])).first();
-      if (!row) return json({ error: '文章不存在' }, 404);
-      return json({ source: row.source || '' });
-    }
-
     m = path.match(/^\/article\/(\d+)\/comments$/);
     if (method === 'GET' && m) {
       const articleId = Number(m[1]);
@@ -615,6 +606,21 @@ export async function onRequest(context) {
       if (user.role !== 'admin') return json({ error: '需要管理员权限' }, 403);
       return null;
     };
+
+    // 后台编辑用：取标记原文（只有管理员拿得到，而且不缓存）。
+    // ⚠️ 必须放在 needAdmin 定义之后 —— 它是局部 const，放在前面会触发 TDZ 报错（表现为 500）
+    m = path.match(/^\/admin\/source\/(\d+)$/);
+    if (method === 'GET' && m) {
+      const e = needAdmin(); if (e) return e;
+      try {
+        const row = await env.DB.prepare('SELECT source, content FROM articles WHERE id=?').bind(Number(m[1])).first();
+        if (!row) return json({ error: '文章不存在' }, 404);
+        return json({ source: row.source || '' });
+      } catch (err) {
+        // 只给管理员看的诊断信息：方便定位"字段没加上"这类问题
+        return json({ error: '读取标记原文失败', detail: String((err && err.message) || err).slice(0, 160) }, 500);
+      }
+    }
 
     if (method === 'GET' && path === '/admin/chat-config') {
       const e = needAdmin(); if (e) return e;
