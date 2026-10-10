@@ -269,8 +269,14 @@ select { appearance: none; background-image: none; cursor: pointer; }
 .brand:hover { color: var(--ink); }
 .brand-mark {
   display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
   width: 26px; height: 26px; flex: none; border-radius: var(--r-full);
-  background: var(--gold-soft); color: var(--gold); font-size: 15px;
+  background: var(--gold-soft);
+  /* 图案用和封面同一张 logo 蒙版：只有咖啡杯那部分（26px 下写字会糊） */
+  -webkit-mask: url('/media/logo-mark.png') center / 86% no-repeat;
+  mask: url('/media/logo-mark.png') center / 86% no-repeat;
+  background-image: linear-gradient(155deg, var(--wp-accent-2, #e8d3a2), var(--wp-accent, #d6b678));
+  background-color: transparent;
 }
 .brand-name {
   font-family: var(--font-serif); font-size: var(--fs-md); font-weight: 600;

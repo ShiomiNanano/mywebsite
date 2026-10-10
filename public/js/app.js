@@ -247,7 +247,7 @@ const App = {
     return `
     <header class="topbar">
       <a class="brand" href="#/menu">
-        <span class="brand-mark">☾</span>
+        <span class="brand-mark" role="img" aria-label="白日梦咖啡馆"></span>
         <span class="brand-name">白日梦咖啡馆</span>
       </a>
       <div class="topbar-right">

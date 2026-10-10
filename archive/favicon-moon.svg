@@ -1,3 +1,8 @@
+<!-- 原来的 favicon（月亮图标）—— 已换成 logo 的咖啡杯
+     恢复：把它放回 public/favicon.svg，并把 index.html 里的两行 icon 引用改回
+           <link rel="icon" href="favicon.svg" type="image/svg+xml">
+           <link rel="apple-touch-icon" href="favicon.svg">
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="白日梦咖啡馆">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">

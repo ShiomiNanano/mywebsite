@@ -18,7 +18,7 @@ import argparse
 import os
 import sys
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 
 
 def main():
@@ -67,6 +67,69 @@ def main():
     print('\n输出: %s  %.1f KB  %sx%s  宽高比 %.3f' % (
         dest, size / 1024, out.size[0], out.size[1], out.size[0] / out.size[1]))
     print('CSS 里用 width + aspect-ratio: %.3f 就能保证不变形' % (out.size[0] / out.size[1]))
+
+    # ---------- 顶栏小标记：只要咖啡杯那部分（文字在 26px 下是糊的）----------
+    mark = out.crop(split_mark(out))
+    mark_path = os.path.join(args.out, 'logo-mark.png')
+    mark.save(mark_path, 'PNG', optimize=True)
+    print('\n顶栏标记: %s  %.1f KB  %sx%s  宽高比 %.3f' % (
+        os.path.basename(mark_path), os.path.getsize(mark_path) / 1024,
+        mark.size[0], mark.size[1], mark.size[0] / mark.size[1]))
+
+    # ---------- favicon：深色圆角方块 + 金色咖啡杯 ----------
+    for px in (32, 180):
+        fav = make_favicon(mark, px, bg=(43, 36, 29), fg=(211, 179, 126))
+        name = 'favicon-%d.png' % px if px <= 32 else 'favicon.png'
+        fp = os.path.join(args.out, name)
+        fav.save(fp, 'PNG', optimize=True)
+        print('图标: %s  %.1f KB  %sx%s' % (name, os.path.getsize(fp) / 1024, px, px))
+
+
+def split_mark(img, gap_ratio=0.06):
+    """把「杯子」和下面的「Daydream Café」文字分开。
+    做法：看每一行的 alpha 总量，在图中下部找一条足够宽的全空行。"""
+    w, h = img.size
+    a = img.split()[-1]
+    rows = [sum(a.crop((0, y, w, y + 1)).tobytes()) for y in range(h)]
+    min_gap = max(3, int(h * gap_ratio))
+    best = None
+    y = int(h * 0.35)
+    while y < h - min_gap:
+        if rows[y] == 0:
+            start = y
+            while y < h and rows[y] == 0:
+                y += 1
+            if (y - start) >= min_gap:
+                best = start + (y - start) // 2
+            continue
+        y += 1
+    if best is None:
+        best = int(h * 0.62)      # 兜底：取上半部分
+        print('（没找到明显空隙，按 62% 处切分）')
+    return (0, 0, w, best)
+
+
+def make_favicon(mark, px, bg, fg):
+    """把杯子标记染成金色，放在深色圆角方块上。先在 4 倍尺寸画再缩小，边缘才干净。"""
+    S = px * 4
+    canvas = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    # 圆角底
+    plate = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(plate)
+    r = int(S * 0.22)
+    d.rounded_rectangle((0, 0, S - 1, S - 1), radius=r, fill=bg + (255,))
+    canvas = Image.alpha_composite(canvas, plate)
+    # 小图标留白少一点、线条粗一点，才能在 16px 下看出是只杯子
+    small = px <= 48
+    scale = (S * (0.86 if small else 0.74)) / mark.size[0]
+    m = mark.resize((max(1, round(mark.size[0] * scale)), max(1, round(mark.size[1] * scale))), Image.LANCZOS)
+    alpha = m.split()[-1]
+    if small:
+        alpha = alpha.filter(ImageFilter.MaxFilter(3))     # 线条加粗约 1px
+    colored = Image.new('RGBA', m.size, fg + (0,))
+    colored.putalpha(alpha)
+    canvas.alpha_composite(colored, ((S - m.size[0]) // 2, (S - m.size[1]) // 2))
+    return canvas.resize((px, px), Image.LANCZOS)
 
 
 if __name__ == '__main__':
