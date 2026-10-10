@@ -1812,3 +1812,27 @@ html[data-wallpaper="on"] .menu-continue {
     drop-shadow(0 0 18px var(--wp-glow, rgba(120, 180, 220, .3)));
 }
 @media (max-width: 520px) { .cover-logo { width: 82%; } }
+
+/* ---------- 招牌上的一行作品数据 ---------- */
+.menu-stats {
+  display: flex; justify-content: center; flex-wrap: wrap; gap: var(--sp-4) var(--sp-5);
+  margin-top: var(--sp-4);
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  color: var(--ink-2); letter-spacing: .06em;
+}
+.menu-stats b {
+  font-family: var(--font-serif); font-size: var(--fs-md); font-weight: 600;
+  color: var(--accent); margin-right: 3px;
+}
+
+/* ---------- 已读标记 ---------- */
+.read-tag {
+  position: absolute; top: 10px; right: 12px;
+  padding: 1px 7px; border-radius: var(--r-full);
+  font-family: var(--font-body); font-size: 10px; letter-spacing: .1em;
+  color: var(--ink-3); background: var(--surface-3); border: 1px solid var(--line);
+}
+/* 读过的稍微收一点，让"没读的"更显眼 —— 但别太淡，不然像点不动 */
+.section-card.is-read .section-title, .chapter-card.is-read .chapter-title { color: var(--ink-2); }
+.section-card.is-read, .chapter-card.is-read { border-color: var(--line); }
+.section-card.is-read .read-tag, .chapter-card.is-read .read-tag { color: var(--gold); border-color: var(--frame-line); }

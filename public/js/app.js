@@ -115,6 +115,41 @@ const App = {
   /* ---------- 上次读到哪儿 ---------- */
   // 注意：书架的「继续阅读」卡片已下线（见 archive/continue-reading.js），
   // 但"上次读到哪"仍然在记录 —— 留着它，哪天想恢复那个模块，改回来就能直接用。
+  /* ---------- 读过哪些篇（只存在本机，不上传） ---------- */
+  readMap() {
+    try { return JSON.parse(localStorage.getItem('daydream-read') || '{}'); } catch (e) { return {}; }
+  },
+  markRead(id) {
+    if (!id) return;
+    try {
+      const m = this.readMap();
+      m[id] = Date.now();
+      // 只留最近 500 篇，免得 localStorage 无限涨
+      const keys = Object.keys(m);
+      if (keys.length > 500) {
+        keys.sort((x, y) => m[x] - m[y]).slice(0, keys.length - 500).forEach(k => delete m[k]);
+      }
+      localStorage.setItem('daydream-read', JSON.stringify(m));
+    } catch (e) {}
+  },
+  isRead(id) { return !!this.readMap()[id]; },
+  // 一章的每一节都读过，才算这章读完
+  isChapterRead(c) {
+    const ss = (c && c.sections) || [];
+    return ss.length > 0 && ss.every(s => this.isRead(s.id));
+  },
+
+  /* ---------- 按时段问好（咖啡馆的招牌问候不该只有"晚安"） ---------- */
+  greet(u) {
+    const h = new Date().getHours();
+    const word = (h >= 5 && h < 11) ? '早安'
+      : (h >= 11 && h < 14) ? '午安'
+      : (h >= 14 && h < 18) ? '下午好'
+      : (h >= 18 && h < 23) ? '晚上好'
+      : '夜深了，还没睡吗';
+    return u ? (word + '，' + esc(u.username) + '。') : (word + '，欢迎来到白日梦咖啡馆。');
+  },
+
   lastRead() {
     try { return JSON.parse(localStorage.getItem('daydream-last-read') || 'null'); } catch (e) { return null; }
   },
@@ -265,7 +300,7 @@ const App = {
       const m = await API.get('/api/menu');
       this.state.menu = {
         main: m.main || [], personal: m.personal || [], settings: m.settings || [],
-        latest: m.latest || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
+        latest: m.latest || null, stats: m.stats || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
       };
     }
     return this.state.menu;
@@ -360,14 +395,25 @@ const App = {
     // 第一次来先静默记下当前进度（不弹 New!），之后靠时间戳比较决定要不要提示
     if (!this.mainSeenTs()) this.markMainSeen();
     const showNew = this.hasNewMain();
+    const st = (m && m.stats) || null;
+    const chars = (st && st.chars) || 0;
+    // 过万就换算成"约 X.X 万字"，否则直接报字数
+    const stat = !chars ? '' : (chars >= 10000
+      ? '约 ' + (chars / 10000).toFixed(1) + ' 万'
+      : String(chars));
     const cc = m.main.length;
     const sc = m.main.reduce((s, c) => s + (c.sections || []).length, 0);
     return `
     <div class="page">
       ${this.topbar()}
       <div class="menu-hero">
-        <p class="menu-greet"><span class="greet-logo" role="img" aria-label="白日梦咖啡馆"></span>${u ? '晚安，' + esc(u.username) + '。' : '欢迎来到白日梦咖啡馆。'}</p>
-        <p class="menu-quote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
+        <p class="menu-greet"><span class="greet-logo" role="img" aria-label="白日梦咖啡馆"></span>${this.greet(u)}</p>
+        <p class="menu-quote" id="menuQuote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
+        <p class="menu-stats">
+          <span><b>${cc}</b> 章</span>
+          <span><b>${sc}</b> 节</span>
+          ${stat ? `<span><b>${stat}</b> 字</span>` : ''}
+        </p>
       </div>
       <div class="menu-cards">
         <a class="menu-card menu-main" href="#/main">
@@ -419,7 +465,7 @@ const App = {
       </div>
       <div class="chapter-list">
         ${m.main.length ? m.main.map(c => `
-          <a class="chapter-card" href="#/main/${c.chapter_no}">
+          <a class="chapter-card${this.isChapterRead(c) ? ' is-read' : ''}" href="#/main/${c.chapter_no}"><span class="read-tag" aria-label="已读">已读</span>
             <div class="chapter-num">${this.chapterLabel(c.chapter_no, c.chapter_title)}</div>
             <div class="chapter-body">
               <h3>${esc(c.chapter_title)}</h3>
@@ -449,7 +495,7 @@ const App = {
       </div>
       <div class="section-list">
         ${secs.length ? secs.map(s => `
-          <a class="section-card" href="#/read/${s.id}">
+          <a class="section-card${this.isRead(s.id) ? ' is-read' : ''}" href="#/read/${s.id}"><span class="read-tag" aria-label="已读">已读</span>
             <span class="section-index">${String(s.section_no).padStart(2, '0')}</span>
             <div class="section-body">
               <h3>第 ${s.section_no} 节 · ${esc(s.section_title)}</h3>
@@ -552,6 +598,8 @@ const App = {
     const heading = article.category === 'main' ? article.section_title : article.title;
     // 正文字数（去掉标签和空白），阅读页显示"约 N 字"
     const plainLen = String(article.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
+    // 进正文就算读过了（书架上的「已读」标记靠这个）
+    this.markRead(article.id);
     const articleChars = plainLen.toLocaleString('zh-CN');
     this.pageTitle = heading + ' · 白日梦咖啡馆';
     this.rememberRead(article);
@@ -1129,6 +1177,18 @@ const App = {
           openBook();
         }
       };
+    }
+
+    // 书架页的「今日一句」：从正文里随机取一句填进去。
+    // 取不到就保留上面那句写死的话，页面永远不会空着。
+    const quoteEl = document.getElementById('menuQuote');
+    if (quoteEl && !quoteEl.dataset.loaded) {
+      API.get('/api/quote').then(r => {
+        if (!r || !r.text) return;
+        quoteEl.dataset.loaded = '1';
+        quoteEl.innerHTML = '“' + esc(r.text) + '”' +
+          (r.from ? '<span class="quote-author">—— ' + esc(r.from) + '</span>' : '');
+      }).catch(() => {});
     }
 
     document.querySelectorAll('[data-tab]').forEach(t => {
