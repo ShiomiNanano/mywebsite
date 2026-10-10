@@ -286,7 +286,19 @@ const App = {
              poster="/media/wallpaper-poster.webp" data-src="/media/wallpaper.mp4" aria-hidden="true"></video>
       <div class="wp-veil" aria-hidden="true"></div>
       <div class="cover-scene">
-        <div class="book-cover" id="bookCover">
+        <!-- 封面下面的一叠纸。放在封面之前，靠 DOM 顺序压在下面（不用负 z-index，
+             也不依赖浏览器对封面背景的 3D 层排序 —— 那样有可能把纸画到封面正面上）。
+             整本书翻开时它们依次翻过去，否则只有封面单独转走，看着像一张纸。 -->
+        <div class="book-stack" id="bookStack" aria-hidden="true">
+            <span class="bp"></span>
+            <span class="bp"></span>
+            <span class="bp"></span>
+            <span class="bp"></span>
+            <span class="bp"></span>
+            <span class="bp"></span>
+            <span class="bp"></span>
+        </div>
+        <div class="book-cover" id="bookCover" role="button" tabindex="0" aria-label="翻开这本书">
           <div class="cover-inner">
             <div class="cover-top">汐凪島 · 绘空事</div>
             <div class="cover-logo" role="img" aria-label="Daydream Café：咖啡杯里打盹的猫"></div>
@@ -295,7 +307,6 @@ const App = {
             <div class="cover-bottom">梦从此刻开始</div>
           </div>
         </div>
-        <button class="btn-cover" id="openBook">翻 开 这 本 书</button>
       </div>
     </div>`;
   },
@@ -355,7 +366,7 @@ const App = {
     <div class="page">
       ${this.topbar()}
       <div class="menu-hero">
-        <p class="menu-greet">${u ? '晚安，' + esc(u.username) + '。' : '欢迎来到白日梦咖啡馆。'}</p>
+        <p class="menu-greet"><span class="greet-logo" role="img" aria-label="白日梦咖啡馆"></span>${u ? '晚安，' + esc(u.username) + '。' : '欢迎来到白日梦咖啡馆。'}</p>
         <p class="menu-quote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
       </div>
       <div class="menu-cards">
@@ -1100,11 +1111,23 @@ const App = {
 
   /* ---------- 事件绑定 ---------- */
   afterRender() {
-    const openBtn = document.getElementById('openBook');
-    if (openBtn) {
-      openBtn.onclick = () => {
-        document.getElementById('bookCover').classList.add('turning');
-        setTimeout(() => { location.hash = '#/menu'; }, 900);
+    // 整本书都能点（原来的「翻开这本书」按钮已去掉）。
+    // 去掉可见按钮后，键盘和读屏用户会打不开 —— 所以补 role=button + tabindex + 回车/空格
+    const book = document.getElementById('bookCover');
+    if (book) {
+      const stack = document.getElementById('bookStack');
+      const openBook = () => {
+        if (book.classList.contains('turning')) return;        // 连点不要触发两次
+        book.classList.add('turning');
+        if (stack) stack.classList.add('turning');
+        setTimeout(() => { location.hash = '#/menu'; }, 1050);   // 等书页依次翻完
+      };
+      book.onclick = openBook;
+      book.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          openBook();
+        }
       };
     }
 
