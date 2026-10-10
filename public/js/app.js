@@ -68,7 +68,7 @@ const coverSVG = `
     </linearGradient>
   </defs>
 
-  <g fill="#d6ecf8">
+  <g class="cv-stars" fill="#d6ecf8">
     <circle cx="36" cy="34" r="1.4" opacity=".85"/><circle cx="70" cy="20" r="1.1" opacity=".7"/>
     <circle cx="150" cy="30" r="1.2" opacity=".75"/><circle cx="196" cy="54" r="1.3" opacity=".8"/>
     <circle cx="26" cy="76" r="1.1" opacity=".6"/><circle cx="174" cy="82" r="1" opacity=".65"/>
@@ -77,27 +77,27 @@ const coverSVG = `
   </g>
 
   <circle cx="250" cy="46" r="52" fill="url(#moonGlow)"/>
-  <path d="M 238 22 A 26 26 0 1 0 254 62 A 21 21 0 0 1 238 22 Z" fill="#f0dfae"/>
+  <path class="cv-moon" d="M 238 22 A 26 26 0 1 0 254 62 A 21 21 0 0 1 238 22 Z" fill="#f0dfae"/>
 
   <ellipse cx="106" cy="62" rx="38" ry="25" fill="url(#eyeGlow)"/>
-  <path d="M 76 62 Q 106 40 136 62 Q 106 84 76 62 Z" fill="#05090d" stroke="rgba(240,223,174,.45)" stroke-width="1"/>
-  <circle cx="106" cy="62" r="3" fill="none" stroke="rgba(240,223,174,.5)" stroke-width=".9"/>
+  <path class="cv-hole" d="M 76 62 Q 106 40 136 62 Q 106 84 76 62 Z" fill="#05090d" stroke="rgba(240,223,174,.45)" stroke-width="1"/>
+  <circle class="cv-ring" cx="106" cy="62" r="3" fill="none" stroke="rgba(240,223,174,.5)" stroke-width=".9"/>
 
-  <g fill="url(#whaleBody)" stroke="rgba(206,232,247,.5)" stroke-width="1.3" stroke-linejoin="round">
+  <g class="cv-whale" fill="url(#whaleBody)" stroke="rgba(206,232,247,.5)" stroke-width="1.3" stroke-linejoin="round">
     <path d="M 28 130 C 52 104 98 92 146 96 C 190 100 222 114 244 130 C 224 144 178 156 126 156 C 78 156 44 146 28 130 Z"/>
     <path d="M 238 124 C 250 112 262 102 272 96 C 268 116 268 138 272 158 C 260 148 248 136 236 134 Z"/>
     <path d="M 116 146 C 122 162 136 170 150 168 C 140 160 130 152 126 144 Z"/>
   </g>
 
-  <g fill="#eaf5fb">
+  <g class="cv-stars-w" fill="#eaf5fb">
     <circle cx="62" cy="132" r="1.5"/><circle cx="98" cy="124" r="1.1"/>
     <circle cx="140" cy="127" r="1.3"/><circle cx="176" cy="134" r="1"/>
     <circle cx="206" cy="141" r="1.2"/>
   </g>
-  <path d="M 44 134 C 82 148 152 152 224 140" fill="none" stroke="rgba(206,232,247,.20)" stroke-width="1"/>
-  <path d="M 30 129 C 38 125 46 125 54 128" fill="none" stroke="rgba(206,232,247,.38)" stroke-width="1.1" stroke-linecap="round"/>
+  <path class="cv-line-soft" d="M 44 134 C 82 148 152 152 224 140" fill="none" stroke="rgba(206,232,247,.20)" stroke-width="1"/>
+  <path class="cv-line" d="M 30 129 C 38 125 46 125 54 128" fill="none" stroke="rgba(206,232,247,.38)" stroke-width="1.1" stroke-linecap="round"/>
 
-  <g fill="none" stroke="rgba(208,232,247,.4)" stroke-width="1.3" stroke-linecap="round">
+  <g class="cv-wave" fill="none" stroke="rgba(208,232,247,.4)" stroke-width="1.3" stroke-linecap="round">
     <path d="M0 170 Q 20 162 40 170 T 80 170 T 120 170 T 160 170 T 200 170 T 240 170 T 280 170 T 320 170"/>
     <path d="M0 184 Q 26 177 52 184 T 104 184 T 156 184 T 208 184 T 260 184 T 312 184"/>
   </g>
@@ -130,14 +130,10 @@ const App = {
   pageTitle: DEFAULT_TITLE,
 
   async init() {
-    // 主题已由 js/theme-boot.js 在首屏绘制前设好，这里只做同步；万一没有就按系统偏好兜底
-    let t = document.documentElement.getAttribute('data-theme');
-    if (!t) {
-      let dark = false;
-      try { dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
-      t = dark ? 'night' : 'ocean';
+    // 主题固定为「夜读」，已由 js/theme-boot.js 在首屏绘制前设好；这里只是兜底
+    if (!document.documentElement.getAttribute('data-theme')) {
+      document.documentElement.setAttribute('data-theme', 'night');
     }
-    this.applyTheme(t);
 
     // 阅读字号（0 小 / 1 中 / 2 大）
     try { document.documentElement.setAttribute('data-font', localStorage.getItem('daydream-font-size') || '0'); } catch (e) {}
@@ -161,40 +157,6 @@ const App = {
 
     window.addEventListener('hashchange', () => this.route());
     this.route();
-  },
-
-  themes: ['ocean', 'paper', 'night'],
-  themeNames: { ocean: '海洋', paper: '暖纸', night: '夜读' },
-  themeBg: { ocean: '#e8f0f6', paper: '#f3ecdd', night: '#0c1822' },
-
-  themeIcon(theme) {
-    if (theme === 'paper') {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7.2C10.4 5.9 8.4 5.2 5.8 5.2H3.5v13.6h2.3c2.6 0 4.6.7 6.2 2 1.6-1.3 3.6-2 6.2-2h2.3V5.2h-2.3c-2.6 0-4.6.7-6.2 2z"/><path d="M12 7.2v13.6"/></svg>';
-    }
-    if (theme === 'night') {
-      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.8A8.6 8.6 0 0 1 9.2 3.8a8.6 8.6 0 1 0 11 11z"/></svg>';
-    }
-    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.6v2.2M12 19.2v2.2M4.4 4.4L6 6M18 18l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.4 19.6L6 18M18 6l1.6-1.6"/></svg>';
-  },
-
-  applyTheme(t) {
-    const theme = this.themes.indexOf(t) > -1 ? t : 'ocean';
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('daydream-theme', theme); } catch (e) {}
-    const btn = document.getElementById('themeBtn');
-    if (btn) {
-      btn.innerHTML = this.themeIcon(theme);
-      btn.setAttribute('title', '当前主题：' + this.themeNames[theme] + '（点击切换）');
-    }
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', this.themeBg[theme] || this.themeBg.ocean);
-  },
-
-  toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme') || 'ocean';
-    const next = this.themes[(this.themes.indexOf(cur) + 1) % this.themes.length] || 'ocean';
-    this.applyTheme(next);
-    toast('已切换到「' + this.themeNames[next] + '」主题');
   },
 
   applyFont(n) {
@@ -264,6 +226,9 @@ const App = {
     } catch (e) {
       view = `<div class="page">${this.topbar()}<div class="notfound">${esc(e.message)}</div></div>`;
     }
+    // 壁纸背景：封面页和文章页不用，其余主要页面都铺（配色在 CSS 里统一跟随壁纸）
+    this.setWallpaper(this.wallpaperOnRoute(hash));
+
     const isOutside = parts.length === 0 || parts[0] === 'login';
     // 游客也能看书，所以底部导航对所有人显示（登录/封面页除外）
     const showNav = !isOutside;
@@ -330,7 +295,6 @@ const App = {
 
   topbar() {
     const u = this.state.user;
-    const theme = document.documentElement.getAttribute('data-theme') || 'ocean';
     return `
     <header class="topbar">
       <a class="brand" href="#/menu">
@@ -338,7 +302,6 @@ const App = {
         <span class="brand-name">白日梦咖啡馆</span>
       </a>
       <div class="topbar-right">
-        <button class="icon-btn" id="themeBtn" title="切换主题（海洋 / 暖纸 / 夜读）" aria-label="切换主题">${this.themeIcon(theme)}</button>
         ${u ? `
           <a class="topbar-item topbar-hide-mobile" href="#/menu">书架</a>
           ${u.role === 'admin' ? `<a class="topbar-item" href="#/admin/articles">管理</a>` : ''}
@@ -365,6 +328,11 @@ const App = {
   renderLanding() {
     return `
     <div class="landing">
+      <!-- 动态壁纸：海报打底（首屏秒出），视频由 JS 视情况加载，蒙版保证文字可读 -->
+      <div class="wp-shot" aria-hidden="true"></div>
+      <video class="wp-video" id="wpVideo" muted loop playsinline preload="none"
+             poster="/media/wallpaper-poster.webp" data-src="/media/wallpaper.mp4" aria-hidden="true"></video>
+      <div class="wp-veil" aria-hidden="true"></div>
       <div class="cover-scene">
         <div class="book-cover" id="bookCover">
           <div class="cover-inner">
@@ -929,6 +897,54 @@ const App = {
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
+  // 哪些页面铺壁纸背景：封面页和文章页不铺，其余主要页面都铺。
+  // 未知路由会回落到封面页，所以也按"不铺"处理。
+  wallpaperOnRoute(route) {
+    const h = String(route == null ? location.hash : route).replace(/^#/, '').replace(/^\//, '');
+    const first = h.split('/').filter(Boolean)[0] || '';
+    return ['login', 'menu', 'main', 'personal', 'settings', 'profile', 'admin'].indexOf(first) >= 0;
+  },
+
+  setWallpaper(on) {
+    const root = document.documentElement;
+    if (on) { this.ensureWallpaperLayer(); root.setAttribute('data-wallpaper', 'on'); }
+    else root.removeAttribute('data-wallpaper');
+  },
+
+  // 壁纸层只建一次，之后靠 <html data-wallpaper> 切换显隐，避免每次翻页都重建
+  ensureWallpaperLayer() {
+    if (this._wpLayer || !document.body) return this._wpLayer;
+    const el = document.createElement('div');
+    el.className = 'wp-bg';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+    this._wpLayer = el;
+    return el;
+  },
+
+  // 主页动态壁纸：只有"宽屏 + 允许动效 + 不省流量 + 网络不差"时才真的去下视频，
+  // 其余情况（手机、3G、省流量模式、系统开了减少动态效果）就停在海报图上，不浪费流量。
+  initWallpaper() {
+    const v = document.getElementById('wpVideo');
+    if (!v || v.dataset.loaded) return;
+    let wide = false, saveData = false, conn = '';
+    try {
+      wide = window.matchMedia('(min-width: 900px)').matches;
+      const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (c) { saveData = !!c.saveData; conn = c.effectiveType || ''; }
+    } catch (e) {}
+    const slow = /(^|-)2g$/.test(conn) || conn === 'slow-2g' || conn === '3g';
+    if (!wide || saveData || slow || this.reduceMotion()) return;   // 保持海报图
+    const src = v.dataset.src;
+    if (!src) return;
+    v.dataset.loaded = '1';
+    v.addEventListener('canplay', () => v.classList.add('on'), { once: true });
+    v.addEventListener('error', () => v.classList.remove('on'), { once: true });
+    v.src = src;
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {});   // 被浏览器拦下就静静退回海报
+  },
+
   // 段落计数：必须和后台 plainToHtml 的规则一致（测试会逐条比对两边结果，防跑偏）
   countParagraphs(text) {
     const src = String(text == null ? '' : text).replace(/\r\n?/g, '\n').trim();
@@ -1039,9 +1055,6 @@ const App = {
     const moreBtn = document.getElementById('loadMoreComments');
     if (moreBtn) moreBtn.onclick = () => this.loadMoreComments(moreBtn);
 
-    const themeBtn = document.getElementById('themeBtn');
-    if (themeBtn) themeBtn.onclick = () => this.toggleTheme();
-
     const fontSmaller = document.getElementById('fontSmaller');
     if (fontSmaller) fontSmaller.onclick = () => this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) - 1);
     const fontLarger = document.getElementById('fontLarger');
@@ -1103,6 +1116,9 @@ const App = {
 
     // 卡片跟随鼠标的 3D 倾斜（触摸设备和"减少动态效果"下会自动跳过）
     this.initTilt();
+
+    // 主页动态壁纸（不是主页会自动跳过）
+    this.initWallpaper();
   },
 
   /* ---------- 阅读页的滚动装饰：顶部进度条 + 回到顶部 ---------- */

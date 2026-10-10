@@ -14,6 +14,9 @@
 # 静态资源缓存：public/ 里的文件名没有哈希指纹，所以不能设太长，
 # 否则改动 css/js 后老访客会一直拿到旧文件。
 # 想设一年缓存的话，请在 index.html 里用 ?v=2 这样的版本号手动带参。
+/media/*
+  Cache-Control: public, max-age=86400
+
 /css/*
   Cache-Control: public, max-age=3600
 

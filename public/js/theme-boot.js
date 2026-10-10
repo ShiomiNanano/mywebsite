@@ -1,25 +1,15 @@
 /* ============================================================
-   主题引导：必须在 CSS 之前同步执行，避免深色主题用户看到一瞬间白屏。
+   主题引导：必须在 CSS 之前同步执行。
    （CSP 里没有允许内联脚本，所以单独放一个文件）
    ============================================================ */
 (function () {
-  var THEMES = ['ocean', 'paper', 'night'];
-  var t = null;
-  try { t = localStorage.getItem('daydream-theme'); } catch (e) {}
-  if (THEMES.indexOf(t) < 0) {
-    // 没有保存过就看系统偏好：深色系统 → 夜读，否则用海洋（站点的默认身份）
-    var dark = false;
-    try { dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
-    t = dark ? 'night' : 'ocean';
-  }
-  document.documentElement.setAttribute('data-theme', t);
+  // 站点目前只保留「夜读」一套主题（海洋 / 暖纸已下线，见 archive/themes.css）。
+  // 仍然写上 data-theme 属性，方便将来恢复多主题、也方便 CSS 里按主题写规则。
+  document.documentElement.setAttribute('data-theme', 'night');
 
-  // 手机浏览器的地址栏 / 状态栏颜色跟着主题走（否则夜读时上面还是一条白）
+  // 手机浏览器的地址栏 / 状态栏颜色（否则夜读时上面还是一条白）
   var meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    var BG = { ocean: '#e8f0f6', paper: '#f3ecdd', night: '#0c1822' };
-    meta.setAttribute('content', BG[t] || BG.ocean);
-  }
+  if (meta) meta.setAttribute('content', '#0c1822');
 
   // 阅读字号也在这里恢复，否则阅读页会先按默认字号渲染再跳一下
   var f = '0';

@@ -1,0 +1,126 @@
+/* ============================================================================
+   已下线的两套主题（海洋 / 暖纸）—— 2026-10 用户决定只保留「夜读」
+   ----------------------------------------------------------------------------
+   恢复方法：
+     1. 把下面这些块粘回 public/css/style.css 里原来的位置
+        （基座令牌块在最前面，分类色块在"颜色与动效层"一节的开头）
+     2. 把 archive/theme-module.js 的内容放回 app.js（含顶栏按钮的 HTML）
+     3. 把 theme-boot.js 改回读 localStorage / 系统偏好
+     4. 把 css-check 里"只有一套主题"的断言改回"三套主题都覆盖关键变量"
+   注意：夜读的那两份令牌现在已经是 :root 基座，恢复时要把它改回
+        html[data-theme="night"] 选择器，并给 :root 恢复海洋那套。
+   ============================================================================ */
+
+/* ---------- 主题 A：海洋（浅色冷调）— 已下线 ---------- */
+:root,
+html[data-theme="ocean"] {
+  --bg: #e1ebf3;
+  --bg-deep: #d1dfeb;
+  --bg-glow: rgba(255,255,255,.85);
+  --glow-2: rgba(120,180,220,.15);
+  --vignette: rgba(18,45,72,.10);
+  --surface: #ffffff;
+  --surface-highlight: rgba(255,255,255,.7);
+  --frame-line: rgba(176,135,63,.24);
+  --surface-2: #f5f9fc;
+  --surface-3: #eef5fa;
+  --surface-sunken: #e2ecf4;
+  --ink: #14212d;
+  --ink-2: #566d81;
+  --ink-3: #8ba0b2;
+  --line: #dde7ef;
+  --line-2: #cbdae6;
+  --accent: #2b6693;
+  --accent-2: #1f4f74;
+  --accent-ink: #f5fafe;
+  --accent-soft: rgba(43,102,147,.10);
+  --gold: #b0873f;
+  --gold-2: #d9be86;
+  --gold-soft: rgba(176,135,63,.12);
+  --danger: #b04a3f;
+  --danger-soft: rgba(176,74,63,.10);
+  --shadow: 24,45,64;
+  --night: #0b1a27;
+  --topbar-bg: rgba(232,240,246,.82);
+  --nav-bg: rgba(255,255,255,.88);
+  --field-bg: #fbfdff;
+  --focus-ring: rgba(43,102,147,.16);
+  /* 金色卡片（继续阅读 / 对话入口） */
+  --gold-card-1: #f7ecd4;
+  --gold-card-2: #e3cea2;
+  --gold-card-ink: #3b2f18;
+  --gold-card-ink-2: #6b5a35;
+  --gold-card-line: rgba(59,47,24,.28);
+  --gold-card-chip: rgba(255,255,255,.5);
+  /* 提示条 */
+  --toast-bg: rgba(20,33,45,.94);
+  --toast-ink: #f2f8fc;
+}
+
+/* ---------- 主题 B：暖纸（浅色暖调）— 已下线 ---------- */
+html[data-theme="paper"] {
+  --bg: #efe5d1;
+  --bg-deep: #e3d5ba;
+  --bg-glow: rgba(255,252,244,.95);
+  --glow-2: rgba(206,166,96,.16);
+  --vignette: rgba(92,70,38,.13);
+  --surface: #fffdf8;
+  --surface-highlight: rgba(255,255,255,.75);
+  --frame-line: rgba(176,138,60,.26);
+  --surface-2: #faf5ea;
+  --surface-3: #f4ecdc;
+  --surface-sunken: #ece2cf;
+  --ink: #2a251d;
+  --ink-2: #6f6757;
+  --ink-3: #9a917f;
+  --line: #e4d9c2;
+  --line-2: #d6c7a9;
+  --accent: #24505a;
+  --accent-2: #173a43;
+  --accent-ink: #f7f2e6;
+  --accent-soft: rgba(36,80,90,.10);
+  --gold: #b08a3c;
+  --gold-2: #d6b878;
+  --gold-soft: rgba(176,138,60,.14);
+  --danger: #a3473a;
+  --danger-soft: rgba(163,71,58,.10);
+  --shadow: 74,60,36;
+  --night: #121a1c;
+  --topbar-bg: rgba(243,236,221,.84);
+  --nav-bg: rgba(255,253,248,.9);
+  --field-bg: #fffdf7;
+  --focus-ring: rgba(36,80,90,.16);
+  --gold-card-1: #f8eed8;
+  --gold-card-2: #e6d4ae;
+  --gold-card-ink: #3b2f18;
+  --gold-card-ink-2: #6b5a35;
+  --gold-card-line: rgba(59,47,24,.28);
+  --gold-card-chip: rgba(255,255,255,.55);
+  --toast-bg: rgba(38,32,22,.94);
+  --toast-ink: #f8f2e6;
+}
+
+/* ---------- 分类色：海洋 / 暖纸 — 已下线 ---------- */
+:root,
+html[data-theme="ocean"] {
+  --c-main: #2f6ea8;
+  --c-personal: #2f7d64;
+  --c-settings: #6d5aa8;
+  --c-continue: #b0563c;
+  --c-main-soft: rgba(47, 110, 168, .13);
+  --c-personal-soft: rgba(47, 125, 100, .13);
+  --c-settings-soft: rgba(109, 90, 168, .13);
+  --c-continue-soft: rgba(176, 86, 60, .13);
+  --glow-3: rgba(198, 134, 74, .14);
+}
+html[data-theme="paper"] {
+  --c-main: #24565f;
+  --c-personal: #4c6b3a;
+  --c-settings: #6b5170;
+  --c-continue: #9c5433;
+  --c-main-soft: rgba(36, 86, 95, .13);
+  --c-personal-soft: rgba(76, 107, 58, .13);
+  --c-settings-soft: rgba(107, 81, 112, .13);
+  --c-continue-soft: rgba(156, 84, 51, .13);
+  --glow-3: rgba(200, 144, 74, .16);
+}

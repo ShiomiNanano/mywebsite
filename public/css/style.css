@@ -1,7 +1,7 @@
 /* ============================================================================
    白日梦咖啡馆 · 样式表
    结构：
-     1. 设计令牌（尺寸 / 字体 / 颜色）—— 三套主题只覆盖这里的变量
+     1. 设计令牌（尺寸 / 字体 / 颜色）—— 主题令牌只覆盖这里的变量
      2. 基础与排版
      3. 通用组件（按钮 / 头像 / 标签 / 表单）
      4. 封面 → 登录 → 书架 → 列表 → 阅读 → 留言 → 个人中心 → 后台（对话已下线，样式保留）
@@ -63,97 +63,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* ---------- 主题 A：海洋（默认，浅色冷调） ---------- */
-:root,
-html[data-theme="ocean"] {
-  --bg: #e1ebf3;
-  --bg-deep: #d1dfeb;
-  --bg-glow: rgba(255,255,255,.85);
-  --glow-2: rgba(120,180,220,.15);
-  --vignette: rgba(18,45,72,.10);
-  --surface: #ffffff;
-  --surface-highlight: rgba(255,255,255,.7);
-  --frame-line: rgba(176,135,63,.24);
-  --surface-2: #f5f9fc;
-  --surface-3: #eef5fa;
-  --surface-sunken: #e2ecf4;
-  --ink: #14212d;
-  --ink-2: #566d81;
-  --ink-3: #8ba0b2;
-  --line: #dde7ef;
-  --line-2: #cbdae6;
-  --accent: #2b6693;
-  --accent-2: #1f4f74;
-  --accent-ink: #f5fafe;
-  --accent-soft: rgba(43,102,147,.10);
-  --gold: #b0873f;
-  --gold-2: #d9be86;
-  --gold-soft: rgba(176,135,63,.12);
-  --danger: #b04a3f;
-  --danger-soft: rgba(176,74,63,.10);
-  --shadow: 24,45,64;
-  --night: #0b1a27;
-  --topbar-bg: rgba(232,240,246,.82);
-  --nav-bg: rgba(255,255,255,.88);
-  --field-bg: #fbfdff;
-  --focus-ring: rgba(43,102,147,.16);
-  /* 金色卡片（继续阅读 / 对话入口） */
-  --gold-card-1: #f7ecd4;
-  --gold-card-2: #e3cea2;
-  --gold-card-ink: #3b2f18;
-  --gold-card-ink-2: #6b5a35;
-  --gold-card-line: rgba(59,47,24,.28);
-  --gold-card-chip: rgba(255,255,255,.5);
-  /* 提示条 */
-  --toast-bg: rgba(20,33,45,.94);
-  --toast-ink: #f2f8fc;
-}
-
-/* ---------- 主题 B：暖纸（浅色暖调） ---------- */
-html[data-theme="paper"] {
-  --bg: #efe5d1;
-  --bg-deep: #e3d5ba;
-  --bg-glow: rgba(255,252,244,.95);
-  --glow-2: rgba(206,166,96,.16);
-  --vignette: rgba(92,70,38,.13);
-  --surface: #fffdf8;
-  --surface-highlight: rgba(255,255,255,.75);
-  --frame-line: rgba(176,138,60,.26);
-  --surface-2: #faf5ea;
-  --surface-3: #f4ecdc;
-  --surface-sunken: #ece2cf;
-  --ink: #2a251d;
-  --ink-2: #6f6757;
-  --ink-3: #9a917f;
-  --line: #e4d9c2;
-  --line-2: #d6c7a9;
-  --accent: #24505a;
-  --accent-2: #173a43;
-  --accent-ink: #f7f2e6;
-  --accent-soft: rgba(36,80,90,.10);
-  --gold: #b08a3c;
-  --gold-2: #d6b878;
-  --gold-soft: rgba(176,138,60,.14);
-  --danger: #a3473a;
-  --danger-soft: rgba(163,71,58,.10);
-  --shadow: 74,60,36;
-  --night: #121a1c;
-  --topbar-bg: rgba(243,236,221,.84);
-  --nav-bg: rgba(255,253,248,.9);
-  --field-bg: #fffdf7;
-  --focus-ring: rgba(36,80,90,.16);
-  --gold-card-1: #f8eed8;
-  --gold-card-2: #e6d4ae;
-  --gold-card-ink: #3b2f18;
-  --gold-card-ink-2: #6b5a35;
-  --gold-card-line: rgba(59,47,24,.28);
-  --gold-card-chip: rgba(255,255,255,.55);
-  --toast-bg: rgba(38,32,22,.94);
-  --toast-ink: #f8f2e6;
-}
-
-/* ---------- 主题 C：夜读（深色） ---------- */
-html[data-theme="night"] {
+/* ---------- 主题令牌：只剩「夜读」一套 ----------
+   海洋 / 暖纸已下线，样式存档在 archive/themes.css（含恢复步骤）。 ---------- */
+:root {
+  /* theme-tokens: 主题令牌本来就是原始色值，颜色检查豁免这一块 */
   --bg: #07121a;
   --bg-deep: #030a10;
   --bg-glow: rgba(80,140,190,.14);
@@ -197,6 +110,8 @@ html[data-theme="night"] {
   --toast-ink: #0d1a24;
   color-scheme: dark;
 }
+
+
 
 /* ============ 2. 基础与排版 ============ */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -400,7 +315,7 @@ select { appearance: none; background-image: none; cursor: pointer; }
 @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
 
 .book-cover {
-  /* fixed-color: 封面在三种主题下都保持深色 */
+  /* fixed-color: 封面在深色主题下保持深色 */
   position: relative;
   width: min(76vw, 324px); aspect-ratio: 340 / 472;
   border-radius: 5px 14px 14px 5px;
@@ -645,7 +560,7 @@ select { appearance: none; background-image: none; cursor: pointer; }
 
 /* 主线：唯一的深色强调卡 */
 .menu-main {
-  /* fixed-color: 书架上的深色主角卡，三种主题下都保持深色 */
+  /* fixed-color: 书架上的深色主角卡，始终保持深色 */
   align-items: flex-end; padding: var(--sp-6) var(--sp-5);
   background: linear-gradient(150deg, #24506f, #0d2337 72%);
   border-color: transparent; color: #eaf5fc;
@@ -671,7 +586,7 @@ select { appearance: none; background-image: none; cursor: pointer; }
   border-radius: var(--r-md) 0 var(--r-sm) 0;
 }
 
-/* 继续阅读 / 对话入口：同一族「金色卡片」，配色交给主题变量 */
+/* 继续阅读：金色卡片，配色交给主题变量 */
 .menu-continue, .menu-chat {
   background: linear-gradient(140deg, var(--gold-card-1), var(--gold-card-2));
   border-color: transparent; color: var(--gold-card-ink);
@@ -1216,30 +1131,7 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
    ============================================================================ */
 
 /* ======================= 1. 分类色 ======================= */
-:root,
-html[data-theme="ocean"] {
-  --c-main: #2f6ea8;
-  --c-personal: #2f7d64;
-  --c-settings: #6d5aa8;
-  --c-continue: #b0563c;
-  --c-main-soft: rgba(47, 110, 168, .13);
-  --c-personal-soft: rgba(47, 125, 100, .13);
-  --c-settings-soft: rgba(109, 90, 168, .13);
-  --c-continue-soft: rgba(176, 86, 60, .13);
-  --glow-3: rgba(198, 134, 74, .14);
-}
-html[data-theme="paper"] {
-  --c-main: #24565f;
-  --c-personal: #4c6b3a;
-  --c-settings: #6b5170;
-  --c-continue: #9c5433;
-  --c-main-soft: rgba(36, 86, 95, .13);
-  --c-personal-soft: rgba(76, 107, 58, .13);
-  --c-settings-soft: rgba(107, 81, 112, .13);
-  --c-continue-soft: rgba(156, 84, 51, .13);
-  --glow-3: rgba(200, 144, 74, .16);
-}
-html[data-theme="night"] {
+:root {
   --c-main: #74abd8;
   --c-personal: #68b795;
   --c-settings: #a996e2;
@@ -1250,6 +1142,8 @@ html[data-theme="night"] {
   --c-continue-soft: rgba(226, 149, 111, .17);
   --glow-3: rgba(198, 132, 72, .13);
 }
+
+
 
 /* ======================= 2. 背景多一层暖光，并缓慢漂移 ======================= */
 /* body::before 是冷调柔光 + 纸纹（原有），这里用 ::after 再加一层暖光并让它慢慢漂。
@@ -1392,3 +1286,185 @@ body::after {
   .menu-card:hover .menu-card-icon,
   .article-card:hover .card-ico { transform: none; }
 }
+
+/* ============================================================================
+   主页动态壁纸（只作用于落地页 #/，其它页面完全不受影响）
+   ----------------------------------------------------------------------------
+   配色来自 media/wallpaper-palette.css（由 tools/make-wallpaper.py 依据壁纸生成）：
+     --wp-base / deep / ink / cream / accent / accent-2 / glow / line / veil / cover-1 / cover-2
+   所有 var() 都带原色兜底 —— 万一配色表没加载，画面仍是原来那套蓝金封面。
+   图层从下到上：.landing 底色 → .wp-shot（LQIP + 海报）→ .wp-video → .wp-veil → 封面内容
+   ============================================================================ */
+
+/* 底色也换成暖色（媒体加载失败时，兜底的就是它） */
+.landing {
+  background: linear-gradient(158deg,
+    var(--wp-cover-1, #24506f) 0%,
+    var(--wp-cover-2, #12293f) 60%,
+    var(--wp-base, #0a1c2c) 100%);
+}
+/* 原来的冷蓝氛围层交给 .wp-veil，避免冷暖两套光打架 */
+.landing::after { display: none; }
+
+.wp-shot {
+  position: absolute; inset: 0; z-index: 0;
+  /* 海报在上、LQIP 在下：海报还没到时先铺一层模糊底色，首屏不会白 */
+  background-image: url('/media/wallpaper-poster.webp'), url('/media/wallpaper-lqip.webp');
+  background-size: cover, cover;
+  background-position: 50% 42%, 50% 42%;
+  background-repeat: no-repeat, no-repeat;
+}
+.wp-video {
+  position: absolute; inset: 0; z-index: 1;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 42%;
+  opacity: 0; transition: opacity 1.4s var(--ease);
+  pointer-events: none;
+}
+.wp-video.on { opacity: 1; }
+
+/* 蒙版：左侧压暗（封面和文字在这一侧），右侧留出咖啡厅；上下再压一点 */
+.wp-veil {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    linear-gradient(90deg,
+      var(--wp-veil-strong, rgba(6, 18, 30, .88)) 0%,
+      var(--wp-veil, rgba(6, 18, 30, .6)) 30%,
+      rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg,
+      rgba(0, 0, 0, .34) 0%, rgba(0, 0, 0, 0) 22%,
+      rgba(0, 0, 0, 0) 58%, var(--wp-veil, rgba(6, 18, 30, .6)) 100%),
+    radial-gradient(130% 90% at 74% 44%, transparent 38%, var(--wp-glow-soft, rgba(120, 180, 220, .16)) 100%);
+}
+
+/* 封面内容提到最上层 */
+.landing .cover-scene { z-index: 3; }
+
+/* 宽屏：封面移到左侧，把咖啡厅和驻唱的女孩让出来 */
+@media (min-width: 1000px) {
+  .landing {
+    justify-content: flex-start;
+    padding-left: clamp(40px, 8vw, 150px);
+    padding-right: clamp(40px, 8vw, 150px);
+  }
+  .landing .cover-scene { align-items: flex-start; }
+  .landing .book-cover { width: min(34vw, 300px); }
+}
+/* 窄屏只有海报：蒙版改成上下压暗、中间留亮 */
+@media (max-width: 999px) {
+  .wp-veil {
+    background:
+      linear-gradient(180deg,
+        var(--wp-veil, rgba(6, 18, 30, .6)) 0%, rgba(0, 0, 0, 0) 30%,
+        rgba(0, 0, 0, 0) 46%, var(--wp-veil-strong, rgba(6, 18, 30, .88)) 100%),
+      radial-gradient(120% 70% at 50% 40%, transparent 40%, var(--wp-glow-soft, rgba(120, 180, 220, .16)) 100%);
+  }
+}
+
+/* ======================= 封面与按钮改用壁纸配色 ======================= */
+.landing .book-cover {
+  background: linear-gradient(158deg,
+    var(--wp-cover-1, #24506f) 0%,
+    var(--wp-cover-2, #12293f) 52%,
+    var(--wp-deep, #0a1c2c) 100%);
+  box-shadow:
+    0 30px 60px -20px rgba(0, 0, 0, .7),
+    10px 0 28px -12px rgba(0, 0, 0, .55),
+    inset 0 0 70px rgba(0, 0, 0, .42),
+    0 0 90px -30px var(--wp-glow, rgba(120, 180, 220, .3));
+}
+.landing .cover-top,
+.landing .cover-sub { color: var(--wp-accent, #f0dfae); }
+.landing .cover-title { color: var(--wp-ink, #eef7fc); }
+.landing .cover-bottom { color: var(--wp-ink-soft, rgba(238, 247, 252, .8)); }
+.landing .cover-line { background: linear-gradient(90deg, transparent, var(--wp-line, rgba(208, 233, 248, .6)), transparent); }
+.landing .btn-cover {
+  color: var(--wp-ink, #eef7fc);
+  border-color: var(--wp-line, rgba(208, 233, 248, .42));
+  background: var(--wp-glow-soft, rgba(238, 247, 252, .04));
+}
+.landing .btn-cover:hover {
+  border-color: var(--wp-accent, #e8c36a);
+  background: var(--wp-glow, rgba(208, 233, 248, .14));
+  box-shadow: 0 0 40px -8px var(--wp-glow, rgba(130, 190, 230, .5));
+}
+
+/* ======================= 封面插画跟着壁纸调色 ======================= */
+/* 注意：SVG 的 fill 属性里不能用 var()，所以这里用类名从 CSS 覆盖；属性里的原色留作兜底 */
+.cover-svg .cv-stars, .cover-svg .cv-stars-w { fill: var(--wp-ink, #d6ecf8); }
+.cover-svg .cv-moon { fill: var(--wp-accent, #f0dfae); }
+.cover-svg .cv-hole { fill: var(--wp-deep, #05090d); }
+.cover-svg .cv-ring { stroke: var(--wp-accent, rgba(240, 223, 174, .5)); }
+.cover-svg .cv-whale { stroke: var(--wp-line, rgba(206, 232, 247, .5)); }
+.cover-svg .cv-line { stroke: var(--wp-line, rgba(206, 232, 247, .38)); }
+.cover-svg .cv-line-soft { stroke: var(--wp-line-soft, rgba(206, 232, 247, .2)); }
+.cover-svg .cv-wave { stroke: var(--wp-line, rgba(208, 232, 247, .4)); }
+.cover-svg #moonGlow stop, .cover-svg #eyeGlow stop { stop-color: var(--wp-accent, #f0dfae); }
+.cover-svg #whaleBody stop:first-child { stop-color: var(--wp-ink, #dceefb); }
+.cover-svg #whaleBody stop:last-child { stop-color: var(--wp-accent, #8fc3e4); }
+
+/* 减少动态效果：JS 不会去加载视频，这里再兜一层 */
+@media (prefers-reduced-motion: reduce) {
+  .wp-video { display: none; }
+}
+
+/* ============================================================================
+   壁纸背景 + 配色自适应（书架、章节列表、个人章、设定、登录、后台；文章页除外）
+   ----------------------------------------------------------------------------
+   全站只有「夜读」一套主题（海洋 / 暖纸已下线，样式存档在 archive/themes.css）。
+   配色跟随壁纸，且**全站生效（含文章页）** —— 否则从书架点进文章时，
+   链接和按钮的颜色会突然从暖金变回蓝色，很割裂。背景壁纸则只铺在主要页面上，
+   文章页保持干净纸面。
+   ============================================================================ */
+
+/* ---------- 强调色跟随壁纸（全站） ---------- */
+:root {
+  --accent: var(--wp-accent, #6fa8d6);
+  --accent-2: var(--wp-accent-2, #8fc3e4);
+  --accent-ink: #241a0c;          /* 亮金按钮上要用深色字，白字会读不出来 */
+  --accent-soft: var(--wp-glow-soft, rgba(111, 168, 214, .16));
+  --focus-ring: var(--wp-glow-soft, rgba(111, 168, 214, .18));
+  --gold: var(--wp-accent, #d9be86);
+  --gold-2: var(--wp-accent-2, #e8d5ab);
+  --gold-soft: var(--wp-glow-soft, rgba(217, 190, 134, .14));
+}
+
+/* ---------- 背景壁纸层（fixed；只创建一次，靠属性切换显隐） ---------- */
+.wp-bg {
+  display: none;
+  position: fixed; inset: 0; z-index: -1;
+  background-image: url('/media/wallpaper-poster.webp'), url('/media/wallpaper-lqip.webp');
+  background-size: cover, cover;
+  background-position: 50% 34%, 50% 34%;
+  background-repeat: no-repeat, no-repeat;
+}
+html[data-wallpaper="on"] .wp-bg { display: block; }
+/* 蒙版：深棕压暗，让照片在暗处透出来；偏置 34% 是为了竖长屏幕优先露出女孩和吊灯 */
+.wp-bg::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg,
+    rgba(20, 16, 12, .70) 0%,
+    rgba(20, 16, 12, .58) 52%,
+    rgba(20, 16, 12, .78) 100%);
+}
+/* 壁纸铺开时撤掉原来的环境光层，免得两种光打架 */
+html[data-wallpaper="on"] body::before,
+html[data-wallpaper="on"] body::after { display: none; }
+
+html[data-wallpaper="on"] {
+  /* 顶部栏 / 底部导航在照片上要更实一点才看得清 */
+  --topbar-bg: rgba(14, 20, 26, .80);
+  --nav-bg: rgba(14, 20, 26, .90);
+  /* 直接铺在照片上的文字加一层暗描边 */
+  --wp-halo: 0 1px 4px rgba(0, 0, 0, .75), 0 0 14px rgba(0, 0, 0, .5);
+}
+html[data-wallpaper="on"] .shelf-head,
+html[data-wallpaper="on"] .page-head,
+html[data-wallpaper="on"] .breadcrumb,
+html[data-wallpaper="on"] .shelf-plaque,
+html[data-wallpaper="on"] .shelf-tip,
+html[data-wallpaper="on"] .empty-hint,
+html[data-wallpaper="on"] .notfound { text-shadow: var(--wp-halo); }
+
+/* 书架页的加载骨架也跟着暗一点，别在照片上显得突兀 */
+html[data-wallpaper="on"] .shelf-skeleton span { opacity: .82; }

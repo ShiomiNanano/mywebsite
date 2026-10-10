@@ -17,3 +17,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# 本地预览用的 /media 镜像（真正的文件在 public/media，会部署）
+/media/

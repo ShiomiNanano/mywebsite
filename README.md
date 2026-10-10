@@ -119,6 +119,22 @@ npx wrangler pages dev public --d1 DB=daydream
 在章列表、章节页眉标、阅读页眉标里都会显示成「序章」，而不是「第 00 章」。
 数据库里存的章号仍然是 0，只是列表显示时做了换算（见 `public/js/app.js` 的 `chapterLabel()`）。
 
+## 主页动态壁纸
+
+主页（`#/`）的背景是 `D:\素材库` 里那张咖啡厅动态壁纸，处理脚本在 `tools/make-wallpaper.py`。
+它会做四件事：切一段短循环压成网页尺寸的 MP4、抽一张海报图、生成极小的模糊占位图（首屏不白屏）、
+并从画面里提取配色写成 `public/media/wallpaper-palette.css`（页面配色跟着壁纸走）。
+
+```powershell
+# 需要 ffmpeg（没有的话脚本会尝试用 pip 装的 imageio-ffmpeg）
+python tools/make-wallpaper.py --src "D:\素材库\咖啡厅壁纸动态.mp4" `
+  --out public/media --start 6.5 --dur 10 --width 1280 --crf 30
+```
+
+- `--start` 取关键帧处最干净（源视频每 10 秒一个关键帧）；循环是否无缝可以用 `pick-loop.py` 的思路算
+- 视频只在宽屏、非省流量、非 3G、且系统没开"减少动态效果"时加载；其余情况只显示海报图
+- 想换壁纸：把新素材放进 `D:\素材库`，改 `--src` 重新跑一遍即可，不用动任何代码
+
 ## 备份（很重要）
 
 整本小说只存在 D1 里。`.github/workflows/backup.yml` 每周一自动导出一次 SQL 并保存为 Actions artifact（保留 90 天）。
