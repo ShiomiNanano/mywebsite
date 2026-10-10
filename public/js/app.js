@@ -300,7 +300,7 @@ const App = {
       const m = await API.get('/api/menu');
       this.state.menu = {
         main: m.main || [], personal: m.personal || [], settings: m.settings || [],
-        latest: m.latest || null, stats: m.stats || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
+        latest: m.latest || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
       };
     }
     return this.state.menu;
@@ -395,12 +395,6 @@ const App = {
     // 第一次来先静默记下当前进度（不弹 New!），之后靠时间戳比较决定要不要提示
     if (!this.mainSeenTs()) this.markMainSeen();
     const showNew = this.hasNewMain();
-    const st = (m && m.stats) || null;
-    const chars = (st && st.chars) || 0;
-    // 过万就换算成"约 X.X 万字"，否则直接报字数
-    const stat = !chars ? '' : (chars >= 10000
-      ? '约 ' + (chars / 10000).toFixed(1) + ' 万'
-      : String(chars));
     const cc = m.main.length;
     const sc = m.main.reduce((s, c) => s + (c.sections || []).length, 0);
     return `
@@ -409,11 +403,6 @@ const App = {
       <div class="menu-hero">
         <p class="menu-greet"><span class="greet-logo" role="img" aria-label="白日梦咖啡馆"></span>${this.greet(u)}</p>
         <p class="menu-quote" id="menuQuote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
-        <p class="menu-stats">
-          <span><b>${cc}</b> 章</span>
-          <span><b>${sc}</b> 节</span>
-          ${stat ? `<span><b>${stat}</b> 字</span>` : ''}
-        </p>
       </div>
       <div class="menu-cards">
         <a class="menu-card menu-main" href="#/main">

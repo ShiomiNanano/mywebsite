@@ -523,18 +523,7 @@ export async function onRequest(context) {
         } else if (a.category === 'personal') personal.push(it);
         else settings.push(it);
       }
-      // 作品数据：字数用 SQL 粗算（去掉常见的段落/换行标签后的长度，近似正文字数，
-      // 前端会以"约"呈现）。只统计正文类（主线 + 个人章），不算设定篇。
-      const st = await env.DB.prepare(
-        "SELECT MAX(updated_at) AS updated, " +
-        "SUM(LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(content,'<p>',''),'</p>',''),'<br>',''),'<br/>',''))) AS chars " +
-        "FROM articles WHERE category IN ('main','personal')"
-      ).first();
-      const stats = {
-        chars: (st && st.chars) || 0,
-        updated: (st && st.updated) || '',
-      };
-      return jsonPublic({ main, personal, settings, latest, stats }, 60);
+      return jsonPublic({ main, personal, settings, latest }, 60);
     }
 
     // 文章详情：只查文章本身（上下篇由前端用已缓存的目录计算）

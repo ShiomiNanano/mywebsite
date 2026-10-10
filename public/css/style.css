@@ -1813,17 +1813,6 @@ html[data-wallpaper="on"] .menu-continue {
 }
 @media (max-width: 520px) { .cover-logo { width: 82%; } }
 
-/* ---------- 招牌上的一行作品数据 ---------- */
-.menu-stats {
-  display: flex; justify-content: center; flex-wrap: wrap; gap: var(--sp-4) var(--sp-5);
-  margin-top: var(--sp-4);
-  font-family: var(--font-body); font-size: var(--fs-xs);
-  color: var(--ink-2); letter-spacing: .06em;
-}
-.menu-stats b {
-  font-family: var(--font-serif); font-size: var(--fs-md); font-weight: 600;
-  color: var(--accent); margin-right: 3px;
-}
 
 /* ---------- 已读标记 ---------- */
 .read-tag {
