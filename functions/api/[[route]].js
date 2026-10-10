@@ -272,13 +272,11 @@ function makeExcerpt(head) {
 let schemaReady = false;
 async function ensureSchema(env) {
   if (schemaReady) return;
-  // 老库没有 articles.source（富文本编辑器的标记原文），这里补一下
-  try {
-    const cols = await env.DB.prepare('PRAGMA table_info(articles)').all();
-    if (cols && cols.results && !cols.results.some(c => c.name === 'source')) {
-      await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run();
-    }
-  } catch (e) { /* 表还不存在时交给下面的建表语句 */ }
+  // 老库没有 articles.source（富文本编辑器的标记原文），这里补一下。
+  // 注意：别用 PRAGMA table_info 去探测 —— D1 上那条会抛错（被 catch 吞掉后
+  // 字段就永远加不上，表现为 SELECT source 直接 500）。直接 ALTER 最省事：
+  // 字段已存在时这条会报错，忽略即可；表还不存在则交给下面的建表语句。
+  try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run(); } catch (e) {}
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_usage (user_id INTEGER PRIMARY KEY, minute INTEGER NOT NULL, cnt INTEGER NOT NULL)`),
