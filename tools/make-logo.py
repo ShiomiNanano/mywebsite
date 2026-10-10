@@ -77,8 +77,14 @@ def main():
         mark.size[0], mark.size[1], mark.size[0] / mark.size[1]))
 
     # ---------- favicon：深色圆角方块 + 金色咖啡杯 ----------
+    solid = simple_silhouette(mark)
+    solid_path = os.path.join(args.out, 'logo-simple.png')
+    solid.save(solid_path, 'PNG', optimize=True)
+    print('简化剪影: %s  %.1f KB  %sx%s' % (
+        os.path.basename(solid_path), os.path.getsize(solid_path) / 1024, solid.size[0], solid.size[1]))
+
     for px in (32, 180):
-        fav = make_favicon(mark, px, bg=(43, 36, 29), fg=(211, 179, 126))
+        fav = make_favicon(solid, px, bg=(43, 36, 29), fg=(211, 179, 126))
         name = 'favicon-%d.png' % px if px <= 32 else 'favicon.png'
         fp = os.path.join(args.out, name)
         fav.save(fp, 'PNG', optimize=True)
@@ -109,7 +115,33 @@ def split_mark(img, gap_ratio=0.06):
     return (0, 0, w, best)
 
 
-def make_favicon(mark, px, bg, fg):
+
+def simple_silhouette(mark, drop_top=0.24, threshold=40):
+    """由线条蒙版求出"实心剪影"版，专供 favicon（16~32px）。
+
+    上一版我用的是闭运算（膨胀+腐蚀），结果杯身、把手、碟子全糊成一块板 ✗。
+    正确做法是泛洪填充：从画面四角把"外部背景"灌满，剩下的就是杯子的实体轮廓
+    （杯子内部和把手中间那些被线条围住的区域会一并算进来 —— 那正是我们要的实心感）。
+
+    顺带切掉上方的小 zzz：那个尺寸下它只会变成一团噪点。
+    """
+    w, h = mark.size
+    # 注意：这里必须取 alpha 通道。用 convert('L') 会把透明丢掉（RGB 全是白的），
+    # 结果整张图都被当成"墨迹"，泛洪一填就什么都不剩。
+    m = mark.crop((0, int(h * drop_top), w, h)).split()[-1]
+    binary = m.point(lambda v: 255 if v >= threshold else 0)
+
+    filled = binary.copy()
+    for xy in [(0, 0), (w - 1, 0), (0, m.size[1] - 1), (w - 1, m.size[1] - 1)]:
+        ImageDraw.floodfill(filled, xy, 128, thresh=0)     # 外部背景 → 128
+    solid = filled.point(lambda v: 0 if v == 128 else 255) # 非外部 = 实体
+
+    out = Image.new('RGBA', m.size, (255, 255, 255, 0))
+    out.putalpha(solid)
+    return out
+
+
+def make_favicon(mark, px, bg, fg, close_lines=False):
     """把杯子标记染成金色，放在深色圆角方块上。先在 4 倍尺寸画再缩小，边缘才干净。"""
     S = px * 4
     canvas = Image.new('RGBA', (S, S), (0, 0, 0, 0))
@@ -121,11 +153,11 @@ def make_favicon(mark, px, bg, fg):
     canvas = Image.alpha_composite(canvas, plate)
     # 小图标留白少一点、线条粗一点，才能在 16px 下看出是只杯子
     small = px <= 48
-    scale = (S * (0.86 if small else 0.74)) / mark.size[0]
+    scale = (S * (0.88 if small else 0.76)) / mark.size[0]
     m = mark.resize((max(1, round(mark.size[0] * scale)), max(1, round(mark.size[1] * scale))), Image.LANCZOS)
     alpha = m.split()[-1]
-    if small:
-        alpha = alpha.filter(ImageFilter.MaxFilter(3))     # 线条加粗约 1px
+    if small and close_lines:
+        alpha = alpha.filter(ImageFilter.MaxFilter(3))     # 细线时加粗约 1px
     colored = Image.new('RGBA', m.size, fg + (0,))
     colored.putalpha(alpha)
     canvas.alpha_composite(colored, ((S - m.size[0]) // 2, (S - m.size[1]) // 2))
