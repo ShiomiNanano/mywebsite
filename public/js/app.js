@@ -969,6 +969,35 @@ const App = {
 
   // 主页动态壁纸：只有"宽屏 + 允许动效 + 不省流量 + 网络不差"时才真的去下视频，
   // 其余情况（手机、3G、省流量模式、系统开了减少动态效果）就停在海报图上，不浪费流量。
+  /* 把"为什么没加载动态壁纸"集中成一处：控制台能报出来，测试也能断言 */
+  wallpaperBlockers() {
+    const out = [];
+    try { if (!window.matchMedia('(min-width: 900px)').matches) out.push('窗口不足 900px'); } catch (e) {}
+    try {
+      const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (c) {
+        if (c.saveData) out.push('浏览器开了省流量');
+        const t = c.effectiveType || '';
+        if (/(^|-)2g$/.test(t) || t === 'slow-2g' || t === '3g') out.push('网络 ' + t);
+      }
+    } catch (e) {}
+    try { if (this.reduceMotion()) out.push('系统要求减少动态效果'); } catch (e) {}
+    return out;
+  },
+
+  /* 浏览器拦下自动播放时的兜底：等一次点击（点页面任意处或那枚按钮）再播 */
+  armWallpaperTap(v) {
+    if (this._wpTapArmed) return;
+    this._wpTapArmed = true;
+    console.info('[壁纸] 浏览器拦下了自动播放：点一下页面任意处即可播放');
+    const go = () => {
+      document.removeEventListener('pointerdown', go, true);
+      const q = v.play();
+      if (q && q.catch) q.catch(() => {});
+    };
+    document.addEventListener('pointerdown', go, true);
+  },
+
   initWallpaper() {
     const v = document.getElementById('wpVideo');
     if (!v || v.dataset.loaded) return;
@@ -979,7 +1008,19 @@ const App = {
       if (c) { saveData = !!c.saveData; conn = c.effectiveType || ''; }
     } catch (e) {}
     const slow = /(^|-)2g$/.test(conn) || conn === 'slow-2g' || conn === '3g';
-    if (!wide || saveData || slow || this.reduceMotion()) return;   // 保持海报图
+    if (!wide || saveData || slow || this.reduceMotion()) {
+      // 以前这里是静默 return：出问题时页面上一点线索都没有，只能靠猜。
+      // 现在把原因说出来，并且监听窗口变化 —— 条件变好了就自动补上。
+      console.info('[壁纸] 暂不加载动态壁纸：' + this.wallpaperBlockers().join('、'));
+      if (wide && !this._wpRetry) {
+        this._wpRetry = true;
+        const retry = () => {
+          if (!this.wallpaperBlockers().length) { window.removeEventListener('resize', retry); this.initWallpaper(); }
+        };
+        window.addEventListener('resize', retry, { passive: true });
+      }
+      return;
+    }
     const src = v.dataset.src;
     if (!src) return;
     v.dataset.loaded = '1';
@@ -987,7 +1028,8 @@ const App = {
     v.addEventListener('error', () => v.classList.remove('on'), { once: true });
     v.src = src;
     const p = v.play();
-    if (p && p.catch) p.catch(() => {});   // 被浏览器拦下就静静退回海报
+    // 被浏览器拦下（省电模式、自动播放策略）时不再静默放弃：等一次点击就播
+    if (p && p.catch) p.catch(() => this.armWallpaperTap(v));
   },
 
   // 段落计数：必须和后台 plainToHtml 的规则一致（测试会逐条比对两边结果，防跑偏）
