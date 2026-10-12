@@ -2173,3 +2173,15 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   }
 }
 /* fixed-color-region: end */
+
+/* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
+.admin-export {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 8px 8px 0; padding: 7px 13px;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .05em;
+  color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  text-decoration: none; transition: var(--t);
+}
+.admin-export:hover { color: var(--ink); border-color: var(--line-2); background: var(--surface-3); }
+.admin-export::before { content: "\2193"; font-size: 12px; color: var(--gold); }

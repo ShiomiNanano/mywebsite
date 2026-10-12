@@ -639,6 +639,63 @@ export async function onRequest(context) {
       }
     }
 
+    /* ---------- 批量导出（管理员）----------
+       format=json → 完整备份，含 source（标记原文）与纯文本，便于日后恢复
+       format=md   → 一个可直接阅读/存档的 Markdown 文件
+       用 Content-Disposition 让浏览器直接下载，不必前端拼 Blob。 */
+    if (method === 'GET' && path === '/admin/export') {
+      const e = needAdmin(); if (e) return e;
+      const fmt = (url.searchParams.get('format') || 'json').toLowerCase();
+      const rows = await env.DB.prepare(
+        'SELECT * FROM articles ORDER BY category, chapter_no, section_no, id'
+      ).all();
+      const items = (rows && rows.results) || [];
+      const stamp = nowStr().slice(0, 10);
+      const isMd = (fmt === 'md');
+      const CT = { 'content-type': (isMd ? 'text/markdown; charset=utf-8' : 'application/json; charset=utf-8') };
+      const DL = { 'content-disposition': 'attachment; filename="daydream-' + fmt + '-' + stamp + '.' + (fmt === 'md' ? 'md' : 'json') + '"' };
+      const headers = Object.assign({}, CT, DL, { 'cache-control': 'no-store' });
+
+      if (fmt === 'md') {
+        const label = { main: '主线故事', personal: '个人章', settings: '设定' };
+        const out = ['# 白日梦 · 全文导出', '', '> 导出时间：' + nowStr() + '　共 ' + items.length + ' 篇', ''];
+        let cur = '';
+        items.forEach(a => {
+          if (a.category !== cur) {
+            cur = a.category;
+            out.push('', '---', '', '## ' + (label[cur] || cur), '');
+          }
+          const head = a.category === 'main'
+            ? ('### ' + (a.chapter_title || '') + (a.section_title ? ' · ' + a.section_title : ''))
+            : ('### ' + (a.title || '未命名'));
+          out.push(head, '');
+          const idTag = a.chapter_no != null ? ('<!-- id:' + a.id + ' 章:' + a.chapter_no + ' 节:' + a.section_no + ' -->') : ('<!-- id:' + a.id + ' -->');
+          out.push(idTag, '', htmlToPlain(a.content || ''), '');
+        });
+        return new Response(out.join(String.fromCharCode(10)), { headers });
+      }
+
+      const payload = {
+        site: '白日梦',
+        exported_at: nowStr(),
+        count: items.length,
+        articles: items.map(a => ({
+          id: a.id,
+          category: a.category,
+          chapter_no: a.chapter_no,
+          chapter_title: a.chapter_title,
+          section_no: a.section_no,
+          section_title: a.section_title,
+          title: a.title,
+          source: a.source || '',            // 标记原文：日后恢复就靠它
+          text: htmlToPlain(a.content || ''),
+          created_at: a.created_at,
+          updated_at: a.updated_at
+        }))
+      };
+      return new Response(JSON.stringify(payload, null, 2), { headers });
+    }
+
     if (method === 'GET' && path === '/admin/chat-config') {
       const e = needAdmin(); if (e) return e;
       const enabled = (await getSetting(env, 'chat_enabled', '1')) === '1';
