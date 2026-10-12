@@ -639,61 +639,132 @@ export async function onRequest(context) {
       }
     }
 
-    /* ---------- 批量导出（管理员）----------
-       format=json → 完整备份，含 source（标记原文）与纯文本，便于日后恢复
-       format=md   → 一个可直接阅读/存档的 Markdown 文件
-       用 Content-Disposition 让浏览器直接下载，不必前端拼 Blob。 */
-    if (method === 'GET' && path === '/admin/export') {
+    /* ---------- 导出（管理员）----------
+       · /admin/export/txt/:id  → 单篇 TXT，用于"一节一节导出"
+       · /admin/export/zip      → 全部打包成 ZIP，里面一篇一个 txt（不合并成一个文件）
+       · /admin/export?format=json → 完整备份（含标记原文 source，日后恢复靠它）
+       ZIP 是自己按规范拼的（Worker 里没有 zip 库）：只做"存储"不压缩，
+       格式简单、可预期，任何解压软件都能打开。 */
+    if (method === 'GET' && (path === '/admin/export/zip' || path.indexOf('/admin/export/txt/') === 0 || path === '/admin/export')) {
       const e = needAdmin(); if (e) return e;
-      const fmt = (url.searchParams.get('format') || 'json').toLowerCase();
+      const stamp = nowStr().slice(0, 10);
+
+      // 把一篇文章渲染成 txt
+      const txtOf = (a) => {
+        const title = a.category === 'main'
+          ? ((a.chapter_title || '') + (a.section_title ? ' · ' + a.section_title : ''))
+          : (a.title || '未命名');
+        return title + '\n'
+          + '更新：' + (a.updated_at || '') + '\n\n'
+          + '─'.repeat(20) + '\n\n'
+          + htmlToPlain(a.content || '') + '\n';
+      };
+      // 压缩包里的路径：分类/章/节.txt
+      const safe = (t) => String(t || '').replace(/[\\/:*?"<>|]/g, '_').trim() || '未命名';
+      const pathOf = (a) => {
+        if (a.category === 'main') {
+          return '主线故事/' + safe(a.chapter_title) + '/' + safe(a.section_title) + '.txt';
+        }
+        return (a.category === 'personal' ? '个人章' : '设定') + '/' + safe(a.title) + '.txt';
+      };
+
+      const one = path.match(/^\/admin\/export\/txt\/(\d+)$/);
+      if (one) {
+        const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(Number(one[1])).first();
+        if (!a) return json({ error: '文章不存在' }, 404);
+        const name = safe(a.category === 'main' ? (a.chapter_title + '-' + a.section_title) : a.title) + '.txt';
+        return new Response(txtOf(a), { headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'content-disposition': 'attachment; filename="' + encodeURIComponent(name) + '"',
+          'cache-control': 'no-store'
+        } });
+      }
+
       const rows = await env.DB.prepare(
         'SELECT * FROM articles ORDER BY category, chapter_no, section_no, id'
       ).all();
       const items = (rows && rows.results) || [];
-      const stamp = nowStr().slice(0, 10);
-      const isMd = (fmt === 'md');
-      const CT = { 'content-type': (isMd ? 'text/markdown; charset=utf-8' : 'application/json; charset=utf-8') };
-      const DL = { 'content-disposition': 'attachment; filename="daydream-' + fmt + '-' + stamp + '.' + (fmt === 'md' ? 'md' : 'json') + '"' };
-      const headers = Object.assign({}, CT, DL, { 'cache-control': 'no-store' });
 
-      if (fmt === 'md') {
-        const label = { main: '主线故事', personal: '个人章', settings: '设定' };
-        const out = ['# 白日梦 · 全文导出', '', '> 导出时间：' + nowStr() + '　共 ' + items.length + ' 篇', ''];
-        let cur = '';
-        items.forEach(a => {
-          if (a.category !== cur) {
-            cur = a.category;
-            out.push('', '---', '', '## ' + (label[cur] || cur), '');
-          }
-          const head = a.category === 'main'
-            ? ('### ' + (a.chapter_title || '') + (a.section_title ? ' · ' + a.section_title : ''))
-            : ('### ' + (a.title || '未命名'));
-          out.push(head, '');
-          const idTag = a.chapter_no != null ? ('<!-- id:' + a.id + ' 章:' + a.chapter_no + ' 节:' + a.section_no + ' -->') : ('<!-- id:' + a.id + ' -->');
-          out.push(idTag, '', htmlToPlain(a.content || ''), '');
-        });
-        return new Response(out.join(String.fromCharCode(10)), { headers });
+      if (path === '/admin/export') {
+        const payload = {
+          site: '白日梦', exported_at: nowStr(), count: items.length,
+          articles: items.map(a => ({
+            id: a.id, category: a.category, chapter_no: a.chapter_no, chapter_title: a.chapter_title,
+            section_no: a.section_no, section_title: a.section_title, title: a.title,
+            source: a.source || '', text: htmlToPlain(a.content || ''),
+            created_at: a.created_at, updated_at: a.updated_at
+          }))
+        };
+        return new Response(JSON.stringify(payload, null, 2), { headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'content-disposition': 'attachment; filename="daydream-backup-' + stamp + '.json"',
+          'cache-control': 'no-store'
+        } });
       }
 
-      const payload = {
-        site: '白日梦',
-        exported_at: nowStr(),
-        count: items.length,
-        articles: items.map(a => ({
-          id: a.id,
-          category: a.category,
-          chapter_no: a.chapter_no,
-          chapter_title: a.chapter_title,
-          section_no: a.section_no,
-          section_title: a.section_title,
-          title: a.title,
-          source: a.source || '',            // 标记原文：日后恢复就靠它
-          text: htmlToPlain(a.content || ''),
-          created_at: a.created_at,
-          updated_at: a.updated_at
-        }))
+      // ---- 下面是自己拼 ZIP（存储方式，不压缩）----
+      const crc32 = (bytes) => {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < bytes.length; i++) {
+          crc ^= bytes[i];
+          for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
       };
-      return new Response(JSON.stringify(payload, null, 2), { headers });
+      const enc = new TextEncoder();
+      const files = items.map(a => ({ name: pathOf(a), data: enc.encode(txtOf(a)) }));
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      files.forEach(f => {
+        const nameB = enc.encode(f.name);
+        const crc = crc32(f.data);
+        const lh = new DataView(new ArrayBuffer(30));
+        lh.setUint32(0, 0x04034b50, true);          // 本地文件头签名
+        lh.setUint16(4, 20, true);                  // 需要版本 2.0
+        lh.setUint16(6, 0x0800, true);              // 文件名是 UTF-8
+        lh.setUint16(8, 0, true);                   // 存储（不压缩）
+        lh.setUint16(10, 0, true); lh.setUint16(12, 0, true);   // 时间/日期留 0
+        lh.setUint32(14, crc, true);
+        lh.setUint32(18, f.data.length, true);      // 压缩后大小 = 原大小
+        lh.setUint32(22, f.data.length, true);
+        lh.setUint16(26, nameB.length, true);
+        lh.setUint16(28, 0, true);
+        chunks.push(new Uint8Array(lh.buffer), nameB, f.data);
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0, 0x02014b50, true);          // 中央目录签名
+        cd.setUint16(4, 20, true); cd.setUint16(6, 20, true);
+        cd.setUint16(8, 0x0800, true);
+        cd.setUint16(10, 0, true);
+        cd.setUint16(12, 0, true); cd.setUint16(14, 0, true);
+        cd.setUint32(16, crc, true);
+        cd.setUint32(20, f.data.length, true);
+        cd.setUint32(24, f.data.length, true);
+        cd.setUint16(28, nameB.length, true);
+        cd.setUint16(30, 0, true); cd.setUint16(32, 0, true);
+        cd.setUint16(34, 0, true); cd.setUint16(36, 0, true);
+        cd.setUint32(38, 0, true);
+        cd.setUint32(42, offset, true);             // 本地头偏移
+        central.push(new Uint8Array(cd.buffer), nameB);
+        offset += 30 + nameB.length + f.data.length;
+      });
+      const cdSize = central.reduce((n, x) => n + x.length, 0);
+      const eocd = new DataView(new ArrayBuffer(22));
+      eocd.setUint32(0, 0x06054b50, true);
+      eocd.setUint16(8, files.length, true);
+      eocd.setUint16(10, files.length, true);
+      eocd.setUint32(12, cdSize, true);
+      eocd.setUint32(16, offset, true);
+      const all = chunks.concat(central, [new Uint8Array(eocd.buffer)]);
+      const total = all.reduce((n, x) => n + x.length, 0);
+      const out = new Uint8Array(total);
+      let p = 0;
+      all.forEach(x => { out.set(x, p); p += x.length; });
+      return new Response(out, { headers: {
+        'content-type': 'application/zip',
+        'content-disposition': 'attachment; filename="daydream-' + stamp + '.zip"',
+        'cache-control': 'no-store'
+      } });
     }
 
     if (method === 'GET' && path === '/admin/chat-config') {

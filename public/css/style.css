@@ -2185,3 +2185,11 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 }
 .admin-export:hover { color: var(--ink); border-color: var(--line-2); background: var(--surface-3); }
 .admin-export::before { content: "\2193"; font-size: 12px; color: var(--gold); }
+
+/* 文章管理「操作」列里的导出：和编辑/删除同排，做成最轻的一档 */
+.admin-export-row {
+  margin-left: 10px; font-size: var(--fs-xs);
+  color: var(--ink-3); text-decoration: none; transition: var(--t);
+}
+.admin-export-row:hover { color: var(--gold); }
+.admin-export-row::before { content: "\2193"; margin-right: 3px; font-size: 11px; }

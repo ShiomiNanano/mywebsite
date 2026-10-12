@@ -740,9 +740,9 @@ const App = {
     return `<div class="admin-nav">
       <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
       <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
-    
-          <a class="admin-export" href="/api/admin/export?format=json" download>导出 JSON（完整备份）</a>
-          <a class="admin-export" href="/api/admin/export?format=md" download>导出 Markdown（阅读/存档）</a>
+        
+          <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP·每篇一个 txt）</a>
+          <a class="admin-export" href="/api/admin/export?format=json" download>备份 JSON（含标记原文）</a>
         </div>`;
   },
 
@@ -774,7 +774,8 @@ const App = {
               <td>${esc(formatTime(a.updated_at))}</td>
               <td>
                 <button class="btn btn-small btn-ghost" data-action="edit-article" data-id="${a.id}">编辑</button>
-                <button class="btn btn-small btn-danger" data-action="delete-article" data-id="${a.id}">删除</button>
+                <a class="admin-export-row" href="/api/admin/export/txt/${a.id}" download>导出</a>
+              <button class="btn btn-small btn-danger" data-action="delete-article" data-id="${a.id}">删除</button>
               </td>
             </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft)">还没有文章，点右上角「＋ 新增文章」发布第一篇吧。</td></tr>'}
           </tbody>
