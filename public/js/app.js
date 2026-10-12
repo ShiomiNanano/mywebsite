@@ -970,6 +970,67 @@ const App = {
   // 主页动态壁纸：只有"宽屏 + 允许动效 + 不省流量 + 网络不差"时才真的去下视频，
   // 其余情况（手机、3G、省流量模式、系统开了减少动态效果）就停在海报图上，不浪费流量。
   /* 把"为什么没加载动态壁纸"集中成一处：控制台能报出来，测试也能断言 */
+  /* ---------- 点击封面时的风铃音效（浏览器实时合成，0 KB 下载） ----------
+     风铃是「有音高的金属敲击声」，物理很干净：一根金属管的振动是几个非谐分音
+     （频率比 1 : 2.756 : 5.404 : 8.933），高次分音衰减更快。照这个叠加，再加
+     6ms 的击打噪声和几拍衰减延迟当混响 —— 和 tools/make-chime.py 是同一套算法。
+     想换风格只改下面的 CHIME_VOICING（单声 / 三声 / 摇曳）。 */
+  chime(voicing) {
+    // 默认音型：一声清响（参数可覆盖，便于预览里 A/B 对比）
+    const V = voicing || [[1046.5, 0, 1]];
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;                        // 老浏览器直接静音，绝不耽误点书
+    try {
+      if (!this._ac) this._ac = new Ctx();
+      const ac = this._ac;
+      if (ac.state === 'suspended' && ac.resume) ac.resume();   // iOS 必须在用户手势里恢复
+      const RATIOS = [1, 2.756, 5.404, 8.933];
+      const TAUS = [1.7, 0.85, 0.48, 0.26];   // 衰减更长：拖尾更久，像真的金属管
+      const AMPS = [1, 0.42, 0.20, 0.09];
+      const t0 = ac.currentTime + 0.02;
+      const master = ac.createGain();
+      master.gain.value = 0.09;              // 很轻：它是点缀，绝不能盖过阅读
+      master.connect(ac.destination);
+      // 几拍衰减延迟当混响，给一点空间感（干声会显得很电子）
+      [[0.055, 0.24], [0.098, 0.17], [0.163, 0.12], [0.242, 0.085], [0.341, 0.055]].forEach(function (pair) {
+        const dl = ac.createDelay(0.5);
+        dl.delayTime.value = pair[0];
+        const gg = ac.createGain();
+        gg.gain.value = pair[1];
+        master.connect(dl); dl.connect(gg); gg.connect(ac.destination);
+      });
+      // 敲响一根管子
+      const ping = function (f0, at, amp) {
+        for (let i = 0; i < RATIOS.length; i++) {
+          const o = ac.createOscillator();
+          o.type = 'sine';
+          o.frequency.value = f0 * RATIOS[i];
+          const g = ac.createGain();
+          const dur = TAUS[i] * 3.2;
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(AMPS[i] * amp, at + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+          o.connect(g); g.connect(master);
+          o.start(at); o.stop(at + dur + 0.02);
+        }
+        // 击打瞬间那 6ms 的金属噪声，没有它就不像敲出来的
+        const n = Math.max(1, Math.floor(ac.sampleRate * 0.006));
+        const buf = ac.createBuffer(1, n, ac.sampleRate);
+        const ch = buf.getChannelData(0);
+        for (let k = 0; k < n; k++) {
+          ch[k] = (Math.random() * 2 - 1) * Math.exp(-k / (ac.sampleRate * 0.0018));
+        }
+        const src = ac.createBufferSource();
+        src.buffer = buf;
+        const ng = ac.createGain();
+        ng.gain.value = 0.30 * amp;
+        src.connect(ng); ng.connect(master);
+        src.start(at);
+      };
+      (V || [[1046.5, 0, 1]]).forEach(function (v) { ping(v[0], t0 + v[1], v[2]); });
+    } catch (e) { /* 出不了声也绝不能影响看书 */ }
+  },
+
   wallpaperBlockers() {
     const out = [];
     try { if (!window.matchMedia('(min-width: 900px)').matches) out.push('窗口不足 900px'); } catch (e) {}
@@ -1197,6 +1258,7 @@ const App = {
       const stack = document.getElementById('bookStack');
       const openBook = () => {
         if (book.classList.contains('turning')) return;        // 连点不要触发两次
+        this.chime();                                          // 风铃（点书就在手势里，不会被拦）
         book.classList.add('turning');
         if (stack) stack.classList.add('turning');
         setTimeout(() => { location.hash = '#/menu'; }, 1050);   // 等书页依次翻完
