@@ -421,7 +421,7 @@ const App = {
           <div class="menu-card-icon">✉</div>
           <div class="menu-card-content">
             <h3>个人章</h3>
-            <p>独立成篇 · 各自安放的心事</p>
+            <p>各自安放的心事</p>
             <span class="menu-card-meta">${m.personal.length} 篇</span>
           </div>
           <div class="menu-card-arrow">→</div>
@@ -430,7 +430,7 @@ const App = {
           <div class="menu-card-icon">❖</div>
           <div class="menu-card-content">
             <h3>设定</h3>
-            <p>人物 · 岛屿 · 咖啡馆的来客</p>
+            <p>索格诺的现世</p>
             <span class="menu-card-meta">${m.settings.length} 篇</span>
           </div>
           <div class="menu-card-arrow">→</div>

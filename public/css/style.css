@@ -1910,7 +1910,7 @@ html[data-wallpaper="on"] .menu-continue {
   border: 0; border-radius: 3px;
   box-shadow: 0 26px 50px -30px rgba(0, 0, 0, .9);
   transform-style: preserve-3d;
-  transition: transform .42s var(--ease), box-shadow .42s var(--ease);
+  transition: transform .58s cubic-bezier(.22, .61, .36, 1), box-shadow .58s cubic-bezier(.22, .61, .36, 1);
 }
 .menu-cards > .menu-card::after { display: none; }   /* 关掉原来那道左侧色条 */
 
@@ -2010,7 +2010,7 @@ html[data-wallpaper="on"] .menu-continue {
   .menu-cards > .menu-card:nth-child(3) { animation: none; }
   .menu-cards > .menu-card { transform: none !important; }
 }
-/* fixed-color-region: end */
+/* （区域结束标记已挪到文件末尾：此后追加的实物本色样式都算在区内） */
 
 /* 主线卡片的上半部分原本空着 —— 嵌一枚烫金小杯子（和封面/顶栏同一套蒙版手法，
    看起来是压印在封面上的，而不是贴了张图）。绝对定位，不影响原有排版。 */
@@ -2113,3 +2113,63 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 
 /* 书口、胶带的圆角跟着卡片走 */
 html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(1)::after { border-radius: 0 4px 4px 0; }
+
+/* 个人章与设定的描述用斜体（店长要求）。
+   注意：只作用于第 2、3 张卡的描述段，主线卡的「梦从此刻开始」保持正体。
+   中文没有真斜体，浏览器是合成倾斜 —— 因此加一点字距，读起来更顺。 */
+.menu-cards > .menu-card:nth-child(2) .menu-card-content > p,
+.menu-cards > .menu-card:nth-child(3) .menu-card-content > p {
+  font-style: italic;
+  letter-spacing: .045em;
+}
+
+/* ============================================================================
+   设定卡：改成与个人章同一族的米白（略暖一档，所以"差不多"但不雷同）
+   —— 连带的两个问题一起解决：
+     · 底色变浅后，文字与图标必须换成深墨，否则看不清
+     · 图标原来跟着分类色走（设定是紫色），这里直接覆盖成暖褐
+   ============================================================================ */
+html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .48), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(170deg, rgba(245, 237, 222, .87), rgba(216, 202, 176, .81));
+  border-color: rgba(255, 255, 255, .34);
+}
+.menu-cards > .menu-card:nth-child(3) .menu-card-content h3,
+.menu-cards > .menu-card:nth-child(3) .menu-card-content > p,
+.menu-cards > .menu-card:nth-child(3) .menu-card-meta { color: #3a3126; }
+.menu-cards > .menu-card:nth-child(3) .menu-card-arrow { color: #7a6a52; }
+/* 小图标：覆盖分类色（原来是紫色），与便签上的图标同一族的暖褐 */
+.menu-cards > .menu-card:nth-child(3) .menu-card-icon {
+  background: rgba(43, 36, 25, .10);
+  color: #6b5a3d;
+}
+
+/* 悬停动效：用【独立的 scale / translate 属性】而不是 transform。
+   原因：tagSway 动画占着 transform，若在 hover 里摘掉动画（animation: none），
+   transform 会从"动画当前的角度"瞬间跳到目标值 —— 浏览器在这里不做过渡，
+   看起来就是突然放大一下，很突兀。
+   scale / translate 是与 transform 并列的独立属性，互不抢，于是：
+     · 摆动动画可以一直跑（木牌还活着），不用摘
+     · 抬起与放大走自己的 transition，柔和地过去
+   时长也从 .42s 放宽到 .62s，并换更缓的曲线。 */
+.menu-cards > .menu-card:nth-child(3) {
+  transition: scale .62s cubic-bezier(.22, .61, .36, 1),
+              translate .62s cubic-bezier(.22, .61, .36, 1),
+              box-shadow .62s cubic-bezier(.22, .61, .36, 1);
+}
+.menu-cards > .menu-card:nth-child(3):hover {
+  scale: 1.022;                      /* 幅度也收小一点，避免"跳一下" */
+  translate: 0 -10px;
+  box-shadow:
+    0 40px 72px -28px rgba(0, 0, 0, .95),
+    0 0 30px -8px var(--wp-glow, rgba(120, 180, 220, .3));
+}
+
+/* 不支持模糊时的兜底也要跟着变浅 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
+    background: linear-gradient(168deg, var(--tag-paper-1, #f5edde) 0%, var(--tag-paper-2, #d8cab0) 100%);
+  }
+}
+/* fixed-color-region: end */
