@@ -407,6 +407,7 @@ const App = {
       <div class="menu-cards">
         <a class="menu-card menu-main" href="#/main">
           <div class="menu-card-badge">主 线</div>
+          <span class="menu-main-mark" aria-hidden="true"></span>
           ${showNew ? '<span class="menu-new">NEW</span>' : ''}
           <div class="menu-card-icon">☂</div>
           <div class="menu-card-content">
@@ -1214,6 +1215,41 @@ const App = {
   },
 
   // 只有"精确指针 + 允许动效"时才启用：触摸设备完全不参与，也不会有额外开销
+  /* ---------- 书架页的 3D 氛围：指针视差 + 空气中的尘埃 ----------
+     只在书架页生效（找不到招牌就退出），不碰壁纸、不改单列排布。
+     系统要求减少动态效果时只加类名、不做视差，尘埃也不生成。
+     指针位置写进 --px / --py，由 CSS 去算倾斜 —— 每帧只改两个变量，开销极小。 */
+  initShelf3D() {
+    const hero = document.querySelector('.menu-hero');
+    const wrap = hero && hero.parentElement;
+    if (!hero || !wrap) return;
+    wrap.classList.add('menu-3d');
+    if (this.reduceMotion()) return;
+    // 尘埃：十几颗小光点缓慢上浮，跟着指针有视差
+    const d = document.createElement('div');
+    d.className = 'dust';
+    d.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 16; i++) {
+      const s = document.createElement('i');
+      s.style.left = Math.round(Math.random() * 100) + '%';
+      s.style.top = (55 + Math.round(Math.random() * 45)) + '%';
+      s.style.animationDuration = (9 + Math.random() * 12).toFixed(1) + 's';
+      s.style.animationDelay = (-Math.random() * 14).toFixed(1) + 's';
+      s.style.setProperty('--dx', Math.round((Math.random() - 0.5) * 90) + 'px');
+      s.style.transform = 'scale(' + (0.6 + Math.random() * 1.1).toFixed(2) + ')';
+      d.appendChild(s);
+    }
+    wrap.insertBefore(d, wrap.firstChild);
+    if (!this._shelfMove) {
+      this._shelfMove = true;
+      window.addEventListener('pointermove', (e) => {
+        const W = window.innerWidth || 1, H = window.innerHeight || 1;
+        document.documentElement.style.setProperty('--px', ((e.clientX / W) * 2 - 1).toFixed(3));
+        document.documentElement.style.setProperty('--py', ((e.clientY / H) * 2 - 1).toFixed(3));
+      }, { passive: true });
+    }
+  },
+
   initTilt() {
     let fine = false;
     try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
@@ -1361,6 +1397,7 @@ const App = {
 
     // 卡片跟随鼠标的 3D 倾斜（触摸设备和"减少动态效果"下会自动跳过）
     this.initTilt();
+    this.initShelf3D();     // 书架页的 3D 氛围（别的页面会自动跳过）
 
     // 主页动态壁纸（不是主页会自动跳过）
     this.initWallpaper();

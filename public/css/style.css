@@ -1825,3 +1825,291 @@ html[data-wallpaper="on"] .menu-continue {
 .section-card.is-read .section-title, .chapter-card.is-read .chapter-title { color: var(--ink-2); }
 .section-card.is-read, .chapter-card.is-read { border-color: var(--line); }
 .section-card.is-read .read-tag, .chapter-card.is-read .read-tag { color: var(--gold); border-color: var(--frame-line); }
+
+/* ============================================================================
+   书架页的 3D 氛围
+   ----------------------------------------------------------------------------
+   指针位置由 JS 写进 --px / --py（-1 ~ 1），这里只负责拿它算倾斜 ——
+   每帧只改两个自定义属性，浏览器自己合成，几乎不耗性能。
+   层次：壁纸（背景）→ 尘埃 → 招牌（最近）→ 卡片
+   系统开了"减少动态效果"就全部退化为平面（见文件末尾的媒体查询）。
+   ============================================================================ */
+.menu-3d { perspective: 1200px; perspective-origin: 50% 38%; }
+.menu-3d .menu-hero,
+.menu-3d .menu-cards { transform-style: preserve-3d; }
+/* 招牌最深：随指针轻微俯仰侧转，像一块真的木牌悬在那 */
+.menu-3d .menu-hero {
+  transform: rotateY(calc(var(--px, 0) * 3.4deg)) rotateX(calc(var(--py, 0) * -2.6deg)) translateZ(20px);
+  transition: transform .35s var(--ease);
+}
+.menu-3d .menu-cards { transform: rotateY(calc(var(--px, 0) * 1.7deg)) rotateX(calc(var(--py, 0) * -1.3deg)); }
+/* 卡片：静置时略有纵深，鼠标移上去朝观众浮起并俯仰 */
+.menu-3d .menu-card {
+  transform: rotateY(calc(var(--px, 0) * -1.6deg)) translateZ(0);
+  transition: transform .32s var(--ease), box-shadow .32s var(--ease), border-color .32s var(--ease);
+}
+.menu-3d .menu-card:hover {
+  transform: rotateX(5deg) translateZ(36px) scale(1.015);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .85), 0 0 0 1px var(--frame-line);
+}
+.menu-3d .menu-card:hover .menu-card-icon { transform: translateZ(26px); }
+
+/* 空气里的尘埃：十几颗小光点，跟着指针有一点视差 */
+.dust { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.dust i {
+  position: absolute; width: 3px; height: 3px; border-radius: 50%;
+  background: radial-gradient(circle, var(--wp-accent, #d3b37e) 0%, transparent 72%);
+  opacity: 0;
+  animation-name: dustRise; animation-timing-function: linear; animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+@keyframes dustRise {
+  0%   { transform: translate3d(0, 0, 0) scale(.9); opacity: 0; }
+  12%  { opacity: .5; }
+  85%  { opacity: .35; }
+  100% { transform: translate3d(var(--dx, 24px), -120px, 0) scale(1.15); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-3d .menu-hero, .menu-3d .menu-cards, .menu-3d .menu-card, .menu-3d .menu-card:hover { transform: none !important; }
+  .dust { display: none; }
+}
+
+/* fixed-color-region: start —— 书架 v2 是「实物场景」：书脊/书口/便签/木牌都是本色，不跟主题走 */
+/* ============================================================================
+   书架 v2：三件实物，而不是三张一样的卡
+   ----------------------------------------------------------------------------
+   参考方向：Codrops 的 CSS 3D 书本（书脊/书口用伪元素做）、
+   Awwwards 那类空间感（层级 + 指针视差）、以及日式设计的「間」——
+   靠留白和克制说话，所以招牌缩小让位，主体是三件有质感的东西：
+     主线故事 → 一本立着的书（有书脊、有书口、有落地影子）
+     个人章   → 一张斜贴的便签（上面压着一小条胶带）
+     设定     → 一块吊挂的木牌（一根细绳，会轻微摆动）
+   全部纯 CSS，不改任何 markup —— 语义与测试都原地不动。
+   ============================================================================ */
+.menu-cards {
+  display: grid;
+  grid-template-columns: 1.32fr 1fr;
+  grid-template-areas: "main personal" "main settings";
+  gap: var(--sp-5) var(--sp-4);
+  align-items: stretch;
+  max-width: var(--maxw-list);
+  margin: var(--sp-5) auto 0;
+  perspective: 1400px;
+}
+.menu-cards > .menu-card:nth-child(1) { grid-area: main; }
+.menu-cards > .menu-card:nth-child(2) { grid-area: personal; }
+.menu-cards > .menu-card:nth-child(3) { grid-area: settings; }
+
+/* 招牌缩小、更安静（留白留给三件实物） */
+.menu-3d .menu-hero, .menu-hero { max-width: var(--maxw-list); padding: var(--sp-5) var(--sp-4) var(--sp-4); }
+.menu-greet { font-size: var(--fs-xl); }
+
+/* ---------- 共同底子：三件实物都有的材质与影子 ---------- */
+.menu-cards > .menu-card {
+  position: relative;
+  border: 0; border-radius: 3px;
+  box-shadow: 0 26px 50px -30px rgba(0, 0, 0, .9);
+  transform-style: preserve-3d;
+  transition: transform .42s var(--ease), box-shadow .42s var(--ease);
+}
+.menu-cards > .menu-card::after { display: none; }   /* 关掉原来那道左侧色条 */
+
+/* ---------- ① 主线故事：一本立着的书 ---------- */
+.menu-cards > .menu-card:nth-child(1) {
+  padding: var(--sp-6) var(--sp-6) var(--sp-6) calc(var(--sp-6) + 22px);
+  min-height: 15.5rem;
+  /* 只用一层平滑渐变。以前这里在背景里叠了一条硬边黑带做书脊，
+     硬停止在不同缩放下容易渲染成"缺了一块"，改成用 ::before 这个真实元素来压书脊。 */
+  background: linear-gradient(158deg, var(--wp-cover-1, #24506f) 0%, var(--wp-cover-2, #12293f) 58%, var(--wp-base, #0a1c2c) 100%);
+  transform: rotateY(-4.5deg);          /* 只留一点点侧立感：左边缘当轴，角度大了会显得歪 */
+  transform-origin: left center;
+}
+/* 书脊暗部：店长觉得像"凭空一根黑条"，已完全去掉，封面保持干净。
+   （想恢复就把下面这条删掉 —— 规则本体仍在，方便对比。） */
+.menu-cards > .menu-card:nth-child(1)::before { display: none; }
+/* 书口：一叠纸的侧边（repeating-linear-gradient 画出页与页的缝） */
+.menu-cards > .menu-card:nth-child(1)::after {
+  content: ""; display: block; position: absolute; inset: 4% -5px 4% auto; width: 6px;
+  background: repeating-linear-gradient(180deg, #ded6c5 0 2px, #c9bfa9 2px 3px);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 2px 0 6px -2px rgba(0, 0, 0, .8);
+}
+.menu-cards > .menu-card:nth-child(1):hover {
+  transform: rotateY(-1.5deg) translateZ(40px) translateX(4px);
+  box-shadow: 0 40px 70px -30px rgba(0, 0, 0, .95), 0 0 34px -10px var(--wp-glow, rgba(120, 180, 220, .3));
+}
+
+/* ---------- ② 个人章：一张斜贴的便签 ---------- */
+.menu-cards > .menu-card:nth-child(2) {
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  background: linear-gradient(170deg, rgba(248, 243, 230, .96), rgba(226, 216, 194, .93));
+  /* fixed-color: 便签上的墨色 */
+  color: #2b2419;
+  transform: rotate(-2.2deg) translateZ(10px);
+}
+/* 顶上压着的一小条胶带 */
+.menu-cards > .menu-card:nth-child(2)::before {
+  content: ""; position: absolute; top: -9px; left: 50%; width: 64px; height: 18px;
+  transform: translateX(-50%) rotate(-3deg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .42), rgba(255, 255, 255, .18));
+  border-left: 1px solid rgba(255, 255, 255, .3); border-right: 1px solid rgba(255, 255, 255, .3);
+}
+.menu-cards > .menu-card:nth-child(2):hover { transform: rotate(0deg) translateZ(34px) translateY(-6px); }
+/* fixed-color: 米色便签上的墨色（浅底深字，不能跟着深色主题走） */
+
+.menu-cards > .menu-card:nth-child(2) .menu-card-content p,
+.menu-cards > .menu-card:nth-child(2) .menu-card-meta { color: #3a3126; }
+/* fixed-color: 便签上的图标底色与墨色 */
+.menu-cards > .menu-card:nth-child(2) .menu-card-icon { background: rgba(43, 36, 25, .1); color: #6b5a3d; }
+
+/* ---------- ③ 设定：一块吊挂的木牌，会轻轻摆 ---------- */
+.menu-cards > .menu-card:nth-child(3) {
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5);
+  background: linear-gradient(168deg, rgba(58, 43, 30, .93), rgba(38, 28, 20, .95));
+  transform-origin: 50% -1.2rem;
+  animation: tagSway 7.5s ease-in-out infinite;
+}
+/* 吊绳 */
+.menu-cards > .menu-card:nth-child(3)::before {
+  content: ""; position: absolute; top: -1.35rem; left: 50%; width: 1px; height: 1.35rem;
+  background: linear-gradient(180deg, transparent, rgba(211, 179, 126, .75));
+}
+@keyframes tagSway {
+  0%, 100% { transform: rotate(-1.1deg) translateZ(6px); }
+  50%      { transform: rotate(1.1deg) translateZ(6px); }
+}
+.menu-cards > .menu-card:nth-child(3):hover { animation-play-state: paused; transform: rotate(0deg) translateZ(30px); }
+
+/* ---------- 窄屏：回到单列，但三件实物各自保留性格 ---------- */
+@media (max-width: 820px) {
+  .menu-cards {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main" "personal" "settings";
+    gap: 2.7rem;                       /* 给挂绳(-1.35rem)和胶带(-9px)留出空间，不然会压到上面那张 */
+  }
+  /* 手机上一律不带透视：3D 变换会让盒子变宽，容易顶出横向滚动条 */
+  .menu-cards { perspective: none; }
+  .menu-cards > .menu-card:nth-child(1) {
+    transform: none;                   /* 书在窄屏正过来放，避免"歪" */
+    min-height: 0;
+    padding-left: calc(var(--sp-4) + 16px);   /* 书脊收窄，正文别被挤 */
+  }
+  .menu-cards > .menu-card:nth-child(1)::after {
+    inset: 4% 0 4% auto;               /* 书口收回卡片内，绝不让它伸出去 */
+    width: 5px;
+  }
+  .menu-cards > .menu-card:nth-child(1):hover { transform: translateZ(0); }
+  .menu-cards > .menu-card:nth-child(2) { transform: rotate(-1.2deg); }   /* 便签留一点歪，但不夸张 */
+  .menu-cards > .menu-card:nth-child(2)::before { top: -7px; height: 15px; width: 54px; }
+  .menu-cards > .menu-card:nth-child(3) { animation-duration: 9s; }
+  .menu-cards > .menu-card:nth-child(3)::before { top: -1.1rem; height: 1.1rem; }
+}
+
+/* ---------- 减少动态效果：一切都安静下来 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .menu-cards > .menu-card:nth-child(3) { animation: none; }
+  .menu-cards > .menu-card { transform: none !important; }
+}
+/* fixed-color-region: end */
+
+/* 主线卡片的上半部分原本空着 —— 嵌一枚烫金小杯子（和封面/顶栏同一套蒙版手法，
+   看起来是压印在封面上的，而不是贴了张图）。绝对定位，不影响原有排版。 */
+.menu-cards > .menu-card:nth-child(1) .menu-main-mark {
+  position: absolute; top: 15%; left: 50%;
+  width: 56px; aspect-ratio: 659 / 387;         /* 与蒙版一致，不变形 */
+  transform: translateX(-50%);
+  background: linear-gradient(160deg,
+    var(--wp-accent-2, #f0dfae) 0%,
+    var(--wp-accent, #d3b37e) 58%,
+    var(--wp-accent-ink, #816d4d) 100%);
+  -webkit-mask: url('/media/logo-mark.png') center / contain no-repeat;
+  mask: url('/media/logo-mark.png') center / contain no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .55)) drop-shadow(0 0 16px var(--wp-glow, rgba(120, 180, 220, .28)));
+  opacity: .7; pointer-events: none;   /* 更淡：像压印上去的，而不是贴了一枚徽章 */
+}
+@media (max-width: 820px) {
+  .menu-cards > .menu-card:nth-child(1) .menu-main-mark { width: 42px; top: 12%; }
+}
+
+/* 印记撑满上半部：把主线卡改成纵向排布，印记用 order 放到最上面 ——
+   这样它占多少、文字在哪，全由布局算出来，不可能重叠（比"猜一个绝对位置"可靠）。 */
+.menu-cards > .menu-card:nth-child(1) {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-3); text-align: center;
+  min-height: 18.5rem;
+  padding: var(--sp-6) var(--sp-5);      /* 左右对称：书脊去掉后不再需要预留左边距 */
+}
+.menu-cards > .menu-card:nth-child(1) .menu-main-mark {
+  position: static; transform: none;              /* 不再绝对定位，交给布局 */
+  order: -1;
+  width: 68%; max-width: 330px;                   /* 跟着卡片宽度撑满上半部 */
+  aspect-ratio: 659 / 387;
+  margin-bottom: var(--sp-2);
+}
+/* 大杯子本身就是这本"书"的徽记，原来那个小图标先收起来，免得两个符号打架 */
+.menu-cards > .menu-card:nth-child(1) .menu-card-icon { display: none; }
+.menu-cards > .menu-card:nth-child(1) .menu-card-content { text-align: center; }
+.menu-cards > .menu-card:nth-child(1) .menu-card-content p { margin-left: auto; margin-right: auto; }
+
+@media (max-width: 820px) {
+  .menu-cards > .menu-card:nth-child(1) { min-height: 0; padding: var(--sp-5) var(--sp-4); }  /* 已对称 */
+  .menu-cards > .menu-card:nth-child(1) .menu-main-mark { width: 62%; max-width: 260px; margin-bottom: var(--sp-3); }
+}
+
+/* ============================================================================
+   三张卡改成"有颜色的毛玻璃"
+   ----------------------------------------------------------------------------
+   做法：半透明底色 + 背景模糊（backdrop-filter）+ 大圆角 + 一道顶部高光。
+   三块各保留自己的色调（书＝靛蓝、便签＝米白、木牌＝暖褐），所以是"有颜色"的毛玻璃。
+   注意：玻璃规则一律挂在 html[data-wallpaper="on"] 下 —— 书架页本身就有壁纸，
+   这样既语义正确，也满足检查器"玻璃只出现在壁纸页"的约定。
+   文字可读性优先：便签上压着深色墨字，所以它的不透明度留得高一些（.8），
+   否则背后的深色壁纸透上来，字就看不清了。
+   ============================================================================ */
+html[data-wallpaper="on"] .menu-cards > .menu-card {
+  border-radius: var(--r-lg);                       /* 圆滑：从 3px 提到大圆角 */
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .10),         /* 顶部那道光：玻璃的关键提示 */
+    0 26px 50px -30px rgba(0, 0, 0, .9);
+  -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  backdrop-filter: blur(14px) saturate(1.35);
+}
+
+/* ① 书：暖褐毛玻璃 —— 与木牌同一色系（统一），但更深更沉、金边略淡（不雷同） */
+html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(1) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(158deg, rgba(64, 49, 36, .56) 0%, rgba(44, 34, 25, .62) 58%, rgba(26, 20, 15, .68) 100%);
+  border-color: rgba(211, 179, 126, .18);
+}
+/* ② 便签：米白毛玻璃（不透明度高一些，保证深色字读得清） */
+html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(2) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(170deg, rgba(248, 243, 230, .88), rgba(226, 216, 194, .82));
+  border-color: rgba(255, 255, 255, .40);
+}
+/* ③ 木牌：暖褐毛玻璃 */
+html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(168deg, rgba(72, 53, 36, .58), rgba(44, 32, 22, .66));
+  border-color: rgba(211, 179, 126, .22);
+}
+
+/* 不支持背景模糊的浏览器：退回不透明底色，绝不让字糊在壁纸上 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(1) {
+    background: linear-gradient(158deg, var(--book-1, #403124) 0%, var(--book-2, #2c2219) 58%, var(--book-3, #1a140f) 100%);
+  }
+  html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(2) {
+    background: linear-gradient(170deg, var(--note-paper-1, #f8f3e6) 0%, var(--note-paper-2, #e2d8c2) 100%);
+  }
+  html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
+    background: linear-gradient(168deg, var(--wood-1, #483524) 0%, var(--wood-2, #2c2016) 100%);
+  }
+}
+
+/* 书口、胶带的圆角跟着卡片走 */
+html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(1)::after { border-radius: 0 4px 4px 0; }
