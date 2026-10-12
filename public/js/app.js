@@ -239,8 +239,6 @@ const App = {
       <div class="menu-cards">${Array.from({ length: 3 }, () => `<div class="sk-card"></div>`).join('')}</div>`;
     } else if (kind === 'admin') {
       body = `<div class="admin-nav">
-          <a class="admin-export" href="/api/admin/export?format=json" download>导出 JSON（完整备份）</a>
-          <a class="admin-export" href="/api/admin/export?format=md" download>导出 Markdown（阅读/存档）</a>
         </div><div class="admin-head"></div>
       <div class="admin-table-wrap"><div class="sk-card" style="height:320px"></div></div>`;
     } else {
@@ -742,7 +740,10 @@ const App = {
     return `<div class="admin-nav">
       <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
       <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
-    </div>`;
+    
+          <a class="admin-export" href="/api/admin/export?format=json" download>导出 JSON（完整备份）</a>
+          <a class="admin-export" href="/api/admin/export?format=md" download>导出 Markdown（阅读/存档）</a>
+        </div>`;
   },
 
   async renderAdminArticles() {
