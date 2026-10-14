@@ -277,6 +277,8 @@ async function ensureSchema(env) {
   // 字段就永远加不上，表现为 SELECT source 直接 500）。直接 ALTER 最省事：
   // 字段已存在时这条会报错，忽略即可；表还不存在则交给下面的建表语句。
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run(); } catch (e) {}
+  // 卡片简介（可单独编辑，避免卡片上剧透正文）
+  try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN summary TEXT').run(); } catch (e) {}
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_usage (user_id INTEGER PRIMARY KEY, minute INTEGER NOT NULL, cnt INTEGER NOT NULL)`),
@@ -499,7 +501,7 @@ export async function onRequest(context) {
       // 否则每次打开书架都要下载整本小说。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
         a.section_no, a.section_title, a.title, a.created_at,
-        substr(a.content, 1, 400) AS head,
+        substr(a.content, 1, 400) AS head, a.summary,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
       const main = [], mmap = {}, personal = [], settings = [];
@@ -513,7 +515,7 @@ export async function onRequest(context) {
           chapter_no: a.chapter_no, chapter_title: a.chapter_title,
           section_no: a.section_no, section_title: a.section_title,
           title: a.title,
-          excerpt: makeExcerpt(a.head),
+          excerpt: (a.summary && String(a.summary).trim()) ? String(a.summary).trim() : makeExcerpt(a.head),
           comment_count: Number(a.comment_count),
         };
         if (a.category === 'main') {
@@ -808,6 +810,7 @@ export async function onRequest(context) {
       const content = makeContent(body);
       if (!content) return json({ error: '正文不能为空' }, 400);
       const source = makeSource(body);
+      const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
       let values;
       if (category === 'main') {
         const cn = parseInt(body.chapter_no, 10), sn = parseInt(body.section_no, 10);
@@ -815,13 +818,13 @@ export async function onRequest(context) {
         if (!Number.isFinite(sn) || sn < 1) return json({ error: '节号必须是正整数' }, 400);
         const ct = String(body.chapter_title || '').trim() || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content, source];
+        values = [category, cn, ct, sn, st, st, content, source, summary];
       } else {
         const t = String(body.title || '').trim();
         if (!t) return json({ error: '标题不能为空' }, 400);
-        values = [category, null, null, null, null, t, content, source];
+        values = [category, null, null, null, null, t, content, source, summary];
       }
-      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
+      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
       return json(a, 201);
     }
@@ -834,6 +837,7 @@ export async function onRequest(context) {
       if (!['main', 'personal', 'settings'].includes(category)) return json({ error: '分类无效' }, 400);
       const content = makeContent(body) || old.content;
       const source = makeSource(body);
+      const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
       let values;
       if (category === 'main') {
         const cnRaw = parseInt(body.chapter_no, 10), snRaw = parseInt(body.section_no, 10);
@@ -841,12 +845,12 @@ export async function onRequest(context) {
         const sn = Number.isFinite(snRaw) && snRaw >= 1 ? snRaw : old.section_no;
         const ct = String(body.chapter_title || '').trim() || old.chapter_title || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || old.section_title || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content, source];
+        values = [category, cn, ct, sn, st, st, content, source, summary];
       } else {
         const t = String(body.title || '').trim() || old.title || '未命名';
-        values = [category, null, null, null, null, t, content, source];
+        values = [category, null, null, null, null, t, content, source, summary];
       }
-      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
+      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
       return json(a);
     }

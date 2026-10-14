@@ -450,7 +450,7 @@ const App = {
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/menu">书架</a> / 主线故事</div>
       <div class="page-head">
-        <span class="eyebrow">Main Story</span>
+        <span class="eyebrow">メインストーリー</span>
         <h1>主线故事</h1>
         <p>梦从此刻开始</p>
       </div>
@@ -507,7 +507,7 @@ const App = {
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/menu">书架</a> / 个人章</div>
       <div class="page-head">
-        <span class="eyebrow">Independent Pieces</span>
+        <span class="eyebrow">読み切り</span>
         <h1>个人章</h1>
         <p>每一篇，都是一段被妥善安放的心事。</p>
       </div>
@@ -532,7 +532,7 @@ const App = {
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/menu">书架</a> / 设定</div>
       <div class="page-head">
-        <span class="eyebrow">World Archive</span>
+        <span class="eyebrow">世界観設定</span>
         <h1>设定</h1>
         <p>人物 · 岛屿 · 咖啡馆的来客。</p>
       </div>
@@ -840,6 +840,10 @@ const App = {
           <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
             <label>标题</label>
             <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
+          </div>
+          <div class="form-row">
+            <label>卡片简介 <span class="hint">（可不填：留空就自动截取正文开头；在这里写就不会剧透正文）</span></label>
+            <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
           </div>
           <div class="form-row">
             <label>正文内容 <span class="hint">（一行就是一段；工具栏可以插人物卡、图片等）</span></label>
@@ -1701,7 +1705,8 @@ const App = {
       if (groups.length > 1) return this.publishSplit(form, groups, this.docImport.meta || {});
     }
     const rawHtml = !!(document.getElementById('rawHtml') && document.getElementById('rawHtml').checked);
-    const payload = { category, content: form.content.value.trim(), raw_html: rawHtml };
+    const payload = { category, content: form.content.value.trim(), raw_html: rawHtml,
+      summary: form.summary ? form.summary.value.trim() : '' };
     // 富文本模式：把标记原文交给后端，由后端统一渲染成正文（前端那份只用来做预览）
     if (!rawHtml) payload.source = form.content.value;
     if (category === 'main') {
