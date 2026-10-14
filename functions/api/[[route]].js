@@ -142,8 +142,13 @@ function escapeHtml(s) {
       后端用它生成正式正文。两边不一致，作者看到的和发布的就不一样了。
       （测试里有一条"逐条比对两边输出"守这个。）
    先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签执行。 */
+var COLOR_NAME = { r: 'red', y: 'yellow', b: 'blue', g: 'green' };
+
 function richInline(s) {
   return escapeHtml(String(s == null ? '' : s))
+    .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
+      return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
+    })
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 }
@@ -206,7 +211,30 @@ function richToHtml(text) {
       out.push('<blockquote>' + richParas(q) + '</blockquote>');
       continue;
     }
-    const blk = /^:::(card|note)\s*(.*)$/.exec(t);
+      // 场景分隔：单独一行 :::scene，不需要收尾
+      if (/^:::scene\s*$/.test(t)) {
+        out.push('<div class="rc-scene" role="separator">\u2747</div>');
+        i++; continue;
+      }
+      // 对白 / 书信 / 剧透折叠（后者用原生 <details>，不需要任何 JS）
+      var blk4 = /^:::(say|letter|spoiler)\s*(.*)$/.exec(t);
+      if (blk4) {
+        var kind4 = blk4[1], head4 = blk4[2].trim(), buf4 = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ':::') { buf4.push(lines[i]); i++; }
+        i++;
+        if (kind4 === 'say') {
+          out.push('<div class="rc-say">' + (head4 ? '<span class="rc-say-who">' + richInline(head4) + '</span>' : '')
+            + '<div class="rc-say-body">' + richParas(buf4) + '</div></div>');
+        } else if (kind4 === 'letter') {
+          out.push('<div class="rc-letter">' + (head4 ? '<div class="rc-letter-head">' + richInline(head4) + '</div>' : '')
+            + '<div class="rc-letter-body">' + richParas(buf4) + '</div></div>');
+        } else {
+          out.push('<details class="rc-spoiler"><summary>' + (head4 ? richInline(head4) : '剧透预警')
+            + '</summary><div class="rc-spoiler-body">' + richParas(buf4) + '</div></details>');
+        }
+        continue;
+      }    const blk = /^:::(card|note)\s*(.*)$/.exec(t);
     if (blk) {
       const kind = blk[1], head = blk[2].trim(), buf = [];
       i++;
