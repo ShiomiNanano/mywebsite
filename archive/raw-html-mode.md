@@ -33,3 +33,8 @@
 3. 把 `const rich = false;` 改回原来的判定：`const rich = looksRich(a && a.content);`
 4. 把渲染测试里"已移除"的断言删掉，改回：
    `has('HTML 文章的「原始 HTML 模式」被自动勾选', formRich, 'id="rawHtml" checked')`
+
+---
+
+部署备注（2026-10-12）：本次含该移除的提交推送后，线上仍停留在更早的版本，
+故补一次无害提交以重新触发 Cloudflare Pages 构建，用于判断「是没触发」还是「构建失败」。
