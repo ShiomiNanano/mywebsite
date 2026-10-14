@@ -793,7 +793,7 @@ const App = {
     if (id) a = await API.get('/api/admin/articles/' + id);
     const category = a ? a.category : 'main';
     const isMain = category === 'main';
-    const rich = !!(a && a.rich);
+    const rich = false;   // 原始 HTML 模式已移除：一律先给纯文本，标记原文随后异步覆盖
     const body = a ? (rich ? a.content : a.content_text) : '';
     return `
     <div class="page">
@@ -860,6 +860,16 @@ const App = {
               <button type="button" class="et-btn" data-act="note">提示块</button>
               <button type="button" class="et-btn" data-act="image">图片</button>
               <span class="et-sep"></span>
+              <button type="button" class="et-btn" data-act="scene" title="章节内换场的一行分隔">场景分隔</button>
+              <button type="button" class="et-btn et-key" data-act="say">对白</button>
+              <button type="button" class="et-btn" data-act="letter">书信</button>
+              <button type="button" class="et-btn" data-act="spoiler">剧透折叠</button>
+              <span class="et-sep"></span>
+              <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
+              <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
+              <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
+              <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
+              <span class="et-sep"></span>
               <button type="button" class="et-btn" data-act="preview" id="etPreviewBtn">显示预览</button>
             </div>
             <div class="editor-split" id="editorSplit">
@@ -869,7 +879,8 @@ const App = {
             <p class="hint" id="paraHint"></p>
           </div>
           <div class="form-row">
-            <label class="switch-row"><input type="checkbox" id="rawHtml" ${rich ? 'checked' : ''}> 原始 HTML 模式（高级）</label>
+          <!-- 原始 HTML 模式（高级）已按店长要求移除：后台只用标记式编辑器。
+               想恢复见 archive/raw-html-mode.md -->
             <p class="hint">勾选后正文会原样保存，不会自动转成 &lt;p&gt; 段落，也不会被转义。用于人物卡这类带结构的内容。</p>
           </div>
           <div class="form-row">
@@ -1139,6 +1150,11 @@ const App = {
       else if (act === 'hr') R.insertBlock(box, '---');
       else if (act === 'note') R.insertBlock(box, ':::note 提示标题\n写在这里\n:::', 8, 12);
       else if (act === 'image') R.insertBlock(box, '![图片说明](https://图片地址)', 2, 6);
+      else if (act === 'scene') R.insertBlock(box, ':::scene');
+      else if (act === 'say') R.insertBlock(box, ':::say 角色名\n「台词……」\n:::', 4, 7);
+      else if (act === 'letter') R.insertBlock(box, ':::letter 标题\n内容……\n:::', 8, 10);
+      else if (act === 'spoiler') R.insertBlock(box, ':::spoiler 后文剧透\n这里写不能提前看的内容……\n:::', 10, 14);
+      else if (act.indexOf('c-') === 0) R.surround(box, '{{' + act.slice(2) + '|', '}}', '文字');
       else if (act === 'card') {
         const tpl = ':::card 名字 | 别名\n@ 一句话简介（年龄 / 身份 之类）\n正文……\n:::';
         R.insertBlock(box, tpl, 8, 10);
@@ -1704,11 +1720,11 @@ const App = {
       const groups = window.DocxImport.splitSections(this.docImport.blocks);
       if (groups.length > 1) return this.publishSplit(form, groups, this.docImport.meta || {});
     }
-    const rawHtml = !!(document.getElementById('rawHtml') && document.getElementById('rawHtml').checked);
-    const payload = { category, content: form.content.value.trim(), raw_html: rawHtml,
+    const payload = { category, content: form.content.value.trim(), raw_html: false,
       summary: form.summary ? form.summary.value.trim() : '' };
     // 富文本模式：把标记原文交给后端，由后端统一渲染成正文（前端那份只用来做预览）
-    if (!rawHtml) payload.source = form.content.value;
+      // RAW 模式已移除：永远作为标记原文提交（原来读 rawHtml，删掉那一行后会抛 ReferenceError）
+      payload.source = form.content.value;
     if (category === 'main') {
       payload.chapter_no = parseInt(form.chapter_no.value, 10);
       payload.chapter_title = form.chapter_title.value.trim();

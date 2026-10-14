@@ -2172,6 +2172,76 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
     background: linear-gradient(168deg, var(--tag-paper-1, #f5edde) 0%, var(--tag-paper-2, #d8cab0) 100%);
   }
 }
+/* ============================================================================
+   新增：场景分隔 / 对白 / 书信 / 剧透折叠 + 四种字体颜色
+   ----------------------------------------------------------------------------
+   颜色一律写成 var(名, 兜底) —— 既满足"不许写死颜色"的约定，
+   又让它们能跟着壁纸配色走（和 site 里其它配色一个道理）。
+   剧透块用原生 <details>，点标题展开，不需要任何 JS。
+   ============================================================================ */
+.reading-content .rc-scene {
+  margin: var(--sp-6) 0; text-align: center;
+  font-size: var(--fs-lg); color: var(--gold); letter-spacing: .5em; opacity: .85;
+}
+.reading-content .rc-say {
+  margin: 0 0 var(--sp-5); padding-left: var(--sp-5);
+  border-left: 2px solid var(--frame-line);
+}
+.reading-content .rc-say-who {
+  display: inline-block; margin-bottom: 5px;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .14em; color: var(--gold);
+}
+.reading-content .rc-say-body p { text-indent: 0; margin-bottom: .45em; }
+.reading-content .rc-say-body p:last-child { margin-bottom: 0; }
+
+.reading-content .rc-letter {
+  margin: 0 0 var(--sp-5); padding: var(--sp-5);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.reading-content .rc-letter-head {
+  margin-bottom: var(--sp-3); padding-bottom: var(--sp-2);
+  border-bottom: 1px dashed var(--line);
+  font-family: var(--font-serif); font-size: var(--fs-md);
+  color: var(--gold-2); letter-spacing: .06em;
+}
+.reading-content .rc-letter-body p { text-indent: 0; margin-bottom: .6em; }
+
+.reading-content .rc-spoiler {
+  margin: 0 0 var(--sp-5); overflow: hidden;
+  background: var(--gold-soft); border: 1px solid var(--frame-line); border-radius: var(--r-md);
+}
+.reading-content .rc-spoiler > summary {
+  padding: var(--sp-3) var(--sp-4); cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-sm);
+  letter-spacing: .06em; color: var(--gold); list-style: none;
+}
+.reading-content .rc-spoiler > summary::-webkit-details-marker { display: none; }
+.reading-content .rc-spoiler > summary::before { content: "\25B8  "; }
+.reading-content .rc-spoiler[open] > summary::before { content: "\25BE  "; }
+.reading-content .rc-spoiler-body {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-top: 1px solid var(--frame-line);
+}
+.reading-content .rc-spoiler-body p { text-indent: 0; margin-bottom: .6em; }
+
+/* 四种字体颜色：偏柔和的色值，深色纸上不刺眼 */
+.reading-content .t-red, .reading-content .t-red * { color: var(--tint-red, #e89a9a); }
+.reading-content .t-yellow, .reading-content .t-yellow * { color: var(--tint-yellow, #e8cf9a); }
+.reading-content .t-blue, .reading-content .t-blue * { color: var(--tint-blue, #9ac4e8); }
+.reading-content .t-green, .reading-content .t-green * { color: var(--tint-green, #9ad8b0); }
+
+/* 工具栏上的颜色按钮：名字旁边点一小块颜色，一眼知道是哪个色 */
+.et-color { position: relative; padding-left: 20px; }
+.et-color::before {
+  content: ""; position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.et-color.c-red::before { background: var(--tint-red, #e89a9a); }
+.et-color.c-yellow::before { background: var(--tint-yellow, #e8cf9a); }
+.et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
+.et-color.c-green::before { background: var(--tint-green, #9ad8b0); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
@@ -2193,3 +2263,19 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 }
 .admin-export-row:hover { color: var(--gold); }
 .admin-export-row::before { content: "\2193"; margin-right: 3px; font-size: 11px; }
+
+/* ============================================================================
+   加粗终于看得出效果了
+   ----------------------------------------------------------------------------
+   原因：正文段落从来没有设过基准字重，继承来的字重偏重，
+   于是 <strong> 的 700 和正文几乎没差别 —— 作者点了加粗却看不出变化。
+   这里把正文降到 350、加粗明确放到 700，对比立刻出来。
+   编辑器的实时预览用的是同一套 .reading-content，所以作者当场就能看到。
+   ============================================================================ */
+.reading-content p,
+.reading-content .char-desc,
+.reading-content li,
+.reading-content blockquote p { font-weight: 350; }
+.reading-content strong,
+.reading-content b { font-weight: 700; letter-spacing: .01em; }
+/* 印刷体在浅底/深底上都偏细，350 若不被支持会自动落到 400，仍与 700 有区别 */

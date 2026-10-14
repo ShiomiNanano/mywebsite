@@ -29,8 +29,14 @@ window.Rich = (function () {
   }
 
   // 行内标记。先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签。
+    var COLOR_NAME = { r: 'red', y: 'yellow', b: 'blue', g: 'green' };
+
   function inline(s) {
     return esc(s)
+      // 字体颜色：{{r|文字}} 红 / {{y|}} 黄 / {{b|}} 蓝 / {{g|}} 绿
+      .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
+        return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
+      })
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   }
@@ -104,6 +110,30 @@ window.Rich = (function () {
         continue;
       }
 
+      // 场景分隔：单独一行 :::scene，不需要收尾
+      if (/^:::scene\s*$/.test(t)) {
+        out.push('<div class="rc-scene" role="separator">\u2747</div>');
+        i++; continue;
+      }
+      // 对白 / 书信 / 剧透折叠（后者用原生 <details>，不需要任何 JS）
+      var blk4 = /^:::(say|letter|spoiler)\s*(.*)$/.exec(t);
+      if (blk4) {
+        var kind4 = blk4[1], head4 = blk4[2].trim(), buf4 = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ':::') { buf4.push(lines[i]); i++; }
+        i++;
+        if (kind4 === 'say') {
+          out.push('<div class="rc-say">' + (head4 ? '<span class="rc-say-who">' + inline(head4) + '</span>' : '')
+            + '<div class="rc-say-body">' + paras(buf4) + '</div></div>');
+        } else if (kind4 === 'letter') {
+          out.push('<div class="rc-letter">' + (head4 ? '<div class="rc-letter-head">' + inline(head4) + '</div>' : '')
+            + '<div class="rc-letter-body">' + paras(buf4) + '</div></div>');
+        } else {
+          out.push('<details class="rc-spoiler"><summary>' + (head4 ? inline(head4) : '剧透预警')
+            + '</summary><div class="rc-spoiler-body">' + paras(buf4) + '</div></details>');
+        }
+        continue;
+      }
       var blk = /^:::(card|note)\s*(.*)$/.exec(t);
       if (blk) {
         var kind = blk[1], head = blk[2].trim(), buf = [];
