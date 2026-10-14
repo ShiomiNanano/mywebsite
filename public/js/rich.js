@@ -112,7 +112,7 @@ window.Rich = (function () {
 
       // 场景分隔：单独一行 :::scene，不需要收尾
       if (/^:::scene\s*$/.test(t)) {
-        out.push('<div class="rc-scene" role="separator">\u2747</div>');
+        out.push('<div class="rc-scene" role="separator">\u2767</div>');
         i++; continue;
       }
       // 对白 / 书信 / 剧透折叠（后者用原生 <details>，不需要任何 JS）
