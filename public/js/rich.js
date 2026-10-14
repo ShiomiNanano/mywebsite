@@ -32,7 +32,7 @@ window.Rich = (function () {
     var COLOR_NAME = { r: 'red', y: 'yellow', b: 'blue', g: 'green' };
 
   function inline(s) {
-    return esc(s)
+    return esc(String(s == null ? '' : s))
       // 字体颜色：{{r|文字}} 红 / {{y|}} 黄 / {{b|}} 蓝 / {{g|}} 绿
       .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
         return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';

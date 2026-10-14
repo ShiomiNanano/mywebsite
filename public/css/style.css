@@ -2279,3 +2279,5 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .reading-content strong,
 .reading-content b { font-weight: 700; letter-spacing: .01em; }
 /* 印刷体在浅底/深底上都偏细，350 若不被支持会自动落到 400，仍与 700 有区别 */
+
+/* deploy probe: bisect-p1 */
