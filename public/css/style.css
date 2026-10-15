@@ -2818,6 +2818,141 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   transform: translateX(-1.5px);
 }
 
+/* ============================================================================
+   「我的」页：一张名片 + 收起来的头像设置 + 游戏成绩
+   头像是一年改一次的事，默认只露出一个按钮；页面以"你"为主。
+   ============================================================================ */
+.profile-card { text-align: center; }
+.profile-avatar { display: flex; justify-content: center; margin-bottom: var(--sp-3); }
+.profile-line { color: var(--ink-3); font-size: var(--fs-xs); letter-spacing: .04em; margin: var(--sp-1) 0 var(--sp-4); }
+.profile-card #avatarToggle { margin-bottom: var(--sp-3); }
+.profile-avatar-edit[hidden] { display: none; }
+.profile-avatar-edit {
+  max-width: 420px; margin: 0 auto; padding: var(--sp-4) 0 0;
+  border-top: 1px dashed var(--line);
+}
+.profile-avatar .avatar-preview { margin-top: var(--sp-2); }
+.avatar-preview { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); color: var(--ink-3); font-size: var(--fs-xs); }
+
+/* 成绩块在卡片【里面】，所以不再自带背景与边框 —— 用上下两条虚线把它和
+   头像区、动作区分开就够了，宽度自然跟随卡片（之前它在卡片外面，
+   定宽 420px 反而比卡片还显眼，看着像"撑出页面"）。 */
+/* 成绩块现在在卡片【里面】，所以不能再自带底色和边框 ——
+   之前它在卡片外面时加过一层 var(--surface) 的深色盒子，
+   进了金卡之后就变成"金卡里嵌了一块深蓝"，字也就看不清了。 */
+.profile-ranks {
+  margin: var(--sp-5) 0 0; padding: var(--sp-4) 0 0;
+  border-top: 1px dashed var(--line);
+  background: none; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0;
+  text-align: left;
+}
+.profile-ranks h3 {
+  margin: 0 0 var(--sp-3); font-family: var(--font-serif); font-size: var(--fs-sm);
+  letter-spacing: .12em; color: var(--ink-2); text-align: center;
+}
+.profile-rank-row {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  padding: var(--sp-2) 0; border-top: 1px dashed var(--line);
+}
+.profile-rank-row:first-of-type { border-top: 0; }
+.profile-rank-game { flex: 1; color: var(--ink-2); font-size: var(--fs-sm); }
+.profile-rank-no { color: var(--gold); font-size: var(--fs-sm); }
+.profile-rank-row b { color: var(--gold); font-variant-numeric: tabular-nums; }
+
+.profile-actions {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+  margin-top: var(--sp-6);   /* 界面上不再画分隔线：成绩块已经自带一条，够了 */
+}
+/* 退出登录是危险动作，做得低调、和最上面的按钮分开，免得手滑 */
+.profile-actions .profile-logout { color: var(--ink-3); border-color: transparent; }
+.profile-actions .profile-logout:hover { color: var(--tint-red, #e89a9a); border-color: var(--line-2); }
+
+/* 「我的」页成绩为空时的样子：写「暂无」，并说明怎样才能出现在这里 */
+.profile-rank-none { margin: var(--sp-2) 0 0; text-align: center; color: var(--ink-3); font-size: var(--fs-sm); letter-spacing: .1em; }
+.profile-rank-tip { margin: var(--sp-2) 0 0; text-align: center; color: var(--ink-3); font-size: var(--fs-xs); line-height: 1.6; }
+
+/* ============================================================================
+   「我的」名片：玻璃质感
+   写法照抄站内已有的玻璃元素（.menu-card 那几张）——同一套 --glass-* 变量，
+   同样只写在 html[data-wallpaper="on"] 之下：没有壁纸时背景模糊看不出效果，
+   只是白费性能，这条是站里的既定规矩。
+   ============================================================================ */
+html[data-wallpaper="on"] .profile-card {
+  /* 配色照书架「主线」那张金卡：浅金底 + 深色字。
+     （站内那条注释说得很清楚：浅色卡配深色字，透明度不能低，
+       太透会合成一片脏灰、字就读不出来了。） */
+  /* 想要更透/更实，只改这两个百分比（现在 42% / 55%）——
+     底色越透，字就越是靠"白字 + 描边光"来读，所以字一律用白系。 */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--glass-gold, #d3b37e) 42%, transparent),
+      color-mix(in srgb, var(--glass-gold-2, #816d4d) 55%, transparent) 78%);
+  border-color: rgba(255, 255, 255, .24);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  color: rgba(255, 255, 255, .95);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .35),
+    0 26px 50px -30px rgba(0, 0, 0, .85);
+}
+/* 浏览器不支持背景模糊时，退回更实的底 —— 绝不让字糊在壁纸上 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper="on"] .profile-card {
+    background: var(--surface);
+    border-color: var(--line);
+  }
+}
+/* 开了壁纸时，卡片里的分隔虚线也要提亮一点，深色底上才看得见 */
+
+
+/* ============================================================================
+   金色玻璃卡里的文字与按钮（白系）
+   底色已经很透，所以字全部走白 + 一点点描边光；金色只留给分数与名次本身。
+   全部限定在 html[data-wallpaper="on"] .profile-card 之下，不影响站内其它页面。
+   ============================================================================ */
+html[data-wallpaper="on"] .profile-card h2 {
+  color: #fff; text-shadow: var(--wp-halo, 0 1px 6px rgba(0, 0, 0, .45));
+}
+html[data-wallpaper="on"] .profile-card .profile-line { color: rgba(255, 255, 255, .72); }
+html[data-wallpaper="on"] .profile-card .profile-rank-game { color: rgba(255, 255, 255, .92); }
+
+html[data-wallpaper="on"] .profile-card .profile-ranks { border-top-color: rgba(255, 255, 255, .22); }
+html[data-wallpaper="on"] .profile-card .profile-ranks h3 { color: rgba(255, 255, 255, .78); }
+html[data-wallpaper="on"] .profile-card .profile-rank-row { border-top-color: rgba(255, 255, 255, .16); }
+html[data-wallpaper="on"] .profile-card .profile-rank-no,
+html[data-wallpaper="on"] .profile-card .profile-rank-row b { color: #fff6dd; }
+html[data-wallpaper="on"] .profile-card .profile-rank-none,
+html[data-wallpaper="on"] .profile-card .profile-rank-tip { color: rgba(255, 255, 255, .62); }
+
+html[data-wallpaper="on"] .profile-card .btn-ghost {
+  color: rgba(255, 255, 255, .94);
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .30);
+}
+html[data-wallpaper="on"] .profile-card .btn-ghost:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .22);
+  border-color: rgba(255, 255, 255, .55);
+}
+/* 主按钮（保存）做成一块实的米白：透底上最清楚，也和金色不打架 */
+html[data-wallpaper="on"] .profile-card .btn-primary {
+  color: #3a2a16;
+  background: rgba(255, 252, 245, .92);
+  border-color: rgba(255, 252, 245, .92);
+}
+html[data-wallpaper="on"] .profile-card .btn-primary:hover { background: #fff; border-color: #fff; }
+html[data-wallpaper="on"] .profile-card .profile-logout {
+  color: rgba(255, 255, 255, .62); background: transparent; border-color: transparent;
+}
+html[data-wallpaper="on"] .profile-card .profile-logout:hover {
+  color: #ffd9d9; background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .22);
+}
+html[data-wallpaper="on"] .profile-card .profile-avatar-edit input[type="text"] {
+  color: #fff; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .30);
+}
+html[data-wallpaper="on"] .profile-card .profile-avatar-edit input[type="text"]::placeholder { color: rgba(255, 255, 255, .5); }
+html[data-wallpaper="on"] .profile-card .avatar-preview { color: rgba(255, 255, 255, .66); }
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */

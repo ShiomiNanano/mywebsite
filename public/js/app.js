@@ -183,6 +183,13 @@ const App = {
         show('settingFields', v === 'settings');
         return;
       }
+      /* 头像设置平时收起来，点「更换头像」才展开 —— 见 renderProfile 的注释。 */
+      const av = e.target.closest && e.target.closest('#avatarToggle');
+      if (av) {
+        const ed = document.getElementById('avatarEditor');
+        if (ed) { ed.hidden = !ed.hidden; av.textContent = ed.hidden ? '更换头像' : '收起'; }
+        return;
+      }
       const st = e.target.closest && e.target.closest('.set-tab');
       if (st) {
         const v = st.getAttribute('data-settype') || '';
@@ -355,7 +362,7 @@ const App = {
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
       else if (parts[0] === 'chat') { location.hash = '#/menu'; return ''; }
-      else if (parts[0] === 'profile') view = this.renderProfile();
+      else if (parts[0] === 'profile') view = await this.renderProfile();
       else if (parts[0] === 'admin') {
         const sub = parts[1];
         if (sub === 'new') view = await this.renderAdminForm();
@@ -1507,21 +1514,43 @@ const App = {
   },
 
   /* ---------- 9. 个人中心 ---------- */
-  renderProfile() {
+  /* 「我的」：一张名片 + 收起来的头像设置 + 一点属于读者的记录。
+     头像是一年改一次的事，不该常驻占据整页，所以默认只看得到按钮；
+     游戏成绩来自现成的接口，取不到就整块不显示（不让它拖累页面）。 */
+  /* 「我的」：一张名片 + 收起来的头像设置 + 游戏成绩。
+     全部内容都在同一张卡片里；头像是一年改一次的事，默认只露出一个按钮。
+     成绩来自现成的两个榜接口（只有前五），取不到就写「暂无」。 */
+  async renderProfile() {
     const u = this.state.user;
     if (!u) { location.hash = '#/login'; return ''; }
     this.pageTitle = '个人中心 · 白日梦咖啡馆';
+
+    let myRanks = [];
+    try {
+      const [mem, num] = await Promise.all([
+        API.get('/api/games/scores?game=memory'),
+        API.get('/api/games/scores?game=number'),
+      ]);
+      const pick = (label, res) => {
+        const d = res && res.data ? res.data : res;
+        const arr = Array.isArray(d) ? d : ((d && (d.tops || d.items || d.scores)) || []);
+        const i = arr.findIndex(x => String(x.user_id) === String(u.id) || String(x.username) === String(u.username));
+        if (i >= 0) myRanks.push({ label: label, rank: i + 1, score: Number(arr[i].score) || 0 });
+      };
+      pick('记忆翻牌', mem);
+      pick('猜数字', num);
+    } catch (e) { myRanks = []; }
+
     return `
     <div class="page">
       ${this.topbar()}
       <div class="profile-card">
-        ${this.avatarHtml(u, 96)}
+        <div class="profile-avatar">${this.avatarHtml(u, 96)}</div>
         <h2>${esc(u.username)}</h2>
-        <p class="profile-role">${u.role === 'admin' ? '管理员' : '普通会员'}</p>
-        <p class="profile-since">加入于 ${esc(formatTime(u.created_at))}</p>
-        <div class="profile-avatar-edit">
-          <h3>自定义头像</h3>
-          <p class="hint">未设置头像时，默认显示用户名的第一个字。本地上传会自动压缩成 128×128。</p>
+        <p class="profile-line">${u.role === 'admin' ? '管理员' : '普通会员'} · 加入于 ${esc(formatTime(u.created_at))}</p>
+        <button type="button" class="btn btn-small btn-ghost" id="avatarToggle">更换头像</button>
+
+        <div class="profile-avatar-edit" id="avatarEditor" hidden>
           <div class="avatar-edit-row">
             <input type="text" id="avatarUrl" placeholder="粘贴图片链接（https://…）" value="${esc(u.avatar && u.avatar.startsWith('http') ? u.avatar : '')}">
           </div>
@@ -1529,19 +1558,31 @@ const App = {
             <label class="btn btn-small btn-ghost btn-file">选择本地图片<input type="file" id="avatarFile" accept="image/*" hidden></label>
           </div>
           <div class="avatar-edit-row">
-            <button class="btn btn-small btn-primary" id="saveAvatar">保存头像</button>
+            <button class="btn btn-small btn-primary" id="saveAvatar">保存</button>
             ${u.avatar ? `<button class="btn btn-small btn-ghost" id="clearAvatar">恢复默认</button>` : ''}
           </div>
-          <div class="avatar-preview"><span>预览</span><span id="avatarPreview">${this.avatarHtml(u, 56)}</span></div>
+          <div class="avatar-preview"><span id="avatarPreview">${this.avatarHtml(u, 56)}</span></div>
         </div>
+
+        <section class="profile-ranks">
+          <h3>游戏成绩</h3>
+          ${myRanks.length ? myRanks.map(r => `
+            <div class="profile-rank-row">
+              <span class="profile-rank-game">${esc(r.label)}</span>
+              <span class="profile-rank-no">${r.rank === 1 ? '👑' : '第 ' + r.rank + ' 名'}</span>
+              <b>${r.score}</b>
+            </div>`).join('') : `
+            <p class="profile-rank-none">暂无</p>
+            <p class="profile-rank-tip">进了某个游戏排行榜的前五名，成绩就会显示在这里。</p>`}
+        </section>
+
         <div class="profile-actions">
-          <button class="btn btn-small btn-ghost" id="logoutBtn">退出登录</button>
-          ${u.role === 'admin' ? `<a class="btn btn-small btn-ghost" href="#/admin/articles">进入管理后台</a>` : ''}
+          ${u.role === 'admin' ? `<a class="btn btn-ghost" href="#/admin/articles">进入后台</a>` : ''}
+          <button class="btn btn-ghost profile-logout" id="logoutBtn">退出登录</button>
         </div>
       </div>
     </div>`;
   },
-
   /* ---------- 10. 管理后台 ---------- */
   adminNav(active) {
     return `<div class="admin-nav">
