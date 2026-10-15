@@ -113,6 +113,9 @@ const App = {
       const card = e.target.closest && e.target.closest('.flip-card');
       if (card) { this.flipCard(Number(card.getAttribute('data-i'))); return; }
       if (e.target.closest && e.target.closest('#gameRestart')) { this.startMemory(); }
+      if (e.target.closest && e.target.closest('#numGuess')) { this.guessNumber(); return; }
+      if (e.target.closest && e.target.closest('#numRestart')) { this.startNumber(); return; }
+      if (e.key === 'Enter' && e.target && e.target.id === 'numInput') { this.guessNumber(); }
     });
     document.addEventListener('click', async (e) => {
       const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del');
@@ -264,7 +267,7 @@ const App = {
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
       else if (parts[0] === 'personal') view = await this.renderPersonal();
     else if (parts[0] === 'board') view = await this.renderBoard();
-    else if (parts[0] === 'games') view = parts[1] === 'memory' ? await this.renderMemory() : await this.renderGames();
+    else if (parts[0] === 'games') view = parts[1] === 'memory' ? await this.renderMemory() : (parts[1] === 'number' ? await this.renderNumber() : await this.renderGames());
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
@@ -294,6 +297,7 @@ const App = {
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
     // 游戏页的棋盘要等 HTML 插进去之后才能画（上面那步先渲染，这里再开局）
     if (parts[0] === 'games' && parts[1] === 'memory') { this.startMemory(); }
+    if (parts[0] === 'games' && parts[1] === 'number') { this.startNumber(); }
     document.title = this.pageTitle || DEFAULT_TITLE;
     window.scrollTo(0, 0);
     this.afterRender();
@@ -596,16 +600,222 @@ const App = {
      底部导航点「游戏」进的是这一页（选择页），每款游戏有自己的路由：
      记忆翻牌是 #/games/memory。这里是游客也进不来的地方，
      所以一上来就跳登录（和 renderProfile / renderMemory 同一套做法）。 */
+  /* ---------- 猜数字 ----------
+     规则：连出三个 1~100 的数，猜中一个再猜下一个，三个都猜中才算完。
+     这样设计是为了压掉运气 —— 单个数字可能一次蒙中，
+     但连着三个都靠蒙几乎不可能，所以分数能反映真实水平。
+     计分与记忆翻牌同一套：1000 − 次数×20 − 秒数×3，下限 100。 */
+  async renderNumber() {
+    const u = this.state.user;
+    if (!u) { location.hash = '#/login'; return ''; }
+    this.pageTitle = '猜数字 · 白日梦咖啡馆';
+    if (this.num && this.num.timer) { clearInterval(this.num.timer); }
+    this.num = null;
+    try {
+      const r = await API.get('/api/games/scores?game=number');
+      this.numTops = (r && r.tops) || [];
+    } catch (e) { this.numTops = []; }
+    return `
+    <div class="page game-page">
+      ${this.topbar()}
+      <div class="page-head">
+        <h1>猜数字</h1>
+        <p>连猜三个，别指望运气。</p>
+      </div>
+
+      <section class="game-card">
+        <div class="game-head">
+          <h2>猜数字</h2>
+          <span class="game-stat">第 <b id="numRound">1</b>/3 个 · 共猜 <b id="numGuesses">0</b> 次 · <b id="numTime">0:00</b></span>
+        </div>
+        <p class="game-desc">我会连着出三个 1~100 的数。猜中一个，接着猜下一个；三个都猜中才算完。<b>分数看总次数和总时间</b>，所以蒙中一个没用。</p>
+
+        <div class="num-pips" id="numPips" aria-label="三次进度">
+          <span class="pip is-now"></span><span class="pip"></span><span class="pip"></span>
+        </div>
+
+        <div class="num-board">
+          <div class="num-range-row">
+            <span class="num-range-label">答案就在</span>
+            <span class="num-range" id="numRange">1 ~ 100</span>
+            <span class="num-range-label">之间</span>
+          </div>
+          <div class="num-track"><span class="num-fill" id="numFill"></span></div>
+          <div class="num-readout" id="numReadout">—</div>
+          <div class="num-hint" id="numHint"></div>
+        </div>
+
+        <div class="num-panel">
+          <input type="number" id="numInput" min="1" max="100" inputmode="numeric" placeholder="1 ~ 100" aria-label="猜一个 1 到 100 的数">
+          <button type="button" class="btn btn-primary num-go" id="numGuess">猜</button>
+        </div>
+        <div class="num-restart-row">
+          <button type="button" class="num-restart" id="numRestart">重新开始</button>
+        </div>
+        <div class="num-history" id="numHistory"></div>
+        <p class="num-log" id="numLog"></p>
+        <p class="game-result" id="numResult">　</p>
+      </section>
+
+      <section class="game-rank">
+        <h3>排行榜 · 前五名</h3>
+        <ol class="rank-list" id="numRanks">${this.numRankItems()}</ol>
+        <p class="game-more"><a href="#/games">← 回到游戏主页</a></p>
+      </section>
+    </div>`;
+  },
+
+  numRankItems() {
+    const tops = this.numTops || [];
+    if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
+    const medal = ['①', '②', '③', '④', '⑤'];
+    return tops.map((x, i) =>
+      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
+    ).join('');
+  },
+
+  startNumber() {
+    if (this.num && this.num.timer) clearInterval(this.num.timer);
+    const secret = [0, 0, 0].map(() => 1 + Math.floor(Math.random() * 100));
+    const g = { secret: secret, round: 0, guesses: 0, over: false, startAt: Date.now(), timer: null,
+                lo: 1, hi: 100, history: [], lastHint: '' };
+    this.num = g;
+    g.timer = setInterval(() => {
+      const el = document.getElementById('numTime');
+      if (el && this.num === g && !g.over) el.textContent = this.mmss(Date.now() - g.startAt);
+    }, 1000);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('numRound', '1');
+    set('numGuesses', '0');
+    set('numTime', '0:00');
+    set('numResult', '　');
+    const log = document.getElementById('numLog');
+    if (log) log.innerHTML = '开始吧 —— 第一个数已经想好了。';
+    this.paintNumber();
+    const box = document.getElementById('numInput');
+    if (box) { box.value = ''; box.focus(); }
+  },
+
+  guessNumber() {
+    const g = this.num;
+    if (!g || g.over) return;
+    const box = document.getElementById('numInput');
+    const log = document.getElementById('numLog');
+    const v = Math.floor(Number(box && box.value));
+    if (!Number.isFinite(v) || v < 1 || v > 100) {
+      if (log) log.innerHTML = '<span class="num-warn">要猜 1 到 100 之间的整数。</span>';
+      return;
+    }
+    g.guesses++;
+    const secret = g.secret[g.round];
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('numGuesses', String(g.guesses));
+    let line = '';
+    if (v === secret) {
+      line = '第 ' + (g.round + 1) + ' 个：<b>' + v + '</b> —— 猜中了！';
+      g.lastHint = 'hit';
+      g.round++;
+      g.lo = 1; g.hi = 100;                                  // 下一个数重新开一局范围
+      if (g.round >= 3) {
+        if (log) log.innerHTML = line + ' 三个全中。';
+        this.paintNumber(v);
+        this.finishNumber();
+        return;
+      }
+      line += ' 接着猜第 ' + (g.round + 1) + ' 个。';
+    } else if (v < secret) {
+      line = '第 ' + (g.round + 1) + ' 个：' + v + ' —— 小了';
+      g.lo = Math.max(g.lo, v + 1);
+      g.lastHint = 'low';
+    } else {
+      line = '第 ' + (g.round + 1) + ' 个：' + v + ' —— 大了';
+      g.hi = Math.min(g.hi, v - 1);
+      g.lastHint = 'high';
+    }
+    g.history.push({ v: v, hint: v === secret ? 'hit' : (v < secret ? 'low' : 'high') });
+    if (g.history.length > 8) g.history.shift();
+    if (log) log.innerHTML = line;
+    set('numRound', String(Math.min(g.round + 1, 3)));
+    this.paintNumber(v);
+    if (box) { box.value = ''; box.focus(); }
+  },
+
+  /* 猜数字的界面刷新集中在这里：范围条、进度点、大数字、提示、历史小签。
+     逻辑与视觉分开，改样式时不用碰判断。 */
+  paintNumber(lastGuess) {
+    // 查表而不是拼字符串：检查器会把 'is-' 这种碎片当成一个类名
+    const CHIP_CLASS = { low: 'is-low', high: 'is-high', hit: 'is-hit' };
+    const g = this.num;
+    if (!g) return;
+    const el = (id) => document.getElementById(id);
+    const range = el('numRange');
+    if (range) range.textContent = g.lo + ' ~ ' + g.hi;
+    const fill = el('numFill');
+    if (fill) {
+      const lo = Math.max(1, g.lo), hi = Math.min(100, g.hi);
+      const pct = Math.max(2, Math.round(((hi - lo + 1) / 100) * 100));
+      fill.style.width = pct + '%';
+      fill.classList.toggle('is-tight', pct <= 12);
+    }
+    const read = el('numReadout');
+    if (read) read.textContent = (lastGuess === undefined || lastGuess === null) ? '—' : String(lastGuess);
+    const hint = el('numHint');
+    if (hint) {
+      const map = { low: '小了 ↑', high: '大了 ↓', hit: '猜中了 ✓' };
+      hint.textContent = map[g.lastHint] || '';
+      hint.className = 'num-hint' + (g.lastHint ? ' is-' + g.lastHint : '');
+    }
+    const pips = el('numPips');
+    if (pips) {
+      const kids = pips.querySelectorAll('.pip');
+      kids.forEach((p, i) => {
+        p.className = 'pip' + (i < g.round ? ' is-done' : (i === g.round ? ' is-now' : ''));
+      });
+    }
+    const his = el('numHistory');
+    if (his) {
+      his.innerHTML = g.history.map(x =>
+        `<span class="num-chip ${CHIP_CLASS[x.hint] || ''}">${x.v}</span>`).join('');
+    }
+  },
+
+  async finishNumber() {
+    const g = this.num;
+    if (!g || g.over) return;
+    g.over = true;
+    if (g.timer) clearInterval(g.timer);
+    const secs = Math.floor((Date.now() - g.startAt) / 1000);
+    const score = Math.max(100, 1000 - g.guesses * 20 - secs * 3);
+    const rs = document.getElementById('numResult');
+    if (rs) rs.textContent = '三个全中！共猜 ' + g.guesses + ' 次 · ' + this.mmss(Date.now() - g.startAt) + ' · ' + score + ' 分';
+    try {
+      const r = await API.post('/api/games/scores', { game: 'number', score: score });
+      if (r && r.tops && r.tops.length) this.numTops = r.tops;
+      else {
+        const t = await API.get('/api/games/scores?game=number');
+        this.numTops = (t && t.tops) || [];
+      }
+      const box = document.getElementById('numRanks');
+      if (box) box.innerHTML = this.numRankItems();
+      toast('得了 ' + score + ' 分，已上榜');
+    } catch (e) {
+      toast('分数没能上榜：' + (e && e.message ? e.message : '稍后再试'));
+    }
+  },
+
   async renderGames() {
     const u = this.state.user;
     if (!u) { location.hash = '#/login'; return ''; }
     this.pageTitle = '游戏 · 白日梦咖啡馆';
-    let memoryTops = [];
+    let memoryTops = [], numberTops = [];
     try {
       const r = await API.get('/api/games/scores?game=memory');
       memoryTops = (r && r.tops) || [];
     } catch (e) { memoryTops = []; }
-    this.hubTops = memoryTops;
+    try {
+      const r2 = await API.get('/api/games/scores?game=number');
+      numberTops = (r2 && r2.tops) || [];
+    } catch (e) { numberTops = []; }
     return `
     <div class="page game-page">
       ${this.topbar()}
@@ -625,17 +835,15 @@ const App = {
           ${this.hubRank(memoryTops)}
         </a>
 
-        <div class="hub-card is-soon">
-          <div class="hub-top"><span class="hub-ico">2048</span><span class="hub-tag">准备中</span></div>
-          <h2>数字拼合</h2>
-          <p>滑动合并相同的数字，凑出 2048。</p>
-        </div>
-
-        <div class="hub-card is-soon">
-          <div class="hub-top"><span class="hub-ico">?</span><span class="hub-tag">准备中</span></div>
+        <a class="hub-card" href="#/games/number">
+          <div class="hub-top">
+            <span class="hub-ico">1 2 3</span>
+            <span class="hub-tag">可玩</span>
+          </div>
           <h2>猜数字</h2>
-          <p>我想一个数，你来猜 —— 每猜一次告诉你大了还是小了。</p>
-        </div>
+          <p>连着三个 1~100 的数，猜中一个再猜下一个。蒙中一个不算本事，三个都中才算。</p>
+          ${this.hubRank(numberTops)}
+        </a>
       </section>
 
       <p class="game-more">还想玩什么，先跟我说一声。</p>

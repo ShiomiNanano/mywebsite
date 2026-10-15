@@ -2571,6 +2571,111 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .flip-card:not(.is-up):not(.is-done):hover .fc-inner { transform: translateY(-3px) rotateY(-7deg); }
 .flip-card.is-done .fc-back { box-shadow: 0 0 14px -2px var(--tint-green, #9ad8b0); }
 
+/* 猜数字：输入区与提示行 */
+.num-panel { display: flex; align-items: center; gap: var(--sp-3); margin: var(--sp-4) 0 var(--sp-3); }
+.num-panel input {
+  width: 120px; padding: 9px 12px; box-sizing: border-box;
+  font-family: var(--font-serif); font-size: var(--fs-md); text-align: center;
+  color: var(--ink); background: var(--surface-3);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.num-panel input:focus { outline: none; border-color: var(--gold); }
+.num-panel input::-webkit-outer-spin-button,
+.num-panel input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num-log {
+  min-height: 1.8em; margin: 0; font-family: var(--font-body);
+  font-size: var(--fs-sm); line-height: 1.8; color: var(--ink-2); letter-spacing: .03em;
+}
+.num-log b { color: var(--gold); }
+.num-warn { color: var(--tint-red, #e89a9a); }
+.game-more a { color: var(--ink-3); text-decoration: none; }
+.game-more a:hover { color: var(--gold); }
+
+/* ============================================================================
+   猜数字：把判断过程"看得见"
+   范围条会随着你猜大/猜小而收窄，进度点是三个数，大数字是刚猜的那个。
+   目标色沿用壁纸配色，颜色一律 var(名, 兜底)。
+   ============================================================================ */
+.num-pips { display: flex; justify-content: center; gap: var(--sp-3); margin: var(--sp-4) 0 var(--sp-3); }
+.num-pips .pip {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); transition: var(--t);
+}
+.num-pips .pip.is-done { background: var(--tint-green, #9ad8b0); box-shadow: 0 0 8px -1px var(--tint-green, #9ad8b0); }
+.num-pips .pip.is-now { background: var(--gold); transform: scale(1.35); box-shadow: 0 0 10px -1px var(--gold); }
+
+.num-board {
+  position: relative; margin: 0 auto var(--sp-5); padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  max-width: 360px; text-align: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 18px 40px -30px rgba(0,0,0,.9);
+}
+.num-range-row {
+  display: flex; align-items: baseline; justify-content: center; gap: 7px;
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .08em;
+}
+.num-range-label { opacity: .7; }
+.num-range {
+  font-family: var(--font-serif); font-size: var(--fs-md);
+  color: var(--gold); font-variant-numeric: tabular-nums; letter-spacing: .04em;
+}
+.num-track {
+  height: 4px; margin: var(--sp-3) 0 var(--sp-4);
+  background: var(--surface-3); border-radius: 999px; overflow: hidden;
+}
+.num-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--gold-2), var(--gold));
+  border-radius: 999px; transition: width .38s var(--ease);
+}
+.num-fill.is-tight { background: linear-gradient(90deg, var(--tint-green, #9ad8b0), var(--gold)); }
+.num-readout {
+  font-family: var(--font-serif); font-size: clamp(38px, 13vw, 54px);
+  line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums;
+  letter-spacing: .02em; text-shadow: 0 2px 18px rgba(0,0,0,.35);
+}
+.num-hint {
+  min-height: 26px; margin-top: 6px;
+  font-family: var(--font-body); font-size: var(--fs-sm); letter-spacing: .14em;
+}
+.num-hint.is-low { color: var(--tint-blue, #9ac4e8); }
+.num-hint.is-high { color: var(--tint-yellow, #e8cf9a); }
+.num-hint.is-hit { color: var(--tint-green, #9ad8b0); }
+
+.num-panel { justify-content: center; }
+.num-panel input { font-size: var(--fs-lg); letter-spacing: .12em; }
+/* 「猜」是这一页的主操作：用站点自己的主按钮样式，再放大一点点 */
+.num-go {
+  padding: 12px 30px; font-size: var(--fs-md);
+  letter-spacing: .3em; text-indent: .3em;
+}
+/* 「重新开始」是次要操作，做成一行的灰字链接 —— 之前和「猜」并排、分量相同，
+   视觉上等于在引导用户重开，现在把它压下去、也移出输入行 */
+.num-restart-row { text-align: center; margin: 0 0 var(--sp-3); }
+.num-restart {
+  padding: 4px 6px; cursor: pointer; background: none; border: 0;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .1em;
+  color: var(--ink-3); opacity: .55;
+  text-decoration: underline; text-underline-offset: 3px;
+  transition: var(--t);
+}
+.num-restart:hover { opacity: 1; color: var(--ink-2); }
+
+.num-history {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  min-height: 24px; margin-bottom: var(--sp-3);
+}
+.num-chip {
+  padding: 2px 9px; border-radius: 999px;
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .06em;
+  color: var(--ink-2); background: var(--surface-3); border: 1px solid var(--line);
+  opacity: .75;
+}
+.num-chip.is-low { color: var(--tint-blue, #9ac4e8); }
+.num-chip.is-high { color: var(--tint-yellow, #e8cf9a); }
+.num-chip.is-hit { color: var(--tint-green, #9ad8b0); border-color: var(--tint-green, #9ad8b0); opacity: 1; }
+.num-log { text-align: center; }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
