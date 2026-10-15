@@ -116,6 +116,13 @@ const App = {
       if (e.target.closest && e.target.closest('#numGuess')) { this.guessNumber(); return; }
       if (e.target.closest && e.target.closest('#numRestart')) { this.startNumber(); return; }
       if (e.key === 'Enter' && e.target && e.target.id === 'numInput') { this.guessNumber(); }
+      const clr = e.target.closest && e.target.closest('.rank-clear');
+      if (clr) {
+        const gm = clr.getAttribute('data-game');
+        const label = gm === 'memory' ? '记忆翻牌' : '猜数字';
+        if (!confirm('清空「' + label + '」的排行榜？所有人的成绩都会没了，不可恢复。')) return;
+        this.clearRank(gm);
+      }
     });
     document.addEventListener('click', async (e) => {
       const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del');
@@ -658,7 +665,10 @@ const App = {
       </section>
 
       <section class="game-rank">
-        <h3>排行榜 · 前五名</h3>
+        <div class="rank-head">
+          <h3>排行榜 · 前五名</h3>
+          ${this.state.user && this.state.user.role === 'admin' ? `<button type="button" class="rank-clear" data-game="number">清空本榜</button>` : ''}
+        </div>
         <ol class="rank-list" id="numRanks">${this.numRankItems()}</ol>
         <p class="game-more"><a href="#/games">← 回到游戏主页</a></p>
       </section>
@@ -779,6 +789,25 @@ const App = {
     }
   },
 
+  // 管理员清榜：清完把当前页的榜也刷成空的
+  async clearRank(game) {
+    try {
+      const r = await API.del('/api/admin/games/scores?game=' + encodeURIComponent(game));
+      const gone = (r && r.removed) || 0;
+      if (game === 'number') {
+        this.numTops = [];
+        const b = document.getElementById('numRanks');
+        if (b) b.innerHTML = this.numRankItems();
+      } else {
+        this.gameTops = [];
+        const b2 = document.getElementById('gameRanks');
+        if (b2) b2.innerHTML = this.rankItems();
+      }
+      toast(gone ? ('清掉了 ' + gone + ' 条成绩') : '这个榜本来就是空的');
+    } catch (e) {
+      toast('清榜失败：' + (e && e.message ? e.message : '稍后再试'));
+    }
+  },
   async finishNumber() {
     const g = this.num;
     if (!g || g.over) return;
@@ -892,7 +921,10 @@ const App = {
       </section>
 
       <section class="game-rank">
-        <h3>排行榜 · 前五名</h3>
+        <div class="rank-head">
+          <h3>排行榜 · 前五名</h3>
+          ${this.state.user && this.state.user.role === 'admin' ? `<button type="button" class="rank-clear" data-game="memory">清空本榜</button>` : ''}
+        </div>
         <ol class="rank-list" id="gameRanks">${this.rankItems()}</ol>
         <p class="game-more">更多小游戏还在准备中 —— 想看哪个可以先说一声。</p>
       </section>

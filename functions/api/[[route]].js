@@ -903,6 +903,19 @@ export async function onRequest(context) {
       return json({ ok: true, note });
     }
 
+    /* ===== 清榜（仅管理员）=====
+       传 game=memory / number 清某一款；传 game=all 清全部
+       （要明说 all 才清全部，免得手滑一次把两个榜都抹了）。 */
+    if (method === 'DELETE' && path === '/admin/games/scores') {
+      const e = needAdmin(); if (e) return e;
+      const game = String(url.searchParams.get('game') || '').slice(0, 32);
+      if (!game) return json({ error: '要说清清哪一个榜（game=memory / number / all）' }, 400);
+      const r = game === 'all'
+        ? await env.DB.prepare('DELETE FROM scores').run()
+        : await env.DB.prepare('DELETE FROM scores WHERE game=?').bind(game).run();
+      const gone = (r && r.meta && r.meta.changes) || 0;
+      return json({ ok: true, game: game, removed: gone });
+    }
     if (method === 'GET' && path === '/admin/chat-config') {
       const e = needAdmin(); if (e) return e;
       const enabled = (await getSetting(env, 'chat_enabled', '1')) === '1';

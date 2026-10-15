@@ -2676,6 +2676,17 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .num-chip.is-hit { color: var(--tint-green, #9ad8b0); border-color: var(--tint-green, #9ad8b0); opacity: 1; }
 .num-log { text-align: center; }
 
+/* 排行榜标题旁的「清空本榜」：只有管理员看得到，做得很轻，且带二次确认 */
+.rank-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.rank-head h3 { margin-bottom: var(--sp-3); }
+.rank-clear {
+  padding: 2px 9px; cursor: pointer; background: none;
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .08em;
+  color: var(--ink-3); opacity: .6;
+  border: 1px solid var(--line); border-radius: 999px; transition: var(--t);
+}
+.rank-clear:hover { opacity: 1; color: var(--tint-red, #e89a9a); border-color: var(--tint-red, #e89a9a); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
