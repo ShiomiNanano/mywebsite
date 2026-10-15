@@ -149,7 +149,12 @@ function richInline(s) {
     .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
       return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
     })
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, function (m, target, label) {
+        const t = String(target).trim();
+        const show = String(label || target).trim();
+        return '<a class="wiki" href="#/wiki/' + encodeURIComponent(t) + '">' + show + '</a>';
+      })
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 }
 function richParas(buf, cls) {
@@ -307,6 +312,10 @@ async function ensureSchema(env) {
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run(); } catch (e) {}
   // 卡片简介（可单独编辑，避免卡片上剧透正文）
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN summary TEXT').run(); } catch (e) {}
+  /* 设定篇的标签：类型复用 chapter_title（设定类文章本来不用章标题），
+     标签另开一列，逗号分隔。老库自动补列。 */
+  try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN tags TEXT').run(); } catch (e) {}
+
   /* 小游戏的分数表：一款游戏一个榜，取每个用户的最高分排前五 */
   try {
     await env.DB.prepare(
@@ -536,7 +545,7 @@ export async function onRequest(context) {
       // 否则每次打开书架都要下载整本小说。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
         a.section_no, a.section_title, a.title, a.created_at,
-        substr(a.content, 1, 400) AS head, a.summary,
+        substr(a.content, 1, 400) AS head, a.summary, a.tags, a.chapter_title AS setting_type,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
       const main = [], mmap = {}, personal = [], settings = [];
@@ -958,6 +967,7 @@ export async function onRequest(context) {
       if (!content) return json({ error: '正文不能为空' }, 400);
       const source = makeSource(body);
       const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
+      const tags = String(body.tags == null ? '' : body.tags).slice(0, 200);
       let values;
       if (category === 'main') {
         const cn = parseInt(body.chapter_no, 10), sn = parseInt(body.section_no, 10);
@@ -965,13 +975,13 @@ export async function onRequest(context) {
         if (!Number.isFinite(sn) || sn < 1) return json({ error: '节号必须是正整数' }, 400);
         const ct = String(body.chapter_title || '').trim() || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content, source, summary];
+        values = [category, cn, ct, sn, st, st, content, source, summary, tags];
       } else {
         const t = String(body.title || '').trim();
         if (!t) return json({ error: '标题不能为空' }, 400);
-        values = [category, null, null, null, null, t, content, source, summary];
+        values = [category, null, null, null, null, t, content, source, summary, tags];
       }
-      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
+      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
       return json(a, 201);
     }
@@ -985,6 +995,7 @@ export async function onRequest(context) {
       const content = makeContent(body) || old.content;
       const source = makeSource(body);
       const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
+      const tags = String(body.tags == null ? '' : body.tags).slice(0, 200);
       let values;
       if (category === 'main') {
         const cnRaw = parseInt(body.chapter_no, 10), snRaw = parseInt(body.section_no, 10);
@@ -992,12 +1003,12 @@ export async function onRequest(context) {
         const sn = Number.isFinite(snRaw) && snRaw >= 1 ? snRaw : old.section_no;
         const ct = String(body.chapter_title || '').trim() || old.chapter_title || (cn === 0 ? '序章' : ('第' + cn + '章'));
         const st = String(body.section_title || '').trim() || old.section_title || ('第' + sn + '节');
-        values = [category, cn, ct, sn, st, st, content, source, summary];
+        values = [category, cn, ct, sn, st, st, content, source, summary, tags];
       } else {
         const t = String(body.title || '').trim() || old.title || '未命名';
-        values = [category, null, null, null, null, t, content, source, summary];
+        values = [category, null, null, null, null, t, content, source, summary, tags];
       }
-      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
+      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, tags=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
       return json(a);
     }

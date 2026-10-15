@@ -2687,6 +2687,123 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 }
 .rank-clear:hover { opacity: 1; color: var(--tint-red, #e89a9a); border-color: var(--tint-red, #e89a9a); }
 
+/* ============================================================================
+   设定篇：类型筛选 + 分组 + 互链（wiki 链接）
+   类型存在 chapter_title 里，标签在 tags 列，这里只管呈现。
+   颜色一律 var(名, 兜底)。
+   ============================================================================ */
+/* 居中：和站内其它「控件行」一致（猜数字的进度点、看更早留言那类）。
+   之前左对齐，和上下的内容对不齐，看起来像跑偏了。 */
+.set-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 var(--sp-5); justify-content: center; }
+.set-tab {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 14px; font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .08em;
+  color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; transition: var(--t);
+}
+.set-tab:hover { color: var(--ink); border-color: var(--line-2); }
+.set-tab.is-on { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
+.set-tab b { font-weight: 600; opacity: .7; font-variant-numeric: tabular-nums; }
+
+.setting-groups { display: flex; flex-direction: column; gap: var(--sp-6); }
+.setting-group { }
+.set-group-title {
+  display: flex; align-items: baseline; gap: var(--sp-2); justify-content: center;
+  margin: 0 0 var(--sp-3); padding-bottom: var(--sp-2);
+  font-family: var(--font-serif); font-size: var(--fs-md); letter-spacing: .12em;
+  color: var(--ink); border-bottom: 1px solid var(--line);
+  max-width: var(--maxw-list); margin-left: auto; margin-right: auto;
+}
+.set-group-title span {
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  color: var(--ink-3); letter-spacing: .04em;
+}
+
+/* 只有「设定」分类才出现的表单行：类型下拉与标签输入 */
+.set-only select {
+  width: 100%; padding: 9px 12px; box-sizing: border-box;
+  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--ink);
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+
+/* 互链：正文里的 [[名字]] */
+.reading-content a.wiki {
+  color: var(--gold); text-decoration: none;
+  border-bottom: 1px dashed var(--gold); padding-bottom: 1px;
+}
+.reading-content a.wiki:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.reading-content a.wiki.is-missing {
+  color: var(--ink-3); border-bottom-color: var(--line-2);
+}
+.wiki-make { margin-top: var(--sp-5); text-align: center; font-size: var(--fs-sm); color: var(--ink-2); }
+
+/* ============================================================================
+   设定卡片：小方块，只留名字，按类型上色
+   类型颜色复用编辑器那套四个色调（--tint-*），保持全站一套颜色语言；
+   「其它」用中性色。之所以不做成简介卡，是因为设定条目会很多，
+   名字才是用来扫的，简介悬停再看（放在 title 里）。
+   ============================================================================ */
+/* 卡片宽度【跟着文字走】：用弹性换行而不是固定列宽。
+   这样「维洛利亚合众国」这种长名字会把卡片自己撑长，
+   撑到一行放不下时整块换到下一行；名字再长也只在卡片内换行，
+   不会出现省略号（省略号会让人分不清是哪个设定）。
+   实测一个设定名大多不超过十个字，所以一行通常能放好几个。 */
+.setting-groups .article-grid.grid-settings,
+.setting-groups .grid-settings {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  gap: 8px;
+}
+.set-card {
+  display: inline-flex; align-items: center; gap: 7px;
+  flex: 0 0 auto;                 /* 宽度完全由内容决定 */
+  max-width: 100%;                /* 再长也不撑破页面，只在卡片内换行 */
+  padding: 9px 12px; text-decoration: none; box-sizing: border-box;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  transition: var(--t);
+}
+.set-card:hover { transform: translateY(-2px); border-color: var(--line-2); background: var(--surface-3); }
+.set-name {
+  /* 不截断、不省略：短名字自然一行，超长名字在卡片内换行 */
+  white-space: normal; overflow-wrap: anywhere; word-break: break-word;
+  font-family: var(--font-serif); font-size: var(--fs-sm); letter-spacing: .03em; color: var(--ink);
+}
+/* 色点做大一点、再带一层同色微光 —— 它现在是"这是哪一类"的唯一线索，
+   太小就白做了。用 box-shadow 发光而不是加边框，卡片尺寸不受影响。 */
+.set-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: var(--ink-3);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 0%, transparent);
+}
+
+/* 五类各一色 */
+.set-card[data-type="地点"] .set-dot { background: var(--tint-green, #9ad8b0); box-shadow: 0 0 9px -1px var(--tint-green, #9ad8b0), 0 0 0 3px color-mix(in srgb, var(--tint-green, #9ad8b0) 18%, transparent); }
+.set-card[data-type="地点"] { border-color: color-mix(in srgb, var(--tint-green, #9ad8b0) 55%, var(--line)); }
+.set-card[data-type="人物"] .set-dot { background: var(--tint-yellow, #e8cf9a); box-shadow: 0 0 9px -1px var(--tint-yellow, #e8cf9a), 0 0 0 3px color-mix(in srgb, var(--tint-yellow, #e8cf9a) 18%, transparent); }
+.set-card[data-type="人物"] { border-color: color-mix(in srgb, var(--tint-yellow, #e8cf9a) 55%, var(--line)); }
+.set-card[data-type="组织"] .set-dot { background: var(--tint-blue, #9ac4e8); box-shadow: 0 0 9px -1px var(--tint-blue, #9ac4e8), 0 0 0 3px color-mix(in srgb, var(--tint-blue, #9ac4e8) 18%, transparent); }
+.set-card[data-type="组织"] { border-color: color-mix(in srgb, var(--tint-blue, #9ac4e8) 55%, var(--line)); }
+.set-card[data-type="名词"] .set-dot { background: var(--tint-red, #e89a9a); box-shadow: 0 0 9px -1px var(--tint-red, #e89a9a), 0 0 0 3px color-mix(in srgb, var(--tint-red, #e89a9a) 18%, transparent); }
+.set-card[data-type="名词"] { border-color: color-mix(in srgb, var(--tint-red, #e89a9a) 55%, var(--line)); }
+.set-card[data-type="其它"] .set-dot { background: var(--ink-2); box-shadow: 0 0 8px -2px var(--ink-3); }
+
+/* 分组标题也带上同类颜色，和下面的方块呼应 */
+.setting-group[data-group="地点"] .set-group-title { color: var(--tint-green, #9ad8b0); }
+.setting-group[data-group="人物"] .set-group-title { color: var(--tint-yellow, #e8cf9a); }
+.setting-group[data-group="组织"] .set-group-title { color: var(--tint-blue, #9ac4e8); }
+.setting-group[data-group="名词"] .set-group-title { color: var(--tint-red, #e89a9a); }
+
+/* 「回到原文」：读者点互链去查设定后，回来的一条路。
+   做得很轻，不抢正文；带一点引导感（左箭头 + 细边）。 */
+.wiki-back { max-width: var(--maxw-read, 720px); margin: 0 auto var(--sp-4); text-align: left; }
+.wiki-back a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 13px; text-decoration: none;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .06em;
+  color: var(--gold); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; transition: var(--t);
+}
+.wiki-back a:hover { color: var(--ink); border-color: var(--gold); background: var(--gold-soft); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */

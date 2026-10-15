@@ -37,6 +37,11 @@ window.Rich = (function () {
       .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
         return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
       })
+            .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, function (m, target, label) {
+        const t = String(target).trim();
+        const show = String(label || target).trim();
+        return '<a class="wiki" href="#/wiki/' + encodeURIComponent(t) + '">' + show + '</a>';
+      })
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
   }

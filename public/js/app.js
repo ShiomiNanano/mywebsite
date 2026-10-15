@@ -157,6 +157,28 @@ const App = {
       if (e.target.closest && e.target.closest('#numGuess')) { this.guessNumber(); return; }
       if (e.target.closest && e.target.closest('#numRestart')) { this.startNumber(); return; }
       if (e.key === 'Enter' && e.target && e.target.id === 'numInput') { this.guessNumber(); }
+      /* 读者点互链去查设定时，先把"从哪一篇来的"记下来（存 sessionStorage：
+         关掉标签页就没了，正好是"这一次阅读"的范围）。
+         目的：看完设定能一键回到原文，而不是回主页重新点一遍。 */
+      const wk = e.target.closest && e.target.closest('a.wiki');
+      if (wk) {
+        try {
+          const cur = String(location.hash || '');
+          const m = /^#\/read\/(\d+)$/.exec(cur);
+          if (m) {
+            const art = (this.state.readArticle && String(this.state.readArticle.id) === m[1]) ? this.state.readArticle : null;
+            const title = art ? (art.title || art.section_title || '原文') : '原文';
+            sessionStorage.setItem('daydream-wiki-back', JSON.stringify({ hash: cur, title: title, ts: Date.now() }));
+          }
+        } catch (e) { /* 存不了就算了，不影响跳转 */ }
+      }
+      const st = e.target.closest && e.target.closest('.set-tab');
+      if (st) {
+        const v = st.getAttribute('data-settype') || '';
+        this.settingFilter = v;
+        this.route();
+        return;
+      }
       const clr = e.target.closest && e.target.closest('.rank-clear');
       if (clr) {
         const gm = clr.getAttribute('data-game');
@@ -166,7 +188,7 @@ const App = {
       }
     });
     document.addEventListener('click', async (e) => {
-      const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del');
+      const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del, .set-tab');
       if (!t) return;
       const id = t.id;
       try {
@@ -311,10 +333,12 @@ const App = {
       if (parts.length === 0) view = this.renderLanding();
       else if (parts[0] === 'login') view = this.renderLogin();
       else if (parts[0] === 'menu') view = await this.renderMenu();
+    if (parts[0] === 'menu') { try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e) {} }
       else if (parts[0] === 'main') view = parts.length >= 2
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
       else if (parts[0] === 'personal') view = await this.renderPersonal();
     else if (parts[0] === 'board') view = await this.renderBoard();
+    else if (parts[0] === 'wiki') view = await this.renderWiki(decodeURIComponent(parts[1] || ''));
     else if (parts[0] === 'games') view = parts[1] === 'memory' ? await this.renderMemory() : (parts[1] === 'number' ? await this.renderNumber() : await this.renderGames());
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
@@ -343,6 +367,7 @@ const App = {
     // settings 已经没有对应的格子了（设定页仍可从书架进入），所以从列表里去掉。
     const active = !showNav ? '' : (['menu', 'board', 'games', 'profile'].includes(parts[0]) ? parts[0] : '');
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
+    this.markWiki();   // 正文渲染完，把没收录的名词标成红链
     // 游戏页的棋盘要等 HTML 插进去之后才能画（上面那步先渲染，这里再开局）
     if (parts[0] === 'games' && parts[1] === 'memory') { this.startMemory(); }
     if (parts[0] === 'games' && parts[1] === 'number') { this.startNumber(); }
@@ -1204,6 +1229,86 @@ const App = {
   },
 
   /* ---------- 7. 设定 ---------- */
+  /* 设定的类型筛选行。类型存在 chapter_title 里（设定类文章本来不用章标题），
+     所以这里不用额外的数据结构，菜单里已经带着 setting_type 了。 */
+  settingFilterRow(items) {
+    const types = this.settingTypes(items);
+    const cur = this.settingFilter || '';
+    const btn = (v, label) => `<button type="button" class="set-tab${cur === v ? ' is-on' : ''}" data-settype="${esc(v)}">${esc(label)}<b>${v ? items.filter(x => (x.setting_type || '其它') === v).length : items.length}</b></button>`;
+    return `<div class="set-tabs">${btn('', '全部')}${types.map(t => btn(t, t)).join('')}</div>`;
+  },
+
+  // 有哪些类型（按固定顺序，没出现过的就不显示）
+  settingTypes(items) {
+    const order = ['地点', '人物', '组织', '名词', '其它'];
+    const has = {};
+    (items || []).forEach(x => { has[x.setting_type || '其它'] = true; });
+    return order.filter(t => has[t]);
+  },
+
+  // 按类型分组渲染
+  settingGroups(items) {
+    const cur = this.settingFilter || '';
+    const list = (items || []).filter(x => !cur || (x.setting_type || '其它') === cur);
+    if (!list.length) return '<p class="empty-hint">这一类还没有内容。</p>';
+    const types = this.settingTypes(items);
+    // 设定卡片做成小方块：只留名字，不要简介 —— 一行能塞下更多，
+    // 类型靠颜色区分（data-type 给 CSS 用），一眼就能看出这页有哪几类。
+    const card = (x) => `
+          <a class="set-card" data-type="${esc(x.setting_type || '其它')}" href="#/read/${x.id}" title="${esc(this.excerpt(x))}">
+            <span class="set-dot"></span><span class="set-name">${esc(x.title)}</span>
+          </a>`;
+    if (cur) return `<div class="article-grid grid-settings">${list.map(card).join('')}</div>`;
+    return types.map(t => `
+        <section class="setting-group" data-group="${esc(t)}">
+          <h2 class="set-group-title">${esc(t)}<span>${list.filter(x => (x.setting_type || '其它') === t).length}</span></h2>
+          <div class="article-grid grid-settings">${list.filter(x => (x.setting_type || '其它') === t).map(card).join('')}</div>
+        </section>`).join('');
+  },
+
+  /* #/wiki/名字 —— 互链的落点。
+     按名字在设定里查（名字就是 title），查到就跳到那一篇；
+     查不到就显示「这个词条还没写」，管理员可以直接去新建（名字已经带过去）。 */
+  async renderWiki(name) {
+    const m = await this.ensureMenu();
+    const want = String(name || '').trim();
+    const hit = (m.settings || []).find(x => String(x.title || '').trim() === want);
+    if (hit) { location.hash = '#/read/' + hit.id; return ''; }
+    const u = this.state.user;
+    const isAdmin = !!(u && u.role === 'admin');
+    this.pageTitle = want + ' · 还没有这个词条';
+    return `
+    <div class="page">
+      ${this.topbar()}
+      <div class="breadcrumb"><a href="#/menu">书架</a> / <a href="#/settings">设定</a> / ${esc(want)}</div>
+      <div class="page-head">
+        <span class="eyebrow">未收录</span>
+        <h1>${esc(want)}</h1>
+        <p>这个词条还没有写。正文里写了 <code>[[${esc(want)}]]</code> 的地方，就会连到这里。</p>
+      </div>
+      ${isAdmin
+        ? `<p class="wiki-make"><a class="btn btn-small btn-primary" href="#/admin/new?setting=${encodeURIComponent(want)}">去新建「${esc(want)}」</a></p>`
+        : `<p class="wiki-make">等店长补上。可以先去 <a href="#/settings">设定</a> 看看别的。</p>`}
+    </div>`;
+  },
+
+  /* 正文渲染之后走一遍：把指向不存在词条的链接标成「红链」。
+     渲染器本身不知道哪些词条存在（它要保持是纯函数），所以这件事放在这里做。 */
+  markWiki() {
+    const box = document.getElementById('app');
+    if (!box) return;
+    const m = this.state.menu;
+    const names = {};
+    if (m && m.settings) m.settings.forEach(x => { names[String(x.title || '').trim()] = true; });
+    box.querySelectorAll('a.wiki').forEach(a => {
+      const href = a.getAttribute('href') || '';
+      const raw = href.replace(/^#\/wiki\//, '');
+      let name = raw;
+      try { name = decodeURIComponent(raw); } catch (e) {}
+      a.classList.toggle('is-missing', !names[String(name).trim()]);
+    });
+  },
+
   async renderSettings() {
     const m = await this.ensureMenu();
     this.pageTitle = '设定 · 白日梦咖啡馆';
@@ -1216,15 +1321,8 @@ const App = {
         <h1>设定</h1>
         <p>人物 · 岛屿 · 咖啡馆的来客。</p>
       </div>
-      <div class="article-grid grid-settings">
-        ${m.settings.length ? m.settings.map(a => `
-          <a class="article-card" href="#/read/${a.id}">
-            <div class="card-ico">❖</div>
-            <h3>${esc(a.title)}</h3>
-            <p>${esc(this.excerpt(a))}</p>
-            <span class="card-meta">${a.comment_count} 条留言</span>
-          </a>`).join('') : '<p class="empty-hint">设定还没有内容。</p>'}
-      </div>
+      ${this.settingFilterRow(m.settings)}
+      <div class="setting-groups">${this.settingGroups(m.settings)}</div>
     </div>`;
   },
 
@@ -1240,6 +1338,19 @@ const App = {
     return '设定 · 世界档案';
   },
 
+  /* 「回到原文」那一条。只有当读者是【从另一篇正文点互链过来的】才显示，
+     而且不在原文自己那一页显示。存的是 sessionStorage，关标签页即清。 */
+  wikiBackBar(article) {
+    let rec = null;
+    try { rec = JSON.parse(sessionStorage.getItem('daydream-wiki-back') || 'null'); } catch (e) { rec = null; }
+    if (!rec || !rec.hash) return '';
+    if (Date.now() - (rec.ts || 0) > 30 * 60 * 1000) {
+      try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e) {}
+      return '';
+    }
+    if (String(rec.hash) === String(location.hash || '')) return '';
+    return `<p class="wiki-back"><a href="${esc(rec.hash)}" data-wikiback="1">← 回到《${esc(rec.title || '原文')}》</a></p>`;
+  },
   async renderRead(id) {
     // 直接深链进来时目录还是空的，和正文并行加载，这样上下篇按钮不会消失
     const [article] = await Promise.all([
@@ -1291,6 +1402,7 @@ const App = {
           <button class="btn btn-small btn-ghost" id="fontSmaller" title="缩小字号">A－</button>
           <button class="btn btn-small btn-ghost" id="fontLarger" title="放大字号">A＋</button>
         </div>
+        ${this.wikiBackBar(article)}
         <div class="reading-content">${article.content}</div>
         <footer class="reading-foot"><span>— 全文完 —</span></footer>
         <div class="reading-nav">
@@ -1506,6 +1618,18 @@ const App = {
               <label>章节标题</label>
               <input name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
             </div>
+          <div class="form-row inline set-only" ${isMain ? 'style="display:none"' : ''}>
+            <div>
+              <label>类型 <span class="hint">（设定用：地点 / 人物 / 组织 / 名词 / 其它）</span></label>
+              <select name="setting_type">
+                ${['地点', '人物', '组织', '名词', '其它'].map(t => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
+              <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
+            </div>
+          </div>
           </div>
           <div class="form-row inline" ${isMain ? '' : 'style="display:none"'}>
             <div>
@@ -2413,6 +2537,9 @@ const App = {
     // 富文本模式：把标记原文交给后端，由后端统一渲染成正文（前端那份只用来做预览）
       // RAW 模式已移除：永远作为标记原文提交（原来读 rawHtml，删掉那一行后会抛 ReferenceError）
       payload.source = form.content.value;
+      if (form.tags) payload.tags = form.tags.value.trim();
+      // 设定的「类型」写进 chapter_title —— 复用现成字段，后端无需改动
+      if (category === 'settings' && form.setting_type) payload.chapter_title = form.setting_type.value;
     if (category === 'main') {
       payload.chapter_no = parseInt(form.chapter_no.value, 10);
       payload.chapter_title = form.chapter_title.value.trim();
