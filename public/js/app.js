@@ -755,7 +755,7 @@ const App = {
   numRankItems() {
     const tops = this.numTops || [];
     if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
-    const medal = ['①', '②', '③', '④', '⑤'];
+    const medal = ['👑', '②', '③', '④', '⑤'];
     return tops.map((x, i) =>
       `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
     ).join('');
@@ -952,14 +952,13 @@ const App = {
         </a>
       </section>
 
-      <p class="game-more">还想玩什么，先跟我说一声。</p>
     </div>`;
   },
 
   // 主页每张游戏卡上的迷你榜（取前三）
   hubRank(tops) {
     if (!tops || !tops.length) return '<p class="hub-rank-empty">还没有人上榜</p>';
-    const medal = ['①', '②', '③'];
+    const medal = ['👑', '②', '③'];
     return '<ol class="hub-rank">' + tops.slice(0, 3).map((x, i) =>
       `<li><span>${medal[i]}</span><span class="hub-rank-name">${esc(x.username)}</span><b>${Number(x.score) || 0}</b></li>`
     ).join('') + '</ol>';
@@ -1003,7 +1002,6 @@ const App = {
           ${this.state.user && this.state.user.role === 'admin' ? `<button type="button" class="rank-clear" data-game="memory">清空本榜</button>` : ''}
         </div>
         <ol class="rank-list" id="gameRanks">${this.rankItems()}</ol>
-        <p class="game-more">更多小游戏还在准备中 —— 想看哪个可以先说一声。</p>
       </section>
     </div>`;
   },
@@ -1012,7 +1010,7 @@ const App = {
   rankItems() {
     const tops = this.gameTops || [];
     if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
-    const medal = ['①', '②', '③', '④', '⑤'];
+    const medal = ['👑', '②', '③', '④', '⑤'];
     return tops.map((x, i) =>
       `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
     ).join('');

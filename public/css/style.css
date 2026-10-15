@@ -2809,6 +2809,15 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .et-btn.et-wiki { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
 .et-btn.et-wiki:hover { color: var(--ink); background: var(--gold-soft); border-color: var(--gold); }
 
+/* 皇冠（👑）是 emoji，字形宽度和「②」这类带圈数字不一样，
+   同一个格子里居中之后看起来会偏一点点。只给第一名做很小的左移补偿。
+   觉得还不够/过了，就调这个 -1.5px 的数值。 */
+.rank-list > li:first-child .rank-no,
+.hub-rank > li:first-child > span:first-child {
+  display: inline-block;          /* transform 需要非 inline 的盒 */
+  transform: translateX(-1.5px);
+}
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
