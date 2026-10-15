@@ -172,6 +172,17 @@ const App = {
           }
         } catch (e) { /* 存不了就算了，不影响跳转 */ }
       }
+      /* 切换分类时，让对应的字段行立刻显隐 ——
+         主线要章号/节号，其它分类要标题，设定还要类型与标签。 */
+      if (e.target && e.target.id === 'articleCategory') {
+        const v = e.target.value;
+        const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+        show('mainFields', v === 'main');
+        show('sectionFields', v === 'main');   // 节号/节标题只有主线用得上（设定填了也会被丢掉）
+        show('titleRow', v !== 'main');
+        show('settingFields', v === 'settings');
+        return;
+      }
       const st = e.target.closest && e.target.closest('.set-tab');
       if (st) {
         const v = st.getAttribute('data-settype') || '';
@@ -1618,7 +1629,18 @@ const App = {
               <label>章节标题</label>
               <input name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
             </div>
-          <div class="form-row inline set-only" ${isMain ? 'style="display:none"' : ''}>
+          </div>
+          <div class="form-row inline" id="sectionFields" ${isMain ? '' : 'style="display:none"'}>
+            <div>
+              <label>节号</label>
+              <input name="section_no" type="number" min="1" placeholder="如 1" value="${a ? a.section_no : ''}">
+            </div>
+            <div>
+              <label>节标题</label>
+              <input name="section_title" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
+            </div>
+          </div>
+          <div class="form-row inline set-only" id="settingFields" ${category === 'settings' ? '' : 'style="display:none"'}>
             <div>
               <label>类型 <span class="hint">（设定用：地点 / 人物 / 组织 / 名词 / 其它）</span></label>
               <select name="setting_type">
@@ -1628,17 +1650,6 @@ const App = {
             <div>
               <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
               <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
-            </div>
-          </div>
-          </div>
-          <div class="form-row inline" ${isMain ? '' : 'style="display:none"'}>
-            <div>
-              <label>节号</label>
-              <input name="section_no" type="number" min="1" placeholder="如 1" value="${a ? a.section_no : ''}">
-            </div>
-            <div>
-              <label>节标题</label>
-              <input name="section_title" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
             </div>
           </div>
           <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
@@ -2174,6 +2185,26 @@ const App = {
     if (saveAvatar) saveAvatar.onclick = () => this.handleSaveAvatar();
     const clearAvatar = document.getElementById('clearAvatar');
     if (clearAvatar) clearAvatar.onclick = () => this.handleClearAvatar();
+    /* 从「红链」点「去新建」过来时，地址是 #/admin/new?setting=名字 ——
+       把分类切到设定，并把名字填进标题，省得再打一遍。 */
+    const af = document.getElementById('adminForm');
+    if (af && location.hash.indexOf('setting=') > 0) {
+      let name = '';
+      try { name = decodeURIComponent(location.hash.split('setting=')[1].split('&')[0]); } catch (e) { name = ''; }
+      const catSel = document.getElementById('articleCategory');
+      const titleBox = document.querySelector('#adminForm input[name="title"]');
+      if (name && catSel && titleBox && !titleBox.value) {
+        catSel.value = 'settings';
+        titleBox.value = name;
+        ['mainFields', 'sectionFields', 'titleRow', 'settingFields'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.style.display = (id === 'mainFields') ? 'none' : '';
+        });
+        const tf = document.getElementById('titleRow');
+        if (tf) tf.style.display = '';
+      }
+    }
     const avatarFile = document.getElementById('avatarFile');
     if (avatarFile) avatarFile.onchange = (e) => this.handleAvatarFile(e);
     const logoutBtn = document.getElementById('logoutBtn');
