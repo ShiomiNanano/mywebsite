@@ -616,6 +616,66 @@ export async function onRequest(context) {
       return json(c, 201);
     }
 
+    /* ===== 留言板 =====
+       复用 comments 表：article_id = 0 表示「留言板」。
+       （真实文章 id 从 1 开始，所以不会撞上任何文章；目录接口里那个
+        comment_count 子查询是按 article_id = a.id 关联的，也不会把留言板算进去。）
+       黑板上的那段话存在 settings 表，key = board_note，只能由管理员修改。 */
+    if (method === 'GET' && path === '/board') {
+      const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 50);
+      const before = parseInt(url.searchParams.get('before') || '', 10);
+      const base = 'SELECT id, user_id, username, avatar, content, created_at FROM comments WHERE article_id=0';
+      const rows = before
+        ? await env.DB.prepare(base + ' AND id<? ORDER BY id DESC LIMIT ?').bind(before, limit + 1).all()
+        : await env.DB.prepare(base + ' ORDER BY id DESC LIMIT ?').bind(limit + 1).all();
+      const got = rows.results || [];
+      const hasMore = got.length > limit;
+      const items = (hasMore ? got.slice(0, limit) : got).reverse();   // 按时间正序展示
+      const totalRow = await env.DB.prepare('SELECT COUNT(*) AS c FROM comments WHERE article_id=0').first();
+      return jsonPublic({
+        note: await getSetting(env, 'board_note', ''),
+        items,
+        has_more: hasMore,
+        total: Number((totalRow && totalRow.c) || items.length),
+        next_before: items.length ? items[0].id : null,
+        can_post: !!user,
+      }, 5);
+    }
+    /* 留言板：删除某条便签 —— 本人可以删自己的，管理员可以删任何一条。
+       （文章留言没有这个能力，只有管理员删文章时连带删掉。留言板敞着，需要它。） */
+    m = path.match(/^\/board\/comments\/(\d+)$/);
+    if (method === 'DELETE' && m) {
+      if (!user) return json({ error: '请先登录' }, 401);
+      const id = Number(m[1]);
+      const row = await env.DB.prepare('SELECT id, user_id FROM comments WHERE id=? AND article_id=0').bind(id).first();
+      if (!row) return json({ error: '留言不存在' }, 404);
+      if (!(user.role === 'admin' || row.user_id === user.id)) {
+        return json({ error: '只能删自己的留言' }, 403);
+      }
+      await env.DB.prepare('DELETE FROM comments WHERE id=?').bind(id).run();
+      return json({ ok: true });
+    }
+
+    if (method === 'POST' && path === '/board/comments') {
+      if (!user) return json({ error: '登录后就可以留言了' }, 401);
+      const body = await readBody(request);
+      const content = String(body.content || '').trim();
+      if (!content) return json({ error: '留言不能为空' }, 400);
+      if (content.length > 500) return json({ error: '留言请控制在 500 字以内' }, 400);
+      /* 防刷：同一用户 10 秒内只能发一条。
+         文章留言没有这个限制（在文章下面连发也算正常），但留言板敞着更该拦一下。
+         时间戳解析失败就跳过限流，宁可少拦也不要误伤。 */
+      const last = await env.DB.prepare('SELECT created_at FROM comments WHERE article_id=0 AND user_id=? ORDER BY id DESC LIMIT 1').bind(user.id).first();
+      if (last && last.created_at) {
+        const t = new Date(String(last.created_at).replace(' ', 'T') + 'Z').getTime();
+        if (Number.isFinite(t) && Date.now() - t < 10000) return json({ error: '发得太快了，稍等一下再发' }, 429);
+      }
+      const r = await env.DB.prepare('INSERT INTO comments (article_id, user_id, username, avatar, content, created_at) VALUES (?,?,?,?,?,?)')
+        .bind(0, user.id, user.username, user.avatar || '', content, nowStr()).run();
+      const c = await env.DB.prepare('SELECT id, user_id, username, avatar, content, created_at FROM comments WHERE id=?').bind(r.meta.last_row_id).first();
+      return json(c, 201);
+    }
+
     /* ===== 对话（LLM，读者与柒乃聊天，需要登录） ===== */
     if (method === 'GET' && path === '/chat/config') {
       if (!user) return json({ error: '请先登录' }, 401);
@@ -795,6 +855,16 @@ export async function onRequest(context) {
         'content-disposition': 'attachment; filename="daydream-' + stamp + '.zip"',
         'cache-control': 'no-store'
       } });
+    }
+
+    /* ===== 留言板：黑板内容（仅管理员可改，就是「今日推荐」那块） ===== */
+    if (method === 'PUT' && path === '/admin/board') {
+      const e = needAdmin(); if (e) return e;
+      const body = await readBody(request);
+      const note = String(body.note || '').slice(0, 500);
+      await env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+        .bind('board_note', note).run();
+      return json({ ok: true, note });
     }
 
     if (method === 'GET' && path === '/admin/chat-config') {

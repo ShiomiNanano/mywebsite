@@ -2242,6 +2242,174 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
 .et-color.c-green::before { background: var(--tint-green, #9ad8b0); }
 
+/* ============================================================================
+   留言板：顶部一块黑板（只有管理员能改）+ 下面一堆便签纸
+   刻意不用 backdrop-filter —— 黑板和纸张本来就该是不透明的，
+   也省得去碰「毛玻璃只能在壁纸页用」那条约定。
+   颜色一律 var(名, 兜底)，跟着壁纸配色走。
+   ============================================================================ */
+.board-page .page-head { text-align: center; max-width: var(--board-max, 640px); margin: 0 auto; }
+.board-page .page-head h1 { letter-spacing: .12em; }
+
+.board-board {
+  /* 比正文页窄一档：黑板横贯整页会显得太大，也不好读 */
+  max-width: var(--board-max, 640px); margin: 0 auto var(--sp-6);
+  position: relative;
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+  border-radius: var(--r-md);
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.012) 2px 4px),
+    linear-gradient(168deg, var(--board-1, #26332c), var(--board-2, #1b2620));
+  border: 1px solid var(--board-line, rgba(255,255,255,.10));
+  box-shadow: inset 0 0 60px rgba(0,0,0,.35), 0 18px 40px -22px rgba(0,0,0,.9);
+}
+.board-board::after {   /* 粉笔槽 */
+  content: ""; position: absolute; left: 6%; right: 6%; bottom: 7px; height: 3px;
+  border-radius: 2px; background: var(--board-sill, rgba(255,255,255,.06));
+}
+.bb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
+.bb-label {
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .22em; color: var(--board-chalk-dim, rgba(230,240,232,.55));
+}
+.bb-edit {
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .1em;
+  padding: 3px 10px; cursor: pointer; color: var(--board-chalk, #e7efe8);
+  background: rgba(255,255,255,.06); border: 1px solid var(--board-line, rgba(255,255,255,.14));
+  border-radius: 999px; transition: var(--t);
+}
+.bb-edit:hover { background: rgba(255,255,255,.14); }
+.bb-text {
+  font-family: var(--font-serif); font-size: var(--fs-md); line-height: 1.95;
+  color: var(--board-chalk, #e7efe8); letter-spacing: .04em; white-space: normal;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+}
+.bb-empty { color: var(--board-chalk-dim, rgba(230,240,232,.45)); font-size: var(--fs-sm); }
+.bb-editor textarea {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  font-family: var(--font-serif); font-size: var(--fs-base); line-height: 1.8;
+  color: var(--board-chalk, #e7efe8); background: rgba(0,0,0,.22);
+  border: 1px dashed var(--board-line, rgba(255,255,255,.2)); border-radius: var(--r-sm);
+  padding: var(--sp-3);
+}
+.bb-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
+
+.board-notes {
+  max-width: var(--board-max, 640px); margin: 0 auto;
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.note-card {
+  position: relative; padding: var(--sp-4) var(--sp-5);
+  border-radius: 3px 10px 4px 8px / 8px 4px 10px 3px;   /* 略不规则的边，像撕下来的纸 */
+  background: linear-gradient(172deg, var(--note-1, #f4ecd9), var(--note-2, #e6d9bd));
+  color: var(--note-ink, #3a3126);
+  box-shadow: 0 12px 26px -16px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.5) inset;
+}
+.note-card::before {   /* 顶部一条压痕，像胶带 */
+  content: ""; position: absolute; top: -7px; left: 22px; width: 46px; height: 14px;
+  background: var(--tape, rgba(255,255,255,.28)); transform: rotate(-2.5deg);
+  border-radius: 1px;
+}
+.note-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.note-name { font-family: var(--font-serif); font-size: var(--fs-sm); letter-spacing: .04em; }
+.note-time { margin-left: auto; font-family: var(--font-body); font-size: var(--fs-xs); color: var(--note-ink-dim, #7a6a52); white-space: nowrap; }
+/* 便签上的「删除」：只在本人或管理员看到，做得很轻，不抢正文 */
+.note-del {
+  margin-left: var(--sp-2); padding: 2px 9px; cursor: pointer;
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .08em;
+  color: var(--note-ink-dim, #7a6a52); background: transparent;
+  border: 1px solid var(--note-line, rgba(58,49,38,.18)); border-radius: 999px;
+  transition: var(--t); opacity: .7;
+}
+.note-del:hover { opacity: 1; color: var(--tint-red, #b4584f); border-color: var(--tint-red, #b4584f); }
+.note-time { flex: none; }
+.note-text { margin: 0; font-family: var(--font-serif); font-size: var(--fs-base); line-height: 1.9; word-break: break-word; }
+/* 便签列表：不要自上而下排整齐，要像随手贴上去的。
+   做法是 CSS 多栏（两栏）+ 每张纸不同的倾角与错位，6 种一轮；
+   胶带的位置也跟着变，才不像机器贴的。
+   纯 CSS，不用 JS，窗口变窄自动回到单栏，也不会因为重排而错乱。 */
+.board-list { column-count: 2; column-gap: var(--sp-5); }
+.note-item {
+  display: inline-block; width: 100%; box-sizing: border-box;
+  break-inside: avoid; margin: 0 0 var(--sp-4);
+  transition: transform .3s var(--ease);
+}
+.note-item:nth-child(6n+1) { transform: rotate(-1.5deg) translateY(3px); }
+.note-item:nth-child(6n+2) { transform: rotate(1.2deg) translateY(-5px); }
+.note-item:nth-child(6n+3) { transform: rotate(-.7deg) translateY(7px); }
+.note-item:nth-child(6n+4) { transform: rotate(1.9deg) translateY(-2px); }
+.note-item:nth-child(6n+5) { transform: rotate(-1.1deg) translateY(5px); }
+.note-item:nth-child(6n)   { transform: rotate(.6deg) translateY(-7px); }
+.note-item:hover { transform: rotate(0deg) translateY(0); z-index: 2; }
+
+/* 胶带三种位置轮着来 */
+.note-item:nth-child(3n+1) .note-card::before { left: 14px; transform: rotate(-4deg); }
+.note-item:nth-child(3n+2) .note-card::before { left: 44%; transform: rotate(2.5deg); }
+.note-item:nth-child(3n)   .note-card::before { left: auto; right: 16px; transform: rotate(-1.5deg); }
+
+@media (max-width: 600px) {
+  .board-list { column-count: 1; }
+}
+.note-compose { background: linear-gradient(172deg, var(--note-1, #f4ecd9), var(--note-2, #e6d9bd)); }
+.note-compose-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+.note-compose textarea {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  font-family: var(--font-serif); font-size: var(--fs-base); line-height: 1.8;
+  color: var(--note-ink, #3a3126); background: rgba(255,255,255,.42);
+  border: 1px solid var(--note-line, rgba(58,49,38,.16)); border-radius: var(--r-sm);
+  padding: var(--sp-3);
+}
+.note-compose-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-3); }
+.note-guest { font-size: var(--fs-sm); line-height: 1.9; }
+.note-guest a { color: var(--note-ink, #3a3126); text-decoration: underline; }
+.board-empty, .board-count { text-align: center; font-size: var(--fs-xs); color: var(--ink-3); }
+.board-more {
+  align-self: center; padding: 8px 18px; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .1em;
+  color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 999px; transition: var(--t);
+}
+.board-more:hover { color: var(--ink); border-color: var(--line-2); }
+
+@media (max-width: 560px) {
+  .board-board { padding: var(--sp-4); }
+  .note-card { padding: var(--sp-3) var(--sp-4); }
+  .note-time { font-size: 11px; }
+}
+
+/* ============================================================================
+   留言板：整页铺成黑板的材质
+   ----------------------------------------------------------------------------
+   店长的意思：不要用书架那套壁纸背景，也别是光秃秃的纯色 —— 照黑板那样来。
+   所以这里是深板绿 + 极轻的粉笔灰 + 四周暗角 + 两团「擦过的痕迹」。
+   便签是浅色纸，压在深板上对比正好。
+   不用 backdrop-filter（那是壁纸页专用的），颜色一律 var(名, 兜底)。
+   ============================================================================ */
+.board-page {
+  min-height: 100vh;
+  background-color: var(--board-1, #26332c);
+  background-image:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.05), rgba(255,255,255,0) 60%),
+    radial-gradient(90% 60% at 50% 100%, rgba(0,0,0,.38), rgba(0,0,0,0) 72%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 2px, rgba(0,0,0,.018) 2px 4px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.010) 0 3px, rgba(0,0,0,.014) 3px 6px);
+  background-attachment: fixed;
+}
+/* 粉笔擦过的痕迹：两团很淡的亮斑，固定不随滚动 */
+.board-page::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(42% 20% at 20% 16%, rgba(255,255,255,.055), rgba(255,255,255,0) 72%),
+    radial-gradient(34% 16% at 80% 60%, rgba(255,255,255,.042), rgba(255,255,255,0) 72%);
+}
+.board-page > * { position: relative; z-index: 1; }
+
+/* 深板上，页头与提示文字提亮一档才清楚 */
+.board-page .page-head h1 { color: var(--board-chalk, #e7efe8); }
+.board-page .page-head p { color: var(--board-chalk-dim, rgba(230,240,232,.62)); }
+.board-page .board-empty,
+.board-page .board-count { color: var(--board-chalk-dim, rgba(230,240,232,.5)); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */

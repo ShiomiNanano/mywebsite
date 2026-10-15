@@ -103,6 +103,66 @@ const App = {
     this.state.config = { turnstile_site_key: (cfg && cfg.turnstile_site_key) || '' };
 
     window.addEventListener('hashchange', () => this.route());
+    /* 留言板的按钮用事件委派统一处理 —— 这样不必去猜各页面各自的绑定函数叫什么。
+       黑板编辑只对管理员可见，后端 PUT /api/admin/board 也会再校验一次权限。 */
+    document.addEventListener('click', async (e) => {
+      const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del');
+      if (!t) return;
+      const id = t.id;
+      try {
+        if (id === 'bbEdit') {
+          document.getElementById('bbText').hidden = true;
+          document.getElementById('bbEditor').hidden = false;
+          const ta = document.getElementById('bbInput');
+          if (ta) ta.focus();
+        } else if (id === 'bbCancel') {
+          document.getElementById('bbEditor').hidden = true;
+          document.getElementById('bbText').hidden = false;
+        } else if (id === 'bbSave') {
+          const note = (document.getElementById('bbInput').value || '').trim();
+          const hint = document.getElementById('bbHint');
+          if (hint) hint.textContent = '保存中…';
+          await API.put('/api/admin/board', { note });
+          toast('黑板已更新');
+          this.route();
+        } else if (id === 'boardSend') {
+          const box = document.getElementById('boardInput');
+          const content = (box.value || '').trim();
+          const hint = document.getElementById('boardHint');
+          if (!content) { if (hint) hint.textContent = '写点什么再贴吧'; return; }
+          if (hint) hint.textContent = '贴上去…';
+          await API.post('/api/board/comments', { content });
+          toast('便签贴好了');
+          this.route();
+        } else if (t.classList.contains('note-del')) {
+          const noteId = Number(t.getAttribute('data-note'));
+          if (!confirm('删掉这张便签？删了就找不回来了。')) return;
+          await API.del('/api/board/comments/' + noteId);
+          toast('便签已撕掉');
+          this.route();
+        } else if (id === 'boardMore') {
+          t.disabled = true;
+          t.textContent = '加载中…';
+          const before = this.board && this.board.next_before;
+          const more = await API.get('/api/board?before=' + encodeURIComponent(before));
+          const list = document.getElementById('boardList');
+          const add = (more.items || []).length;
+          this.board.items = (more.items || []).concat(this.board.items);
+          this.board.has_more = !!more.has_more;
+          this.board.next_before = more.next_before || null;
+          if (list) list.innerHTML = this.boardNotes();
+          if (!more.has_more && t.parentNode) t.remove(); else { t.disabled = false; t.textContent = '看更早的留言'; }
+          if (!add) toast('没有更早的留言了');
+        }
+      } catch (err) {
+        toast(err && err.message ? err.message : '操作失败，稍后再试');
+        const hint = document.getElementById('bbHint');
+        if (hint) hint.textContent = '';
+        const h2 = document.getElementById('boardHint');
+        if (h2) h2.textContent = '';
+      }
+    });
+
     this.route();
   },
 
@@ -194,6 +254,7 @@ const App = {
       else if (parts[0] === 'main') view = parts.length >= 2
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
       else if (parts[0] === 'personal') view = await this.renderPersonal();
+    else if (parts[0] === 'board') view = await this.renderBoard();
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
@@ -216,7 +277,10 @@ const App = {
     const isOutside = parts.length === 0 || parts[0] === 'login';
     // 游客也能看书，所以底部导航对所有人显示（登录/封面页除外）
     const showNav = !isOutside;
-    const active = !showNav ? '' : (['menu', 'main', 'personal', 'settings'].includes(parts[0]) ? parts[0] : '');
+    // 底部导航有哪几格、哪一格高亮，都看这个列表 ——
+    // 给导航增删格子时，记得同时改这里，否则新格子点了不会亮。
+    // settings 已经没有对应的格子了（设定页仍可从书架进入），所以从列表里去掉。
+    const active = !showNav ? '' : (['menu', 'board', 'personal', 'profile'].includes(parts[0]) ? parts[0] : '');
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
     document.title = this.pageTitle || DEFAULT_TITLE;
     window.scrollTo(0, 0);
@@ -254,7 +318,14 @@ const App = {
       menu: '<path d="M4 5.2h5.2v13.6H4z"/><path d="M9.2 5.2h4.4v13.6H9.2z"/><path d="M15.4 6.6l3.9 1-3 12.2-3.9-1z"/>',
       main: '<path d="M12 7.2C10.4 5.9 8.4 5.2 5.8 5.2H3.5v13.6h2.3c2.6 0 4.6.7 6.2 2 1.6-1.3 3.6-2 6.2-2h2.3V5.2h-2.3c-2.6 0-4.6.7-6.2 2z"/><path d="M12 7.2v13.6"/>',
       personal: '<path d="M3.5 6.4h17v11.2h-17z"/><path d="M3.8 6.9l8.2 5.8 8.2-5.8"/>',
+      boardIcon: '<path d="M3.5 6.4h17v11.2h-17z"/><path d="M3.8 6.9l8.2 5.8 8.2-5.8"/>',
       settings: '<path d="M12 3.4l8.4 4.7-8.4 4.7-8.4-4.7z"/><path d="M3.6 12.6l8.4 4.7 8.4-4.7"/><path d="M3.6 16.8l8.4 4.7 8.4-4.7"/>',
+      /* 下面三枚是为底部导航的新规划准备的（图标先备好，换导航时就只改一行）。
+         全部只用 path，和上面几枚写法一致 —— 这样自动继承现有图标的描边样式。
+         注：personal 那枚本身就是信封，做「留言」比做「个人」更贴，所以留言复用它。 */
+      profile: '<path d="M12 4.6a3.7 3.7 0 1 1 0 7.4 3.7 3.7 0 0 1 0-7.4z"/><path d="M4.9 20.4c0-3.7 3.2-5.8 7.1-5.8s7.1 2.1 7.1 5.8"/>',
+      board: '<path d="M4.3 5.6h15.4v10.7h-9.6L5 19.5v-3.2H4.3z"/><path d="M8.2 9.5h7.6M8.2 12.4h4.6"/>',
+      games: '<path d="M7.4 4.2h9.2a3.2 3.2 0 0 1 3.2 3.2v9.2a3.2 3.2 0 0 1-3.2 3.2H7.4a3.2 3.2 0 0 1-3.2-3.2V7.4a3.2 3.2 0 0 1 3.2-3.2z"/><path d="M9.2 8.4a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/><path d="M14.8 8.4a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/><path d="M9.2 13.1a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/><path d="M14.8 13.1a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/>',
     };
     const item = (key, txt) => `
       <a class="bn-item ${active === key ? 'active' : ''}" href="#/${key}"${active === key ? ' aria-current="page"' : ''}>
@@ -264,9 +335,9 @@ const App = {
     return `
     <nav class="bottom-nav">
       ${item('menu', '书架')}
-      ${item('main', '主线')}
-      ${item('personal', '个人')}
-      ${item('settings', '设定')}
+      ${item('board', '留言')}
+      ${item('personal', '个人篇')}
+      ${item('profile', '我的')}
     </nav>`;
   },
 
@@ -499,6 +570,92 @@ const App = {
   },
 
   /* ---------- 6. 个人章 ---------- */
+  /* ---------- 留言板 ----------
+     顶部那块黑板只有管理员能改（内容存在 settings 表的 board_note，见后端 PUT /api/admin/board）；
+     下面的便签就是 comments 表里 article_id = 0 的那些。
+     游客能看不能写：can_post 由后端根据当前登录状态给出，前端据此显示「登录后可以留言」。
+     取不到数据时显示一块空板，不让整页崩掉。 */
+  async renderBoard() {
+    this.pageTitle = '留言板 · 白日梦咖啡馆';
+    let data = { note: '', items: [], total: 0, has_more: false, next_before: null, can_post: false };
+    try {
+      data = await API.get('/api/board');
+    } catch (e) {
+      data.load_error = true;
+    }
+    this.board = { items: data.items || [], has_more: !!data.has_more, next_before: data.next_before || null };
+    const u = this.state.user;
+    const isAdmin = !!(u && u.role === 'admin');
+    const note = String(data.note || '');
+    return `
+    <div class="page board-page">
+      ${this.topbar()}
+      <div class="page-head">
+        <h1>留言板</h1>
+        <p>随便聊聊，或者给店长留句话。</p>
+      </div>
+
+      <section class="board-board${isAdmin ? ' is-editable' : ''}" id="boardBoard">
+        <div class="bb-head">
+          <span class="bb-label">今日推荐</span>
+          ${isAdmin ? `<button type="button" class="bb-edit" id="bbEdit">编辑</button>` : ''}
+        </div>
+        <div class="bb-text" id="bbText">${note ? esc(note).replace(/\n/g, '<br>') : `<span class="bb-empty">${isAdmin ? '点右上角「编辑」，写下今天想说的话' : '店长还没写今天的推荐'}</span>`}</div>
+        ${isAdmin ? `
+        <div class="bb-editor" id="bbEditor" hidden>
+          <textarea id="bbInput" rows="3" maxlength="500" placeholder="例如：今日推荐 · 榛果拿铁，第二杯半价">${esc(note)}</textarea>
+          <div class="bb-actions">
+            <button type="button" class="btn btn-small" id="bbSave">保存</button>
+            <button type="button" class="btn btn-small btn-ghost" id="bbCancel">取消</button>
+            <span class="hint" id="bbHint"></span>
+          </div>
+        </div>` : ''}
+      </section>
+
+      <section class="board-notes">
+        ${data.can_post ? `
+        <div class="note-card note-compose">
+          <div class="note-compose-head">${this.avatarHtml(u, 36)}<span>以「${esc(u.username)}」的身份留言</span></div>
+          <textarea id="boardInput" rows="3" maxlength="500" placeholder="想说什么……"></textarea>
+          <div class="note-compose-foot">
+            <span class="hint" id="boardHint"></span>
+            <button type="button" class="btn btn-small" id="boardSend">贴上便签</button>
+          </div>
+        </div>` : `
+        <div class="note-card note-guest">
+          <span>留言板上任何人都可以看，<a href="#/login">登录</a>之后就能贴自己的便签。</span>
+        </div>`}
+        <div class="board-list" id="boardList">${this.boardNotes()}</div>
+        ${this.board.has_more ? `<button type="button" class="board-more" id="boardMore">看更早的留言</button>` : ''}
+        ${data.total ? `<p class="board-count">一共 ${data.total} 张便签</p>` : ''}
+      </section>
+    </div>`;
+  },
+
+  // 谁能删这张便签：本人或管理员。这里只决定「显示不显示删除按钮」，
+  // 真正的权限由后端 DELETE /api/board/comments/:id 再判一次。
+  canDeleteNote(c) {
+    const u = this.state.user;
+    if (!u || !c) return false;
+    return u.role === 'admin' || c.user_id === u.id;
+  },
+
+  // 便签列表（首次渲染与「看更早」之后都走它，避免两处各写一遍）
+  boardNotes() {
+    const items = (this.board && this.board.items) || [];
+    if (!items.length) return `<p class="board-empty">还没有人留言，来做第一个吧。</p>`;
+    return items.map(c => `
+      <article class="note-card note-item">
+        <header class="note-head">
+          ${this.avatarHtml({ username: c.username, avatar: c.avatar }, 36)}
+          <span class="note-name">${esc(c.username)}</span>
+          <time class="note-time">${esc(formatTime(c.created_at))}</time>
+          ${this.canDeleteNote(c) ? `<button type="button" class="note-del" data-note="${c.id}" title="删掉这张便签">删除</button>` : ''}
+        </header>
+        <p class="note-text">${esc(c.content).replace(/\n/g, '<br>')}</p>
+      </article>`).join('');
+  },
+
   async renderPersonal() {
     const m = await this.ensureMenu();
     this.pageTitle = '个人章 · 白日梦咖啡馆';
