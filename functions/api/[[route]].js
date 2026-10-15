@@ -971,6 +971,7 @@ export async function onRequest(context) {
       const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
       const tags = String(body.tags == null ? '' : body.tags).slice(0, 200);
       let values;
+      const type = String(body.chapter_title || '').trim();   // 设定的「类型」：在分支之前定义，两个分支都能用
       if (category === 'main') {
         const cn = parseInt(body.chapter_no, 10), sn = parseInt(body.section_no, 10);
         if (!Number.isFinite(cn) || cn < 0) return json({ error: '章号必须是 0 或正整数（0 = 序章）' }, 400);
@@ -981,7 +982,7 @@ export async function onRequest(context) {
       } else {
         const t = String(body.title || '').trim();
         if (!t) return json({ error: '标题不能为空' }, 400);
-        values = [category, null, null, null, null, t, content, source, summary, tags];
+        values = [category, null, null, type, null, t, content, source, summary, tags];
       }
       const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
@@ -999,6 +1000,7 @@ export async function onRequest(context) {
       const summary = String(body.summary == null ? '' : body.summary).slice(0, 300);
       const tags = String(body.tags == null ? '' : body.tags).slice(0, 200);
       let values;
+      const type = String(body.chapter_title || '').trim() || old.chapter_title || '';   // 同上（更新路径）
       if (category === 'main') {
         const cnRaw = parseInt(body.chapter_no, 10), snRaw = parseInt(body.section_no, 10);
         const cn = Number.isFinite(cnRaw) ? cnRaw : old.chapter_no;
@@ -1008,7 +1010,7 @@ export async function onRequest(context) {
         values = [category, cn, ct, sn, st, st, content, source, summary, tags];
       } else {
         const t = String(body.title || '').trim() || old.title || '未命名';
-        values = [category, null, null, null, null, t, content, source, summary, tags];
+        values = [category, null, null, type, null, t, content, source, summary, tags];
       }
       await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, tags=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
