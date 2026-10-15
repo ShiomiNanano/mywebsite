@@ -307,6 +307,13 @@ async function ensureSchema(env) {
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN source TEXT').run(); } catch (e) {}
   // 卡片简介（可单独编辑，避免卡片上剧透正文）
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN summary TEXT').run(); } catch (e) {}
+  /* 小游戏的分数表：一款游戏一个榜，取每个用户的最高分排前五 */
+  try {
+    await env.DB.prepare(
+      'CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY AUTOINCREMENT, game TEXT NOT NULL, user_id INTEGER, username TEXT, score INTEGER NOT NULL, created_at TEXT)'
+    ).run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_scores_game ON scores (game, score DESC)').run();
+  } catch (e) {}
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS chat_usage (user_id INTEGER PRIMARY KEY, minute INTEGER NOT NULL, cnt INTEGER NOT NULL)`),
@@ -621,6 +628,35 @@ export async function onRequest(context) {
        （真实文章 id 从 1 开始，所以不会撞上任何文章；目录接口里那个
         comment_count 子查询是按 article_id = a.id 关联的，也不会把留言板算进去。）
        黑板上的那段话存在 settings 表，key = board_note，只能由管理员修改。 */
+    /* ===== 小游戏排行榜 =====
+       读：公开（前五名，取每人最高分）。写：需登录，分数做了范围检查。
+       分数越高越好，所以排序是 score DESC。 */
+    if (method === 'GET' && path === '/games/scores') {
+      const game = String(url.searchParams.get('game') || '').slice(0, 32) || 'memory';
+      const rows = await env.DB.prepare(
+        'SELECT username, MAX(score) AS score FROM scores WHERE game=? GROUP BY user_id, username ORDER BY score DESC LIMIT 5'
+      ).bind(game).all();
+      return jsonPublic({ game, tops: (rows && rows.results) || [] }, 10);
+    }
+    if (method === 'POST' && path === '/games/scores') {
+      if (!user) return json({ error: '登录后才能上榜' }, 401);
+      const body = await readBody(request);
+      const game = String(body.game || '').slice(0, 32) || 'memory';
+      const score = Math.floor(Number(body.score));
+      if (!Number.isFinite(score) || score < 0 || score > 100000) {
+        return json({ error: '分数不合法' }, 400);
+      }
+      await env.DB.prepare('INSERT INTO scores (game, user_id, username, score, created_at) VALUES (?,?,?,?,?)')
+        .bind(game, user.id, user.username, score, nowStr()).run();
+      const mine = await env.DB.prepare(
+        'SELECT MAX(score) AS best FROM scores WHERE game=? AND user_id=?'
+      ).bind(game, user.id).first();
+      const rows = await env.DB.prepare(
+        'SELECT username, MAX(score) AS score FROM scores WHERE game=? GROUP BY user_id, username ORDER BY score DESC LIMIT 5'
+      ).bind(game).all();
+      return json({ ok: true, best: (mine && mine.best) || score, tops: (rows && rows.results) || [] });
+    }
+
     if (method === 'GET' && path === '/board') {
       const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 50);
       const before = parseInt(url.searchParams.get('before') || '', 10);

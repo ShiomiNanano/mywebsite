@@ -102,9 +102,18 @@ const App = {
     this.state.user = (me && me.user) || null;
     this.state.config = { turnstile_site_key: (cfg && cfg.turnstile_site_key) || '' };
 
-    window.addEventListener('hashchange', () => this.route());
+    window.addEventListener('hashchange', () => {
+      if (this.game && this.game.timer) { clearInterval(this.game.timer); this.game = null; }
+      this.route();
+    });
     /* 留言板的按钮用事件委派统一处理 —— 这样不必去猜各页面各自的绑定函数叫什么。
        黑板编辑只对管理员可见，后端 PUT /api/admin/board 也会再校验一次权限。 */
+    /* 游戏页的点击：翻牌与重开。单独一个委派，不去动留言板那一个。 */
+    document.addEventListener('click', (e) => {
+      const card = e.target.closest && e.target.closest('.flip-card');
+      if (card) { this.flipCard(Number(card.getAttribute('data-i'))); return; }
+      if (e.target.closest && e.target.closest('#gameRestart')) { this.startMemory(); }
+    });
     document.addEventListener('click', async (e) => {
       const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del');
       if (!t) return;
@@ -255,6 +264,7 @@ const App = {
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
       else if (parts[0] === 'personal') view = await this.renderPersonal();
     else if (parts[0] === 'board') view = await this.renderBoard();
+    else if (parts[0] === 'games') view = parts[1] === 'memory' ? await this.renderMemory() : await this.renderGames();
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
@@ -280,8 +290,10 @@ const App = {
     // 底部导航有哪几格、哪一格高亮，都看这个列表 ——
     // 给导航增删格子时，记得同时改这里，否则新格子点了不会亮。
     // settings 已经没有对应的格子了（设定页仍可从书架进入），所以从列表里去掉。
-    const active = !showNav ? '' : (['menu', 'board', 'personal', 'profile'].includes(parts[0]) ? parts[0] : '');
+    const active = !showNav ? '' : (['menu', 'board', 'games', 'profile'].includes(parts[0]) ? parts[0] : '');
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
+    // 游戏页的棋盘要等 HTML 插进去之后才能画（上面那步先渲染，这里再开局）
+    if (parts[0] === 'games' && parts[1] === 'memory') { this.startMemory(); }
     document.title = this.pageTitle || DEFAULT_TITLE;
     window.scrollTo(0, 0);
     this.afterRender();
@@ -336,7 +348,7 @@ const App = {
     <nav class="bottom-nav">
       ${item('menu', '书架')}
       ${item('board', '留言')}
-      ${item('personal', '个人篇')}
+      ${item('games', '游戏')}
       ${item('profile', '我的')}
     </nav>`;
   },
@@ -575,6 +587,236 @@ const App = {
      下面的便签就是 comments 表里 article_id = 0 的那些。
      游客能看不能写：can_post 由后端根据当前登录状态给出，前端据此显示「登录后可以留言」。
      取不到数据时显示一块空板，不让整页崩掉。 */
+  /* ---------- 游戏页 ----------
+     游客不能玩：一进来就跳登录（和 renderProfile 一样的处理）。
+     游戏页对每款游戏给一个排行榜，只显示前五名，分数取每个用户的最高分。
+     记忆翻牌的状态放在 this.game 里；翻牌只重画棋盘那一小块，
+     整页不重渲染 —— 否则计时器会被打断、动画也会重来。 */
+  /* ---------- 游戏主页 ----------
+     底部导航点「游戏」进的是这一页（选择页），每款游戏有自己的路由：
+     记忆翻牌是 #/games/memory。这里是游客也进不来的地方，
+     所以一上来就跳登录（和 renderProfile / renderMemory 同一套做法）。 */
+  async renderGames() {
+    const u = this.state.user;
+    if (!u) { location.hash = '#/login'; return ''; }
+    this.pageTitle = '游戏 · 白日梦咖啡馆';
+    let memoryTops = [];
+    try {
+      const r = await API.get('/api/games/scores?game=memory');
+      memoryTops = (r && r.tops) || [];
+    } catch (e) { memoryTops = []; }
+    this.hubTops = memoryTops;
+    return `
+    <div class="page game-page">
+      ${this.topbar()}
+      <div class="page-head">
+        <h1>游戏</h1>
+        <p>几款小游戏而已，赢个分数贴在榜上。</p>
+      </div>
+
+      <section class="game-hub">
+        <a class="hub-card" href="#/games/memory">
+          <div class="hub-top">
+            <span class="hub-ico">☕❧🐈</span>
+            <span class="hub-tag">可玩</span>
+          </div>
+          <h2>记忆翻牌</h2>
+          <p>翻开两张一样的牌，八对全配对。步数越少、越快，分数越高。</p>
+          ${this.hubRank(memoryTops)}
+        </a>
+
+        <div class="hub-card is-soon">
+          <div class="hub-top"><span class="hub-ico">2048</span><span class="hub-tag">准备中</span></div>
+          <h2>数字拼合</h2>
+          <p>滑动合并相同的数字，凑出 2048。</p>
+        </div>
+
+        <div class="hub-card is-soon">
+          <div class="hub-top"><span class="hub-ico">?</span><span class="hub-tag">准备中</span></div>
+          <h2>猜数字</h2>
+          <p>我想一个数，你来猜 —— 每猜一次告诉你大了还是小了。</p>
+        </div>
+      </section>
+
+      <p class="game-more">还想玩什么，先跟我说一声。</p>
+    </div>`;
+  },
+
+  // 主页每张游戏卡上的迷你榜（取前三）
+  hubRank(tops) {
+    if (!tops || !tops.length) return '<p class="hub-rank-empty">还没有人上榜</p>';
+    const medal = ['①', '②', '③'];
+    return '<ol class="hub-rank">' + tops.slice(0, 3).map((x, i) =>
+      `<li><span>${medal[i]}</span><span class="hub-rank-name">${esc(x.username)}</span><b>${Number(x.score) || 0}</b></li>`
+    ).join('') + '</ol>';
+  },
+
+  async renderMemory() {
+    const u = this.state.user;
+    if (!u) { location.hash = '#/login'; return ''; }
+    this.pageTitle = '记忆翻牌 · 白日梦咖啡馆';
+    if (this.game && this.game.timer) { clearInterval(this.game.timer); }
+    this.game = null;
+    this.gameTops = [];
+    try {
+      const r = await API.get('/api/games/scores?game=memory');
+      this.gameTops = (r && r.tops) || [];
+    } catch (e) { this.gameTops = []; }
+    return `
+    <div class="page game-page">
+      ${this.topbar()}
+      <div class="page-head">
+        <h1>游戏</h1>
+        <p>小游戏而已，赢个分数贴在榜上。</p>
+      </div>
+
+      <section class="game-card" id="gameCard">
+        <div class="game-head">
+          <h2>记忆翻牌</h2>
+          <span class="game-stat">步数 <b id="gameMoves">0</b> · 用时 <b id="gameTime">0:00</b></span>
+        </div>
+        <p class="game-desc">翻开两张一样的牌，八对全配对就赢。步数越少、越快，分数越高。</p>
+        <div class="game-grid" id="gameGrid"></div>
+        <div class="game-foot">
+          <span class="game-result" id="gameResult">　</span>
+          <button type="button" class="btn btn-small" id="gameRestart">重新开始</button>
+        </div>
+      </section>
+
+      <section class="game-rank">
+        <h3>排行榜 · 前五名</h3>
+        <ol class="rank-list" id="gameRanks">${this.rankItems()}</ol>
+        <p class="game-more">更多小游戏还在准备中 —— 想看哪个可以先说一声。</p>
+      </section>
+    </div>`;
+  },
+
+  // 排行榜（首次渲染与提交分数之后都走它）
+  rankItems() {
+    const tops = this.gameTops || [];
+    if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
+    const medal = ['①', '②', '③', '④', '⑤'];
+    return tops.map((x, i) =>
+      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
+    ).join('');
+  },
+
+  // 开局：8 对牌洗好后铺上去
+  startMemory() {
+    const faces = ['\u2615', '\u2767', '\u{1F408}', '\u{1F319}', '\u2602', '\u{1F390}', '\u{1F4D6}', '\u26C4'];
+    const deck = faces.concat(faces).map((f, i) => ({ f: f, i: i, up: false, done: false }));
+    for (let i = deck.length - 1; i > 0; i--) {           // 洗牌
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+    }
+    if (this.game && this.game.timer) clearInterval(this.game.timer);
+    const g = { deck: deck, open: [], moves: 0, matched: 0, over: false, startAt: Date.now(), timer: null };
+    this.game = g;
+    g.timer = setInterval(() => {
+      const el = document.getElementById('gameTime');
+      if (el && this.game === g && !g.over) el.textContent = this.mmss(Date.now() - g.startAt);
+    }, 1000);
+    this.paintGame();
+    const mv = document.getElementById('gameMoves');
+    if (mv) mv.textContent = '0';
+    const tm = document.getElementById('gameTime');
+    if (tm) tm.textContent = '0:00';
+    const rs = document.getElementById('gameResult');
+    if (rs) rs.textContent = '　';
+  },
+
+  mmss(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  },
+
+  /* 只在开局时整块重建棋盘（也只有这时该播放发牌动画）。
+     之前每翻一张牌也走这里，于是 16 张牌全被重建、发牌动画跟着重播，
+     看起来就是"每点一下整页闪一下"。 */
+  paintGame() {
+    const box = document.getElementById('gameGrid');
+    if (!box || !this.game) return;
+    box.innerHTML = this.game.deck.map((c, i) =>
+      `<button type="button" class="flip-card${c.up || c.done ? ' is-up' : ''}${c.done ? ' is-done' : ''}" data-i="${i}" style="--i:${i}" aria-label="第 ${i + 1} 张">
+         <span class="fc-inner"><span class="fc-face">?</span><span class="fc-back">${c.f}</span></span>
+       </button>`).join('');
+    box.classList.add('is-dealing');                       // 只在这一刻允许播发牌动画
+    setTimeout(() => box.classList.remove('is-dealing'), 760);
+  },
+
+  /* 翻牌专用：只把变化了的那几张牌的类名改一下，绝不重建 DOM。
+     这样翻转过渡能正常播（重建的话会直接跳到位），也不会引发频闪。 */
+  syncGame() {
+    const box = document.getElementById('gameGrid');
+    if (!box || !this.game) return;
+    const bs = box.querySelectorAll('.flip-card');
+    this.game.deck.forEach((c, i) => {
+      const b = bs[i];
+      if (!b) return;
+      b.classList.toggle('is-up', !!(c.up || c.done));
+      b.classList.toggle('is-done', !!c.done);
+    });
+  },
+
+  // 翻开一张
+  async flipCard(i) {
+    const g = this.game;
+    if (!g || g.over) return;
+    const c = g.deck[i];
+    if (!c || c.up || c.done || g.open.length >= 2) return;
+    c.up = true;
+    g.open.push(i);
+    this.syncGame();
+    if (g.open.length < 2) return;
+    g.moves++;
+    const mv = document.getElementById('gameMoves');
+    if (mv) mv.textContent = String(g.moves);
+    const [x, y] = g.open;
+    if (g.deck[x].f === g.deck[y].f) {
+      g.deck[x].done = g.deck[y].done = true;
+      g.open = [];
+      g.matched++;
+      this.syncGame();
+      if (g.matched === 8) this.finishMemory();
+    } else {
+      // 先让这两张抖一下，再翻回去
+      const bs = document.querySelectorAll('.flip-card');
+      [x, y].forEach(k2 => { if (bs[k2]) bs[k2].classList.add('is-wrong'); });
+      await new Promise(r => setTimeout(r, 420));
+      if (this.game !== g) return;                        // 中途重开过就别管了
+      [x, y].forEach(k2 => { if (bs[k2]) bs[k2].classList.remove('is-wrong'); });
+      await new Promise(r => setTimeout(r, 180));
+      if (this.game !== g) return;
+      g.deck[x].up = g.deck[y].up = false;
+      g.open = [];
+      this.syncGame();
+    }
+  },
+
+  async finishMemory() {
+    const g = this.game;
+    if (!g || g.over) return;
+    g.over = true;
+    if (g.timer) clearInterval(g.timer);
+    const secs = Math.floor((Date.now() - g.startAt) / 1000);
+    const score = Math.max(100, 1000 - g.moves * 20 - secs * 3);
+    const rs = document.getElementById('gameResult');
+    if (rs) rs.textContent = '配对完成！' + g.moves + ' 步 · ' + this.mmss(Date.now() - g.startAt) + ' · ' + score + ' 分';
+    try {
+      const r = await API.post('/api/games/scores', { game: 'memory', score: score });
+      if (r && r.tops) this.gameTops = r.tops;
+      else {
+        const t = await API.get('/api/games/scores?game=memory');
+        this.gameTops = (t && t.tops) || [];
+      }
+      const box = document.getElementById('gameRanks');
+      if (box) box.innerHTML = this.rankItems();
+      toast('得了 ' + score + ' 分，已上榜');
+    } catch (e) {
+      toast('分数没能上榜：' + (e && e.message ? e.message : '稍后再试'));
+    }
+  },
+
   async renderBoard() {
     this.pageTitle = '留言板 · 白日梦咖啡馆';
     let data = { note: '', items: [], total: 0, has_more: false, next_before: null, can_post: false };

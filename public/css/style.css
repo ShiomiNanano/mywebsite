@@ -2410,6 +2410,167 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .board-page .board-empty,
 .board-page .board-count { color: var(--board-chalk-dim, rgba(230,240,232,.5)); }
 
+/* ============================================================================
+   游戏页：记忆翻牌 + 排行榜
+   牌用 CSS 3D 翻开（preserve-3d + backface-visibility），不需要 JS 做动画。
+   颜色一律 var(名, 兜底)；这里不用 backdrop-filter。
+   ============================================================================ */
+.game-card {
+  max-width: var(--board-max, 640px); margin: 0 auto var(--sp-6);
+  padding: var(--sp-5);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.game-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.game-head h2 { font-family: var(--font-serif); font-size: var(--fs-lg); letter-spacing: .06em; }
+.game-stat { font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
+.game-stat b { color: var(--gold); font-weight: 600; }
+.game-desc { margin: var(--sp-2) 0 var(--sp-4); font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.85; }
+
+.game-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3); max-width: 400px; margin: 0 auto;
+}
+.flip-card {
+  position: relative; aspect-ratio: 1 / 1; padding: 0; cursor: pointer;
+  background: none; border: 0; perspective: 700px;
+  -webkit-tap-highlight-color: transparent;
+}
+.fc-inner {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  transform-style: preserve-3d; transition: transform .45s var(--ease);
+}
+.flip-card.is-up .fc-inner { transform: rotateY(180deg); }
+.fc-face, .fc-back {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  border-radius: var(--r-sm); font-size: 24px; line-height: 1;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.fc-face {
+  font-size: 15px; letter-spacing: .1em; color: var(--gold);
+  background: linear-gradient(160deg, var(--surface-3), var(--surface-2));
+  border: 1px solid var(--line);
+}
+.fc-back {
+  transform: rotateY(180deg); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-2);
+}
+.flip-card.is-done .fc-back { color: var(--tint-green, #9ad8b0); border-color: var(--tint-green, #9ad8b0); }
+.flip-card:hover .fc-face { border-color: var(--line-2); }
+
+.game-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); margin-top: var(--sp-4); min-height: 32px;
+}
+.game-result { font-family: var(--font-body); font-size: var(--fs-sm); color: var(--gold); letter-spacing: .04em; }
+
+.game-rank {
+  max-width: var(--board-max, 640px); margin: 0 auto;
+  padding: var(--sp-5);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+}
+.game-rank h3 {
+  margin-bottom: var(--sp-3); font-family: var(--font-serif);
+  font-size: var(--fs-md); letter-spacing: .1em; color: var(--ink);
+}
+.rank-list { list-style: none; margin: 0; padding: 0; }
+.rank-list li {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 9px 0; border-bottom: 1px dashed var(--line);
+  font-family: var(--font-body); font-size: var(--fs-sm);
+}
+.rank-list li:last-child { border-bottom: 0; }
+.rank-no { color: var(--gold); font-size: var(--fs-base); width: 22px; }
+.rank-name { flex: 1; color: var(--ink); letter-spacing: .04em; }
+.rank-score { color: var(--gold); font-variant-numeric: tabular-nums; }
+.rank-empty { color: var(--ink-3); justify-content: center; }
+.game-more { margin-top: var(--sp-4); font-size: var(--fs-xs); color: var(--ink-3); text-align: center; }
+
+@media (max-width: 560px) {
+  .game-card, .game-rank { padding: var(--sp-4); }
+  .game-grid { gap: 8px; }
+  .fc-face { font-size: 13px; }
+  .fc-back { font-size: 20px; }
+}
+
+/* ============================================================================
+   游戏页整页也走黑板材质（和留言板一套），但更收敛一点
+   ============================================================================ */
+.game-page {
+  min-height: 100vh;
+  background-color: var(--board-1, #26332c);
+  background-image:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.04), rgba(255,255,255,0) 60%),
+    radial-gradient(90% 60% at 50% 100%, rgba(0,0,0,.34), rgba(0,0,0,0) 72%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.016) 2px 4px);
+  background-attachment: fixed;
+}
+.game-page .page-head h1 { color: var(--board-chalk, #e7efe8); }
+.game-page .page-head p { color: var(--board-chalk-dim, rgba(230,240,232,.62)); }
+
+/* ============================================================================
+   游戏主页（选择页）与翻牌动画
+   ============================================================================ */
+.game-hub {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-4); max-width: var(--board-max, 640px); margin: 0 auto;
+}
+.hub-card {
+  display: block; padding: var(--sp-4) var(--sp-5); text-decoration: none;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  transition: var(--t);
+}
+.hub-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.hub-card h2 { margin-bottom: 6px; font-family: var(--font-serif); font-size: var(--fs-md); letter-spacing: .06em; color: var(--ink); }
+.hub-card p { margin: 0; font-size: var(--fs-sm); line-height: 1.8; color: var(--ink-2); }
+.hub-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
+.hub-ico { font-size: 20px; letter-spacing: .12em; color: var(--gold); }
+.hub-tag {
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .1em;
+  padding: 2px 9px; border-radius: 999px;
+  color: var(--gold); border: 1px solid var(--gold); opacity: .8;
+}
+.hub-card.is-soon { opacity: .55; }
+.hub-card.is-soon .hub-tag { color: var(--ink-3); border-color: var(--line); }
+.hub-rank { list-style: none; margin: var(--sp-3) 0 0; padding: var(--sp-3) 0 0; border-top: 1px dashed var(--line); }
+.hub-rank li {
+  display: flex; align-items: center; gap: var(--sp-2); padding: 3px 0;
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-3);
+}
+.hub-rank-name { flex: 1; color: var(--ink-2); }
+.hub-rank b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.hub-rank-empty { margin: var(--sp-3) 0 0; padding-top: var(--sp-3); border-top: 1px dashed var(--line); font-size: var(--fs-xs); color: var(--ink-3); }
+
+/* ---- 翻牌动画 ---- */
+@keyframes dealIn {
+  from { opacity: 0; transform: translateY(10px) scale(.88) rotate(-4deg); }
+  to   { opacity: 1; transform: none; }
+}
+/* 配对成功的放大：必须用独立的 scale 属性，不能用 transform: scale(...)。
+   因为 .fc-inner 的 transform 正扛着 rotateY(180deg)（牌的朝向），
+   动画一旦改写 transform，朝向就丢了 —— 牌会翻回深色背面闪一下，动画结束才恢复。
+   独立属性 scale 与 transform 并存，各管各的，所以放大时牌依然是正面朝上。
+   （书架那张吊牌当初也是同一个坑：动画占着 transform 时，hover 的位移会被忽略。） */
+@keyframes matchPop {
+  0%   { scale: 1; }
+  45%  { scale: 1.09; }
+  100% { scale: 1; }
+}
+@keyframes wrongShake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px) rotate(-2deg); }
+  60%      { transform: translateX(4px) rotate(2deg); }
+}
+/* 发牌动画只在 is-dealing 期间生效 —— 棋盘整块重建时才会加上这个类，
+   平时翻牌不会触发它，否则每点一下所有牌都要重播一次（那就是频闪的来源） */
+.game-grid.is-dealing .flip-card { animation: dealIn .34s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 22ms); }
+.flip-card.is-wrong { animation: wrongShake .4s var(--ease); }
+.flip-card.is-done .fc-inner { animation: matchPop .42s var(--ease); }
+/* 翻面带回一点回弹，比匀速像"翻过去" */
+.fc-inner { transition: transform .46s cubic-bezier(.34, 1.32, .48, 1); }
+/* 没翻开时，鼠标停上去轻轻抬一下、偏一点，像要翻 */
+.flip-card:not(.is-up):not(.is-done):hover .fc-inner { transform: translateY(-3px) rotateY(-7deg); }
+.flip-card.is-done .fc-back { box-shadow: 0 0 14px -2px var(--tint-green, #9ad8b0); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */
