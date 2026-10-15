@@ -560,6 +560,8 @@ export async function onRequest(context) {
           section_no: a.section_no, section_title: a.section_title,
           title: a.title,
           excerpt: (a.summary && String(a.summary).trim()) ? String(a.summary).trim() : makeExcerpt(a.head),
+          setting_type: a.setting_type || '',
+          tags: a.tags || '',
           comment_count: Number(a.comment_count),
         };
         if (a.category === 'main') {
