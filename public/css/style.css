@@ -2804,6 +2804,11 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 }
 .wiki-back a:hover { color: var(--ink); border-color: var(--gold); background: var(--gold-soft); }
 
+/* 工具栏的「互链」按钮：和四色按钮同族，但用金色 + 方括号符号，
+   一看就知道它是插 [[名字]] 的。 */
+.et-btn.et-wiki { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.et-btn.et-wiki:hover { color: var(--ink); background: var(--gold-soft); border-color: var(--gold); }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */

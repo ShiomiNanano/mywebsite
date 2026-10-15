@@ -1305,12 +1305,18 @@ const App = {
 
   /* 正文渲染之后走一遍：把指向不存在词条的链接标成「红链」。
      渲染器本身不知道哪些词条存在（它要保持是纯函数），所以这件事放在这里做。 */
-  markWiki() {
-    const box = document.getElementById('app');
+  markWiki(root) {
+    const box = root || document.getElementById('app');
     if (!box) return;
     const m = this.state.menu;
+    /* 菜单还没加载就先取一次，取完再标记。少了这一步，预览会把所有互链
+       都当成"没写过"而显示成灰色 —— 误报比不报更糟。 */
+    if (!m || !m.settings) {
+      this.ensureMenu().then(() => this.markWiki(box)).catch(() => {});
+      return;
+    }
     const names = {};
-    if (m && m.settings) m.settings.forEach(x => { names[String(x.title || '').trim()] = true; });
+    m.settings.forEach(x => { names[String(x.title || '').trim()] = true; });
     box.querySelectorAll('a.wiki').forEach(a => {
       const href = a.getAttribute('href') || '';
       const raw = href.replace(/^#\/wiki\//, '');
@@ -1661,7 +1667,7 @@ const App = {
             <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
           </div>
           <div class="form-row">
-            <label>正文内容 <span class="hint">（一行就是一段；工具栏可以插人物卡、图片等）</span></label>
+            <label>正文内容 <span class="hint">（一行就是一段；工具栏可以插人物卡、图片、互链等（互链写成 <code>[[名字]]</code>，指向同名设定））</span></label>
             <div class="editor-toolbar" id="editorToolbar">
               <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
               <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
@@ -1684,6 +1690,8 @@ const App = {
               <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
               <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
               <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
+              <button type="button" class="et-btn et-wiki" data-act="wiki" title="插入指向某个设定的互链（写 [[名字]]）">互链</button>
+              <button type="button" class="et-btn et-wiki" data-act="wiki-alias" title="别名互链：显示成别的文字，但指向那个设定（写 [[名字|显示文字]]）">别名</button>
               <span class="et-sep"></span>
               <button type="button" class="et-btn" data-act="preview" id="etPreviewBtn">显示预览</button>
             </div>
@@ -1970,6 +1978,11 @@ const App = {
       else if (act === 'letter') R.insertBlock(box, ':::letter 标题\n内容……\n:::', 8, 10);
       else if (act === 'spoiler') R.insertBlock(box, ':::spoiler 后文剧透\n这里写不能提前看的内容……\n:::', 10, 14);
       else if (act.indexOf('c-') === 0) R.surround(box, '{{' + act.slice(2) + '|', '}}', '文字');
+      /* 互链：选中了文字就包成 [[选中]]；没选就插 [[名字]] 并把「名字」选中，直接打字即可替换。 */
+      else if (act === 'wiki') R.surround(box, '[[', ']]', '名字');
+      /* 别名：选中「潮見柒乃」再点，得到 [[潮見柒乃|显示文字]] ——
+         链接仍指向潮見柒乃，读者看到的是「显示文字」。没选就把「名字」占位选中。 */
+      else if (act === 'wiki-alias') R.surround(box, '[[', '|显示文字]]', '名字');
       else if (act === 'card') {
         const tpl = ':::card 名字 | 别名\n@ 一句话简介（年龄 / 身份 之类）\n正文……\n:::';
         R.insertBlock(box, tpl, 8, 10);
@@ -1979,6 +1992,7 @@ const App = {
         if (btn) btn.textContent = on ? '显示预览' : '隐藏预览';
       }
       paint();
+      this.markWiki(document.getElementById('editorPreview'));   // 预览里的互链：有词条=金色，没写过=灰色
       const n = this.countParagraphs(box.value);
       const hint = document.getElementById('paraHint');
       if (hint) hint.textContent = '共 ' + n + ' 段（一行一段；工具栏插入的块也算在内）';
@@ -1988,8 +2002,13 @@ const App = {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
       ev.preventDefault();
+      const st = box.scrollTop, sl = box.scrollLeft;   // 记住视野
       doAct(btn.dataset.act);
       box.focus();
+      /* 把视野还原回去。textarea 重新获得焦点时，浏览器会把滚动位置拉到光标处，
+         长正文里就表现为"框一下子跳到文末"，作者得自己爬回去找刚才写的地方。 */
+      box.scrollTop = st;
+      box.scrollLeft = sl;
     });
 
     box.addEventListener('input', () => {
