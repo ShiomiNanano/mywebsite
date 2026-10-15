@@ -386,6 +386,7 @@ const App = {
     const active = !showNav ? '' : (['menu', 'board', 'games', 'profile'].includes(parts[0]) ? parts[0] : '');
     document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
     this.markWiki();   // 正文渲染完，把没收录的名词标成红链
+    this.prefetchTabs();   // 顺手把几个页签要用的数据预热好
     // 游戏页的棋盘要等 HTML 插进去之后才能画（上面那步先渲染，这里再开局）
     if (parts[0] === 'games' && parts[1] === 'memory') { this.startMemory(); }
     if (parts[0] === 'games' && parts[1] === 'number') { this.startNumber(); }
@@ -474,6 +475,37 @@ const App = {
     </header>`;
   },
 
+  /* ---------- 页签数据的预取 ----------
+     问题：四个页签都是"点了才开始联网"，第一次点要等 1~2 秒（留言页最多，
+     因为它除了 /api/board 还要取几篇 article）。做法：首页画完之后趁浏览器
+     空闲，先把这几个只读接口悄悄取回来。
+
+     关键设计：预取的数据【取用即消耗】——
+     第一次渲染用它（省一次往返 ✓），之后任何重新渲染（比如发完留言 this.route()）
+     都会重新联网 ✓ 所以不会出现"发完留言还看到旧列表"这种事，也不需要写失效逻辑。 */
+  prefetchTabs() {
+    if (this._prefetched) return;
+    this._prefetched = true;
+    const run = () => {
+      const urls = ['/api/board', '/api/games/scores?game=memory', '/api/games/scores?game=number'];
+      urls.forEach((u) => {
+        // 单条失败不影响别的；这里是"顺手预热"，出错就当没做过
+        API.get(u).then((d) => { this._pre = this._pre || {}; this._pre[u] = { at: Date.now(), data: d }; }).catch(() => {});
+      });
+    };
+    // 浏览器不支持 requestIdleCallback 时退化成延迟执行（预览的测试沙箱也没有它）
+    const ric = (typeof window !== 'undefined' && window.requestIdleCallback)
+      ? window.requestIdleCallback
+      : (fn) => setTimeout(fn, 900);
+    ric(run, { timeout: 2500 });
+  },
+
+  // 有预热就先用（并消耗掉），没有就正常请求
+  getCached(url) {
+    const box = this._pre && this._pre[url];
+    if (box && Date.now() - box.at < 120000) { delete this._pre[url]; return Promise.resolve(box.data); }
+    return API.get(url);
+  },
   async ensureMenu(force) {
     if (force || !this.state.menu) {
       const m = await API.get('/api/menu');
@@ -703,7 +735,7 @@ const App = {
     if (this.num && this.num.timer) { clearInterval(this.num.timer); }
     this.num = null;
     try {
-      const r = await API.get('/api/games/scores?game=number');
+      const r = await this.getCached('/api/games/scores?game=number');
       this.numTops = (r && r.tops) || [];
     } catch (e) { this.numTops = []; }
     return `
@@ -922,11 +954,11 @@ const App = {
     this.pageTitle = '游戏 · 白日梦咖啡馆';
     let memoryTops = [], numberTops = [];
     try {
-      const r = await API.get('/api/games/scores?game=memory');
+      const r = await this.getCached('/api/games/scores?game=memory');
       memoryTops = (r && r.tops) || [];
     } catch (e) { memoryTops = []; }
     try {
-      const r2 = await API.get('/api/games/scores?game=number');
+      const r2 = await this.getCached('/api/games/scores?game=number');
       numberTops = (r2 && r2.tops) || [];
     } catch (e) { numberTops = []; }
     return `
@@ -979,7 +1011,7 @@ const App = {
     this.game = null;
     this.gameTops = [];
     try {
-      const r = await API.get('/api/games/scores?game=memory');
+      const r = await this.getCached('/api/games/scores?game=memory');
       this.gameTops = (r && r.tops) || [];
     } catch (e) { this.gameTops = []; }
     return `
@@ -1143,7 +1175,7 @@ const App = {
     this.pageTitle = '留言板 · 白日梦咖啡馆';
     let data = { note: '', items: [], total: 0, has_more: false, next_before: null, can_post: false };
     try {
-      data = await API.get('/api/board');
+      data = await this.getCached('/api/board');
     } catch (e) {
       data.load_error = true;
     }
@@ -1528,8 +1560,8 @@ const App = {
     let myRanks = [];
     try {
       const [mem, num] = await Promise.all([
-        API.get('/api/games/scores?game=memory'),
-        API.get('/api/games/scores?game=number'),
+        this.getCached('/api/games/scores?game=memory'),
+        this.getCached('/api/games/scores?game=number'),
       ]);
       const pick = (label, res) => {
         const d = res && res.data ? res.data : res;
