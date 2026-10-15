@@ -29,24 +29,46 @@ function toast(msg, type = 'ok') {
 
 // 本地图片 → 正方形缩略图（默认 128px webp，约 10KB），避免把 2MB 原图塞进数据库
 function shrinkImage(file, size = 128) {
+  /* 手机上失败的三条原因，都在这里处理掉：
+     ① 现在的手机随手拍就十几 MB，直接 new Image() 再 drawImage 到画布，
+        在移动端会撞上内存/画布尺寸的限制。改用 createImageBitmap 的 resize 选项，
+        让浏览器【在解码时就缩小】—— 最省内存，也是官方推荐的缩图做法。
+        只给 resizeWidth、不给 resizeHeight，这样是按比例缩、不会压扁。
+        老浏览器不支持时，退回原来的「Image + 画布」老路。
+     ② iOS 的 canvas 不支持导出 webp，toDataURL('image/webp') 会静默返回 png。
+        这里检查一下，不是 webp 就用 jpeg（体积差不多，兼容性更好）。
+     ③ HEIC（iPhone 默认格式）有些浏览器解不开，交给调用方给提示。 */
+  const toData = (bmp) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const s = Math.min(bmp.width, bmp.height);
+    ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
+    let out = c.toDataURL('image/webp', 0.85);
+    if (out.indexOf('data:image/webp') !== 0) out = c.toDataURL('image/jpeg', 0.85);
+    return out;
+  };
   return new Promise((resolve, reject) => {
-    const draw = (src, cleanup) => {
+    const legacy = () => {
+      const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        try {
-          const c = document.createElement('canvas');
-          c.width = c.height = size;
-          const s = Math.min(img.width, img.height);
-          const ctx = c.getContext('2d');
-          ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-          resolve(c.toDataURL('image/webp', 0.85));
-        } catch (e) { reject(e); } finally { cleanup && cleanup(); }
+        try { resolve(toData(img)); } catch (e) { reject(new Error('canvas 失败')); }
+        finally { URL.revokeObjectURL(url); }
       };
-      img.onerror = () => { cleanup && cleanup(); reject(new Error('图片读取失败')); };
-      img.src = src;
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode 失败')); };
+      img.src = url;
     };
-    const url = URL.createObjectURL(file);
-    draw(url, () => URL.revokeObjectURL(url));
+    if (typeof createImageBitmap === 'function') {
+      createImageBitmap(file, { resizeWidth: size * 2, resizeQuality: 'high' })
+        .then((bmp) => {
+          try { resolve(toData(bmp)); } catch (e) { reject(new Error('canvas 失败')); }
+          finally { if (bmp && bmp.close) bmp.close(); }
+        })
+        .catch(() => legacy());
+    } else {
+      legacy();
+    }
   });
 }
 
@@ -2207,7 +2229,9 @@ const App = {
   async handleAvatarFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { toast('图片请小于 8MB', 'err'); return; }
+    // 上限只是防呆：反正后面会压缩成 128px，十几 MB 的手机照片完全能处理。
+    // 原来卡在 8MB，而现在的手机随手一拍就超 —— 这是手机上「一直失败」的原因之一。
+    if (file.size > 40 * 1024 * 1024) { toast('图片太大了（超过 40MB），换一张吧', 'err'); return; }
     try {
       // 压缩后再上传：2MB 的原图 → 约 10KB 的 128×128 webp
       this.pendingAvatar = await shrinkImage(file, 128);
@@ -2215,7 +2239,15 @@ const App = {
       if (box) box.innerHTML = `<img class="avatar size-56" src="${esc(this.pendingAvatar)}" alt="">`;
       toast('图片已压缩，点击“保存头像”生效');
     } catch (err) {
-      toast('图片处理失败，请换一张试试', 'err');
+      // 分开提示：HEIC 是 iPhone 的默认格式，部分浏览器解不开，
+      // 这时说"换一张"没用，得给出能照做的办法。
+      const name = String(file.name || '').toLowerCase();
+      const isHeic = /\.(heic|heif)$/.test(name) || /heic|heif/i.test(String(file.type || ''));
+      if (isHeic) {
+        toast('iPhone 的 HEIC 格式这个浏览器解不开：可以先截图再上传，或者直接用图片链接', 'err');
+      } else {
+        toast('图片处理失败，请换一张试试', 'err');
+      }
     }
   },
 
