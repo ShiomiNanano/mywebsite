@@ -981,7 +981,7 @@ export async function onRequest(context) {
       } else {
         const t = String(body.title || '').trim();
         if (!t) return json({ error: '标题不能为空' }, 400);
-        values = [category, null, ct, null, null, t, content, source, summary, tags];
+        values = [category, null, null, null, null, t, content, source, summary, tags];
       }
       const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
@@ -1008,7 +1008,7 @@ export async function onRequest(context) {
         values = [category, cn, ct, sn, st, st, content, source, summary, tags];
       } else {
         const t = String(body.title || '').trim() || old.title || '未命名';
-        values = [category, null, ct, null, null, t, content, source, summary, tags];
+        values = [category, null, null, null, null, t, content, source, summary, tags];
       }
       await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, tags=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
