@@ -591,19 +591,14 @@ document.getElementById('backBtn').addEventListener('click', () => {
 });
 
 // 返回上一步（带离开惩罚：本局已开始且未结束 → 确认后扣 8 分）
-var __qcLeaving = false;
+// (已移除 __qcLeaving 机制：后退与刷新统一走同一套离开处理)
+// 返回上一步：这里【只做返回】✓
+// 离开惩罚统一交给下面的 beforeunload（浏览器原生提示）+ pagehide（真正离开时扣分）✓
+// 之前先弹我们自己的确认框再后退，会连弹两次、而且原生框取消也挡不住后退 ✗
 (function () {
   const b = document.getElementById('backBtn');
   if (!b) return;
   b.addEventListener('click', () => {
-    if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
-      const ok = window.confirm('这局还没打完，离开会扣 8 分。确定要回去吗？');
-      if (!ok) return;
-      RANK.rating = Math.max(0, RANK.rating - 8);
-      RANK.losses++;
-      saveRank(RANK); paintRank();
-    }
-      __qcLeaving = true;
     if (window.history.length > 1 && document.referrer) window.history.back();
     else window.location.href = '/#/games';
   });
@@ -615,7 +610,6 @@ var __qcLeaving = false;
    · 关标签页 / 杀进程时事件可能不发 ✗ —— 这就是我们保留的灰色地带 ✓ */
 (function () {
   window.addEventListener('beforeunload', (e) => {
-    if (__qcLeaving) return;   // 我们自己点「←」走的，已经扣过分了，不再弹浏览器提示 ✓
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       e.preventDefault();
       e.returnValue = '';
@@ -623,7 +617,6 @@ var __qcLeaving = false;
     }
   });
   window.addEventListener('pagehide', () => {
-    if (__qcLeaving) return;   // 返回按钮已经扣过，避免重复扣 ✓
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       try {
         RANK.rating = Math.max(0, RANK.rating - 8);
