@@ -1002,7 +1002,6 @@ const App = {
       numberTops = (r2 && r2.tops) || [];
     } catch (e) { numberTops = []; }
     // 幻梦牌的段位榜：let 必须在 try 之外（try 里是块级作用域 ✗）
-    let rankTops = [];
     try {
       window.__rankDbg = "fetch 开始";
       const res3 = await fetch('/api/games/rank/tops', { headers: { accept: 'application/json' }, cache: 'no-store' });
@@ -1022,11 +1021,6 @@ const App = {
       </div>
 
       <section class="game-hub">
-        <a class="hub-card hub-main" href="/games/quality/">
-        <h2 class="hub-title-art"><span class="hub-emoji">🂡</span><span class="hub-title-text">幻梦牌</span><span class="hub-tag hub-tag-main">主推</span></h2>
-        <p>8 类品质牌的双人博弈：每回合各出两张，点数相加比大小，赢家夺走对手的牌。强牌用过要冷却，段位越高对手越难。</p>
-        ${this.rankTop3(rankTops)}
-        </a>
         <a class="hub-card" href="#/games/memory">
             <span class="hub-ico">☕❧🐈</span>
             <span class="hub-tag">可玩</span>
@@ -1056,16 +1050,6 @@ const App = {
     ).join('') + '</ol>';
   },
   // 主推卡里的段位榜（前三，按段位分）
-  rankTop3(tops) {
-    if (!tops || !tops.length) return '<p class="hub-rank-empty">段位榜还空着，来当第一个</p>';
-    const medal = ['👑', '②', '③'];
-    return '<ol class="hub-rank hub-rank-tier">' + tops.slice(0, 3).map((x, i) =>
-      '<li><span class="hub-medal">' + medal[i] + '</span>'
-      + '<span class="hub-who">' + esc(x.username || '匿名') + '</span>'
-      + '<span class="hub-tier">' + esc(x.tier || '') + '</span>'
-      + '<span class="hub-score">' + (x.rating || 0) + '</span></li>'
-    ).join('') + '</ol>';
-  },
 
   async renderMemory() {
     const u = this.state.user;
