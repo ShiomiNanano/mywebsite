@@ -716,6 +716,34 @@
 </style>
 </head>
 <body>
+<div id="diagPanel" style="position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#101820;color:#9fe8c8;
+  border:1px solid #2a6b52;border-radius:10px;padding:10px 12px;font:12px/1.6 monospace;max-height:42vh;overflow:auto;
+  white-space:pre-wrap;box-shadow:0 10px 30px rgba(0,0,0,.6)">诊断面板启动中…</div>
+
+<script>
+(function () {
+  var el = document.getElementById('diagPanel');
+  var log = [];
+  function add(t) { log.push(t); if (el) el.textContent = log.join('\n'); }
+  window.__diag = add;
+  add('① HTML 已解析（普通 script 执行了）');
+  add('   地址: ' + location.href);
+  window.addEventListener('error', function (e) {
+    add('✗ 脚本错误: ' + (e.message || e) + '\n   位置: ' + (e.filename || '') + ':' + (e.lineno || 0) + ':' + (e.colno || 0));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    add('✗ Promise 未处理: ' + ((e.reason && e.reason.message) || e.reason));
+  });
+  setTimeout(function () {
+    if (window.__qcBooted) { add('④ 游戏脚本已启动 ✓（面板将在 3 秒后收起）'); setTimeout(function () { if (el) el.style.display = 'none'; }, 3000); }
+    else {
+      add('✗ 3 秒后游戏脚本仍未启动');
+      add('   meHand 元素: ' + (document.getElementById('meHand') ? '在' : '缺'));
+      add('   module 支持: ' + ('noModule' in document.createElement('script') ? '不支持 ✗' : '支持 ✓'));
+    }
+  }, 3000);
+})();
+</script>
 <div class="back-bar"><button id="backBtn" title="回到上一步" aria-label="回到上一步">←</button></div>
 <div class=`"wrap`">
   <div class="top">
