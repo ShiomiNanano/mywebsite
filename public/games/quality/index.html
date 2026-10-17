@@ -697,35 +697,15 @@
   }
 </style>
 <style>
-  /* 返回上一步：左上角一个圆形箭头，不占游戏版面 */
-  .back-bar{
-    position:fixed; left:12px; top:12px; z-index:60;
-  }
-  #backBtn{
-    width:40px; height:40px; border-radius:50%;
-    display:grid; place-items:center; font-size:19px; line-height:1; padding:0;
-    background:rgba(0,0,0,.42); color:var(--gold, #e8cf9a);
-    border:1px solid rgba(232,207,154,.45);
-    box-shadow:0 6px 16px -10px rgba(0,0,0,.9);
-    cursor:pointer; font-family:inherit;
-  }
+  .back-bar{ position:fixed; left:12px; top:12px; z-index:60 }
+  #backBtn{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center;
+    font-size:19px; line-height:1; padding:0; background:rgba(0,0,0,.42);
+    color:var(--gold, #e8cf9a); border:1px solid rgba(232,207,154,.45);
+    box-shadow:0 6px 16px -10px rgba(0,0,0,.9); cursor:pointer; font-family:inherit }
   #backBtn:active{ transform:scale(.94) }
   @media (min-width:760px){ .back-bar{ left:18px; top:18px } #backBtn{ width:44px; height:44px; font-size:21px } }
-  /* 为左上角的按钮让出一点空间，避免压住标题 */
   .wrap{ padding-top:56px }
   @media (min-width:760px){ .wrap{ padding-top:64px } }
-</style>
-<style>
-  .rank-board{ list-style:none; margin:0; padding:2px 0 10px; font-size:12.5px }
-  .rank-board li{ display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed rgba(255,255,255,.08) }
-  .rank-board li:last-child{ border-bottom:0 }
-  .rank-board .rk{ width:18px; text-align:center; flex:0 0 18px; font-size:13px }
-  .rank-board .nm{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2) }
-  .rank-board .tr{ flex:0 0 auto; font-size:11px; color:var(--gold); letter-spacing:.08em;
-                   border:1px solid rgba(232,207,154,.4); border-radius:6px; padding:0 6px }
-  .rank-board .sc{ flex:0 0 auto; font-variant-numeric:tabular-nums; color:var(--ink3); font-size:11.5px }
-  .rank-board li.rank-empty{ color:var(--ink3); justify-content:center; border:0 }
-  .rank-board li.me .nm{ color:var(--gold) }
 </style>
 </head>
 <body>
@@ -780,13 +760,11 @@
     <button class="ghost" id="restart">重开</button>
   </div>
 
-
   <details>
     <summary>战况 · 未现身的牌 · 日志</summary>
     <div class="tags" id="pool"></div>
     <div class="log" id="log"></div>
   </details>
-
 
   <details>
     <summary>规则速查</summary>
@@ -1152,120 +1130,11 @@ document.getElementById('resetRank').addEventListener('click', () => {
 try { if (!localStorage.getItem('qc_guided')) openGuide(); } catch (e) {}
 start();
 
-// 返回上一步：优先浏览器历史；如果是直接打开的（没有上一页），就回站点的游戏主页
+// 返回上一步
 document.getElementById('backBtn').addEventListener('click', () => {
-  if (window.history.length > 1 && document.referrer) {
-    window.history.back();
-  } else {
-    window.location.href = '/#/games';
-  }
+  if (window.history.length > 1 && document.referrer) { window.history.back(); }
+  else { window.location.href = '/#/games'; }
 });
-
-/* ==== 段位接后端 ==== */
-/* 服务端有段位就以服务端为准；接口不可用（未登录 / 离线 / 还没部署）就退回本地存的那份，
-   这样游戏任何时候都能玩，不会因为接口挂了卡住。 */
-async function fetchRank() {
-  try {
-    const r = await fetch('/api/games/rank', { headers: { 'accept': 'application/json' }, cache: 'no-store' });
-    if (!r.ok) return null;
-    const d = await r.json();
-    if (!d || typeof d.rating !== 'number') return null;
-    return d;
-  } catch (e) { return null; }
-}
-async function pushRank(kind, rounds, oppPts) {
-  try {
-    const r = await fetch('/api/games/rank', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ result: kind, rounds: rounds, oppPts: oppPts })
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    return (d && typeof d.rating === 'number') ? d : null;
-  } catch (e) { return null; }
-}
-
-// 用服务端返回的段位覆盖本地，并刷新顶栏与弹层
-function applyServerRank(d, beforeRating) {
-  if (!d) return;
-  RANK.rating = d.rating;
-  if (typeof d.wins === 'number') RANK.wins = d.wins;
-  if (typeof d.losses === 'number') RANK.losses = d.losses;
-  saveRank(RANK);
-  paintRank();
-  const box = document.getElementById('ovRank');
-  if (box) {
-    const delta = d.rating - beforeRating;
-    const up = (typeof d.tier === 'string' && d.tier !== tierOf(beforeRating).name) ? '　→ ' + d.tier + ' · 对手变强了' : '';
-    box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分' + up;
-  }
-}
-
-// 包一层：先按本地规则结算（保证界面立刻有反馈），再用服务端结果校正
-const _applyRankLocal = applyRank;
-applyRank = function (result) {
-  const beforeRating = RANK.rating;
-  _applyRankLocal(result);
-  const kind = result === 'me' ? 'win' : (result === 'ai' ? 'loss' : null);
-  if (!kind) return;
-  const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
-  pushRank(kind, g.round, oppPts).then((d) => applyServerRank(d, beforeRating));
-};
-
-// 中途放弃：也告诉服务端（前端已经按规则扣过本地分，服务端再记一次会重复吗？
-// —— 不会：服务端以它自己的 rating 为准并返回，最后覆盖本地，所以不会叠加）
-const _doRestartLocal = doRestart;
-doRestart = function () {
-  if (STARTED && !g.over) {
-    const ok = window.confirm('这局还没打完，放弃会扣 8 分。确定要重开吗？');
-    if (!ok) return;
-    const beforeRating = RANK.rating;
-    RANK.rating = Math.max(0, RANK.rating - 8);
-    RANK.losses++;
-    saveRank(RANK); paintRank();
-    pushRank('abandon', g.round, 0).then((d) => applyServerRank(d, beforeRating));
-    start();
-    return;
-  }
-  start();
-};
-
-// 打开页面就先问一次服务端段位（拿到就用它定 AI 难度）
-fetchRank().then((d) => {
-  if (!d) return;
-  RANK.rating = d.rating; RANK.wins = d.wins || 0; RANK.losses = d.losses || 0;
-  saveRank(RANK); paintRank();
-});
-
-/* ==== 段位榜 ==== */
-async function loadRankBoard() {
-  const box = document.getElementById('rankBoard');
-  if (!box) return;
-  try {
-    const r = await fetch('/api/games/rank/tops', { headers: { accept: 'application/json' }, cache: 'no-store' });
-    if (!r.ok) throw new Error('http ' + r.status);
-    const d = await r.json();
-    const tops = (d && d.tops) || [];
-    if (!tops.length) {
-      box.innerHTML = '<li class="rank-empty">还没有人上榜，来当第一个店长</li>';
-      return;
-    }
-    const medal = ['👑', '②', '③', '④', '⑤'];
-    box.innerHTML = tops.map((x, i) => {
-      const me = (x.username === (window.__qcName || ''));
-      return '<li' + (me ? ' class="me"' : '') + '>'
-        + '<span class="rk">' + (medal[i] || (i + 1)) + '</span>'
-        + '<span class="nm">' + String(x.username || '匿名').replace(/[<>&]/g, '') + '</span>'
-        + '<span class="tr">' + String(x.tier || '') + '</span>'
-        + '<span class="sc">' + (x.rating || 0) + '</span>'
-        + '</li>';
-    }).join('');
-  } catch (e) {
-    box.innerHTML = '<li class="rank-empty">段位榜暂时取不到</li>';
-  }
-}
-loadRankBoard();
 </script>
 </body>
 </html>
