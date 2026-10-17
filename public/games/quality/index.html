@@ -697,28 +697,40 @@
   }
 </style>
 <style>
-  .back-bar{ position:fixed; left:12px; top:12px; z-index:60 }
-  #backBtn{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center;
-    font-size:19px; line-height:1; padding:0; background:rgba(0,0,0,.42);
-    color:var(--gold, #e8cf9a); border:1px solid rgba(232,207,154,.45);
-    box-shadow:0 6px 16px -10px rgba(0,0,0,.9); cursor:pointer; font-family:inherit }
+  /* 返回上一步：左上角一个圆形箭头，不占游戏版面 */
+  .back-bar{
+    position:fixed; left:12px; top:12px; z-index:60;
+  }
+  #backBtn{
+    width:40px; height:40px; border-radius:50%;
+    display:grid; place-items:center; font-size:19px; line-height:1; padding:0;
+    background:rgba(0,0,0,.42); color:var(--gold, #e8cf9a);
+    border:1px solid rgba(232,207,154,.45);
+    box-shadow:0 6px 16px -10px rgba(0,0,0,.9);
+    cursor:pointer; font-family:inherit;
+  }
   #backBtn:active{ transform:scale(.94) }
   @media (min-width:760px){ .back-bar{ left:18px; top:18px } #backBtn{ width:44px; height:44px; font-size:21px } }
+  /* 为左上角的按钮让出一点空间，避免压住标题 */
   .wrap{ padding-top:56px }
   @media (min-width:760px){ .wrap{ padding-top:64px } }
 </style>
 <style>
-  /* 页面宽度：回到你之前觉得舒服的那档（桌面 1000 / 宽屏 1180），两侧留出边距 */
-  .wrap{ max-width:520px !important; padding-left:14px !important; padding-right:14px !important }
-  @media (min-width:760px){ .wrap{ max-width:1000px !important; padding-left:28px !important; padding-right:28px !important } }
-  @media (min-width:1100px){ .wrap{ max-width:1180px !important; padding-left:36px !important; padding-right:36px !important } }
-  body{ padding-left:0; padding-right:0 }
+  .rank-board{ list-style:none; margin:0; padding:2px 0 10px; font-size:12.5px }
+  .rank-board li{ display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px dashed rgba(255,255,255,.08) }
+  .rank-board li:last-child{ border-bottom:0 }
+  .rank-board .rk{ width:18px; text-align:center; flex:0 0 18px; font-size:13px }
+  .rank-board .nm{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink2) }
+  .rank-board .tr{ flex:0 0 auto; font-size:11px; color:var(--gold); letter-spacing:.08em;
+                   border:1px solid rgba(232,207,154,.4); border-radius:6px; padding:0 6px }
+  .rank-board .sc{ flex:0 0 auto; font-variant-numeric:tabular-nums; color:var(--ink3); font-size:11.5px }
+  .rank-board li.rank-empty{ color:var(--ink3); justify-content:center; border:0 }
+  .rank-board li.me .nm{ color:var(--gold) }
 </style>
 </head>
 <body>
-
 <div class="back-bar"><button id="backBtn" title="回到上一步" aria-label="回到上一步">←</button></div>
-<div class=`"wrap`">
+<div class="wrap">
   <div class="top">
     <b id="gameTitle">幻梦牌</b>
     <div style="text-align:right;line-height:1.35;margin-right:8px">
@@ -768,17 +780,19 @@
     <button class="ghost" id="restart">重开</button>
   </div>
 
+
   <details>
     <summary>战况 · 未现身的牌 · 日志</summary>
     <div class="tags" id="pool"></div>
     <div class="log" id="log"></div>
   </details>
 
+
   <details>
     <summary>规则速查</summary>
     <div class="rule">
     <div style="margin-top:10px"><a href="javascript:void 0" id="viewGuide" style="color:var(--gold);font-size:12px">再看一次新手引导 →</a></div>
-    <div style="margin-top:6px"><a href="javascript:void 0" id="resetRank" style="display:none" style="color:var(--ink3);font-size:12px">（实验室）重置段位与难度 →</a></div>
+    <div style="margin-top:6px"><a href="javascript:void 0" id="resetRank" style="display:none" style="display:none" style="color:var(--ink3);font-size:12px">（实验室）重置段位与难度 →</a></div>
       · 32 张特殊牌 = 8 类 ×（2 普 + 1 金 + 1 彩）；双方各 1 张空白（0 点、不占上限、永不被夺）。<br>
       · 每回合双方各出 2 张，点数相加比大小；<b>赢家夺走对手的特殊牌</b>（空白不夺）。<br>
       · <b>冷却</b>：本回合出过和赢下的特殊牌 —— 普 0 / 金锁 1 回合 / 彩锁 2 回合。<br>
@@ -809,6 +823,6 @@
   </div>
 </div>
 
-<script src="./game.js" defer></script>
+<script src="./game.js"></script>
 </body>
 </html>
