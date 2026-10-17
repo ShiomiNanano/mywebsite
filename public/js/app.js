@@ -201,6 +201,8 @@ const App = {
          依赖 hashchange 有两个风险：① 监听器是 init() 里 await 之后才挂的，
          太早点会没反应；② 地址已经是 #/login 时再点，hash 没变、事件不触发。
          所以这里拦住默认跳转，自己显式改地址并走一次路由。 */
+      const wb = e.target.closest && e.target.closest('[data-wikiback]');
+      if (wb) { try { sessionStorage.removeItem('daydream-wiki-back'); } catch (err) {} }
       const toLogin = e.target.closest && e.target.closest('a[href="#/login"]');
       if (toLogin) {
         e.preventDefault();
@@ -1424,6 +1426,10 @@ const App = {
       return '';
     }
     if (String(rec.hash) === String(location.hash || '')) return '';
+    /* 只显示一次：读者看到胶囊、或者自己翻到别的文章之后，这条出处就作废。
+       否则回到原文再点「上一篇/下一篇」，换一篇又会冒出这个胶囊（店长报的 bug）。 */
+    if (rec.shown) return '';
+    try { rec.shown = true; sessionStorage.setItem('daydream-wiki-back', JSON.stringify(rec)); } catch (e) {}
     return `<p class="wiki-back"><a href="${esc(rec.hash)}" data-wikiback="1">← 回到《${esc(rec.title || '原文')}》</a></p>`;
   },
   async renderRead(id) {
