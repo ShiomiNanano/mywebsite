@@ -118,6 +118,16 @@ const App = {
   pageTitle: DEFAULT_TITLE,
 
   async init() {
+    /* 路由监听必须在任何 await 之前挂上 ——
+       否则 init() 还在等 /api/me 与 /api/config 的那一两秒里，
+       用户点到「登录」只会把地址改成 #/login，却没有任何代码响应，
+       画面就一直停在封面（地址对、内容旧）。店长报的就是这个。 */
+    window.addEventListener('hashchange', () => {
+      if (this.game && this.game.timer) { clearInterval(this.game.timer); this.game = null; }
+      this.cancelCoverTimer();
+      this.route();
+    });
+
     // 主题固定为「夜读」，已由 js/theme-boot.js 在首屏绘制前设好；这里只是兜底
     if (!document.documentElement.getAttribute('data-theme')) {
       document.documentElement.setAttribute('data-theme', 'night');
@@ -143,10 +153,6 @@ const App = {
     this.state.user = (me && me.user) || null;
     this.state.config = { turnstile_site_key: (cfg && cfg.turnstile_site_key) || '' };
 
-    window.addEventListener('hashchange', () => {
-      if (this.game && this.game.timer) { clearInterval(this.game.timer); this.game = null; }
-      this.route();
-    });
     /* 留言板的按钮用事件委派统一处理 —— 这样不必去猜各页面各自的绑定函数叫什么。
        黑板编辑只对管理员可见，后端 PUT /api/admin/board 也会再校验一次权限。 */
     /* 游戏页的点击：翻牌与重开。单独一个委派，不去动留言板那一个。 */
@@ -188,6 +194,18 @@ const App = {
       if (av) {
         const ed = document.getElementById('avatarEditor');
         if (ed) { ed.hidden = !ed.hidden; av.textContent = ed.hidden ? '更换头像' : '收起'; }
+        return;
+      }
+      /* 登录入口的兜底导航 ——
+         症状：点右上角「登录」或导航栏「我的」时没进登录页。
+         依赖 hashchange 有两个风险：① 监听器是 init() 里 await 之后才挂的，
+         太早点会没反应；② 地址已经是 #/login 时再点，hash 没变、事件不触发。
+         所以这里拦住默认跳转，自己显式改地址并走一次路由。 */
+      const toLogin = e.target.closest && e.target.closest('a[href="#/login"]');
+      if (toLogin) {
+        e.preventDefault();
+        try { if (location.hash !== '#/login') location.hash = '#/login'; } catch (err) {}
+        this.route();
         return;
       }
       const st = e.target.closest && e.target.closest('.set-tab');
@@ -336,7 +354,12 @@ const App = {
     if (a) a.comment_count = Math.max(0, (a.comment_count || 0) + d);
   },
 
+  // 取消封面那个"翻完再跳"的定时器（任何导航都该把它作废）
+  cancelCoverTimer() {
+    if (this._coverTimer) { clearTimeout(this._coverTimer); this._coverTimer = null; }
+  },
   async route() {
+    this.cancelCoverTimer();   // 换了页面，封面那个延时跳转立刻作废（否则会顶掉登录页）
     const hash = location.hash.replace(/^#/, '') || '/';
     const parts = hash.split('/').filter(Boolean);
     // 需要加载数据的页面，先显示骨架屏
@@ -351,7 +374,6 @@ const App = {
       if (parts.length === 0) view = this.renderLanding();
       else if (parts[0] === 'login') view = this.renderLogin();
       else if (parts[0] === 'menu') view = await this.renderMenu();
-    if (parts[0] === 'menu') { try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e) {} }
       else if (parts[0] === 'main') view = parts.length >= 2
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
       else if (parts[0] === 'personal') view = await this.renderPersonal();
@@ -559,6 +581,7 @@ const App = {
 
   /* ---------- 2. 登录 / 注册 ---------- */
   renderLogin() {
+
     if (this.state.user) { location.hash = '#/menu'; return ''; }
     const siteKey = (this.state.config && this.state.config.turnstile_site_key) || '';
     return `
@@ -601,6 +624,7 @@ const App = {
 
   /* ---------- 3. 书架（三大入口 + 与柒乃聊聊） ---------- */
   async renderMenu() {
+    try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e) {}   // 回到书架时清掉互链出处
     const m = await this.ensureMenu();
     const u = this.state.user;
     // 第一次来先静默记下当前进度（不弹 New!），之后靠时间戳比较决定要不要提示
@@ -730,7 +754,7 @@ const App = {
      计分与记忆翻牌同一套：1000 − 次数×20 − 秒数×3，下限 100。 */
   async renderNumber() {
     const u = this.state.user;
-    if (!u) { location.hash = '#/login'; return ''; }
+    if (!u) { location.hash = '#/login'; setTimeout(() => this.route(), 0); return ''; }
     this.pageTitle = '猜数字 · 白日梦咖啡馆';
     if (this.num && this.num.timer) { clearInterval(this.num.timer); }
     this.num = null;
@@ -950,7 +974,7 @@ const App = {
 
   async renderGames() {
     const u = this.state.user;
-    if (!u) { location.hash = '#/login'; return ''; }
+    if (!u) { location.hash = '#/login'; setTimeout(() => this.route(), 0); return ''; }
     this.pageTitle = '游戏 · 白日梦咖啡馆';
     let memoryTops = [], numberTops = [];
     try {
@@ -1005,7 +1029,7 @@ const App = {
 
   async renderMemory() {
     const u = this.state.user;
-    if (!u) { location.hash = '#/login'; return ''; }
+    if (!u) { location.hash = '#/login'; setTimeout(() => this.route(), 0); return ''; }
     this.pageTitle = '记忆翻牌 · 白日梦咖啡馆';
     if (this.game && this.game.timer) { clearInterval(this.game.timer); }
     this.game = null;
@@ -1209,9 +1233,9 @@ const App = {
       </section>
 
       <section class="board-notes">
-        ${data.can_post ? `
+        ${data.can_post && u ? `
         <div class="note-card note-compose">
-          <div class="note-compose-head">${this.avatarHtml(u, 36)}<span>以「${esc(u.username)}」的身份留言</span></div>
+          <div class="note-compose-head">${this.avatarHtml(u, 36)}<span>以「${esc((u && u.username) || '朋友')}」的身份留言</span></div>
           <textarea id="boardInput" rows="3" maxlength="500" placeholder="想说什么……"></textarea>
           <div class="note-compose-foot">
             <span class="hint" id="boardHint"></span>
@@ -1539,7 +1563,7 @@ const App = {
     if (!u) return `<div class="comment-login-tip">请 <a href="#/login">登录</a> 后留言。</div>`;
     return `
     <form class="comment-form" data-article="${articleId}">
-      <div class="comment-form-head">${this.avatarHtml(u, 36)}<span>以「${esc(u.username)}」的身份留言</span></div>
+      <div class="comment-form-head">${this.avatarHtml(u, 36)}<span>以「${esc((u && u.username) || '朋友')}」的身份留言</span></div>
       <textarea name="content" placeholder="写下你的感受……" rows="3" maxlength="2000" required></textarea>
       <div class="comment-form-foot"><button class="btn btn-small btn-primary" type="submit">发布留言</button></div>
     </form>`;
@@ -1554,7 +1578,7 @@ const App = {
      成绩来自现成的两个榜接口（只有前五），取不到就写「暂无」。 */
   async renderProfile() {
     const u = this.state.user;
-    if (!u) { location.hash = '#/login'; return ''; }
+    if (!u) { location.hash = '#/login'; setTimeout(() => this.route(), 0); return ''; }
     this.pageTitle = '个人中心 · 白日梦咖啡馆';
 
     let myRanks = [];
@@ -2227,7 +2251,11 @@ const App = {
         this.chime();                                          // 风铃（点书就在手势里，不会被拦）
         book.classList.add('turning');
         if (stack) stack.classList.add('turning');
-        setTimeout(() => { location.hash = '#/menu'; }, 1050);   // 等书页依次翻完
+        /* 等书页翻完再进书架。这个定时器【必须可取消】——
+           以前它是不取消的：在封面上点一下书、随即去点「登录」，
+           登录页刚要显示就被它强行改成 #/menu 顶掉了，
+           未登录用户因此进不去注册/登录页（店长报的那个严重 bug）。 */
+        this._coverTimer = setTimeout(() => { this._coverTimer = null; location.hash = '#/menu'; }, 1050);
       };
       book.onclick = openBook;
       book.onkeydown = (e) => {
