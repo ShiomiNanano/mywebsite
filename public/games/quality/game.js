@@ -591,6 +591,7 @@ document.getElementById('backBtn').addEventListener('click', () => {
 });
 
 // 返回上一步（带离开惩罚：本局已开始且未结束 → 确认后扣 8 分）
+var __qcLeaving = false;
 (function () {
   const b = document.getElementById('backBtn');
   if (!b) return;
@@ -602,6 +603,7 @@ document.getElementById('backBtn').addEventListener('click', () => {
       RANK.losses++;
       saveRank(RANK); paintRank();
     }
+      __qcLeaving = true;
     if (window.history.length > 1 && document.referrer) window.history.back();
     else window.location.href = '/#/games';
   });
@@ -613,6 +615,7 @@ document.getElementById('backBtn').addEventListener('click', () => {
    · 关标签页 / 杀进程时事件可能不发 ✗ —— 这就是我们保留的灰色地带 ✓ */
 (function () {
   window.addEventListener('beforeunload', (e) => {
+    if (__qcLeaving) return;   // 我们自己点「←」走的，已经扣过分了，不再弹浏览器提示 ✓
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       e.preventDefault();
       e.returnValue = '';
@@ -620,6 +623,7 @@ document.getElementById('backBtn').addEventListener('click', () => {
     }
   });
   window.addEventListener('pagehide', () => {
+    if (__qcLeaving) return;   // 返回按钮已经扣过，避免重复扣 ✓
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       try {
         RANK.rating = Math.max(0, RANK.rating - 8);
