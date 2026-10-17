@@ -526,11 +526,25 @@ const App = {
   },
 
   // 有预热就先用（并消耗掉），没有就正常请求
+  /* 取数据：预取优先 → 25 秒短时缓存 → 都没有才联网。
+     为什么要缓存：来回切页签每次都会重新联网，一次要一秒多（店长反馈的卡顿）。
+     为什么只缓存游戏榜与「我的」：留言板写入最频繁，缓存它会出现"刚贴的便签看不到"，
+     所以留言板那条路径不缓存（下面白名单里没有它）。
+     游戏榜在"玩完一局 / 管理员清榜"时会 clearCache() 立刻作废，不会出现分数对不上。 */
   getCached(url) {
     const box = this._pre && this._pre[url];
     if (box && Date.now() - box.at < 120000) { delete this._pre[url]; return Promise.resolve(box.data); }
-    return API.get(url);
+    const canCache = String(url).indexOf('/api/games/scores') === 0;
+    const hit = canCache && this._cache && this._cache[url];
+    if (hit && Date.now() - hit.at < 25000) return Promise.resolve(hit.data);
+    return API.get(url).then((d) => {
+      if (canCache) { this._cache = this._cache || {}; this._cache[url] = { at: Date.now(), data: d }; }
+      return d;
+    });
   },
+
+  // 数据变了（玩完一局、清榜）就把短时缓存整锅倒掉
+  clearCache() { this._cache = {}; },
   async ensureMenu(force) {
     if (force || !this.state.menu) {
       const m = await API.get('/api/menu');
@@ -931,6 +945,7 @@ const App = {
 
   // 管理员清榜：清完把当前页的榜也刷成空的
   async clearRank(game) {
+    this.clearCache();   // 分数变了，短时缓存立刻作废
     try {
       const r = await API.del('/api/admin/games/scores?game=' + encodeURIComponent(game));
       const gone = (r && r.removed) || 0;
@@ -949,6 +964,7 @@ const App = {
     }
   },
   async finishNumber() {
+    this.clearCache();   // 分数变了，短时缓存立刻作废
     const g = this.num;
     if (!g || g.over) return;
     g.over = true;
@@ -1172,6 +1188,7 @@ const App = {
   },
 
   async finishMemory() {
+    this.clearCache();   // 分数变了，短时缓存立刻作废
     const g = this.game;
     if (!g || g.over) return;
     g.over = true;
