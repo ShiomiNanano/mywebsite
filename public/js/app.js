@@ -1001,6 +1001,18 @@ const App = {
       const r2 = await this.getCached('/api/games/scores?game=number');
       numberTops = (r2 && r2.tops) || [];
     } catch (e) { numberTops = []; }
+    // 幻梦牌的段位榜：let 必须在 try 之外（try 里是块级作用域 ✗）
+    let rankTops = [];
+    try {
+      window.__rankDbg = "fetch 开始";
+      const res3 = await fetch('/api/games/rank/tops', { headers: { accept: 'application/json' }, cache: 'no-store' });
+      window.__rankDbg = "HTTP " + res3.status;
+      if (res3.ok) {
+        const data3 = await res3.json();
+        rankTops = (data3 && data3.tops) || [];
+        window.__rankDbg = "HTTP " + res3.status + "，拿到 " + rankTops.length + " 条";
+      }
+    } catch (e) { rankTops = []; window.__rankDbg = "异常：" + e.message; }
     return `
     <div class="page game-page">
       ${this.topbar()}
@@ -1010,21 +1022,22 @@ const App = {
       </div>
 
       <section class="game-hub">
+        <a class="hub-card hub-main" href="/games/quality/">
+        <h2 class="hub-title-art"><span class="hub-emoji">🂡</span><span class="hub-title-text">幻梦牌</span><span class="hub-tag hub-tag-main">主推</span></h2>
+        <p>8 类品质牌的双人博弈：每回合各出两张，点数相加比大小，赢家夺走对手的牌。强牌用过要冷却，段位越高对手越难。</p>
+        ${this.rankTop3(rankTops)}
+        </a>
         <a class="hub-card" href="#/games/memory">
-          <div class="hub-top">
             <span class="hub-ico">☕❧🐈</span>
             <span class="hub-tag">可玩</span>
-          </div>
           <h2>记忆翻牌</h2>
           <p>翻开两张一样的牌，八对全配对。步数越少、越快，分数越高。</p>
           ${this.hubRank(memoryTops)}
         </a>
 
         <a class="hub-card" href="#/games/number">
-          <div class="hub-top">
             <span class="hub-ico">1 2 3</span>
             <span class="hub-tag">可玩</span>
-          </div>
           <h2>猜数字</h2>
           <p>连着三个 1~100 的数，猜中一个再猜下一个。蒙中一个不算本事，三个都中才算。</p>
           ${this.hubRank(numberTops)}
@@ -1040,6 +1053,17 @@ const App = {
     const medal = ['👑', '②', '③'];
     return '<ol class="hub-rank">' + tops.slice(0, 3).map((x, i) =>
       `<li><span>${medal[i]}</span><span class="hub-rank-name">${esc(x.username)}</span><b>${Number(x.score) || 0}</b></li>`
+    ).join('') + '</ol>';
+  },
+  // 主推卡里的段位榜（前三，按段位分）
+  rankTop3(tops) {
+    if (!tops || !tops.length) return '<p class="hub-rank-empty">段位榜还空着，来当第一个</p>';
+    const medal = ['👑', '②', '③'];
+    return '<ol class="hub-rank hub-rank-tier">' + tops.slice(0, 3).map((x, i) =>
+      '<li><span class="hub-medal">' + medal[i] + '</span>'
+      + '<span class="hub-who">' + esc(x.username || '匿名') + '</span>'
+      + '<span class="hub-tier">' + esc(x.tier || '') + '</span>'
+      + '<span class="hub-score">' + (x.rating || 0) + '</span></li>'
     ).join('') + '</ol>';
   },
 

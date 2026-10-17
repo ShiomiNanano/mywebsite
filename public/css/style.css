@@ -2227,7 +2227,7 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 
 /* 四种字体颜色：偏柔和的色值，深色纸上不刺眼 */
 .reading-content .t-red, .reading-content .t-red * { color: var(--tint-red, #e89a9a); }
-.reading-content .t-yellow, .reading-content .t-yellow * { color: var(--tint-yellow, #e8cf9a); }
+.reading-content .t-yellow, .reading-content .t-yellow * { color: var(--tint-yellow, var(--gold, #e8cf9a)); }
 .reading-content .t-blue, .reading-content .t-blue * { color: var(--tint-blue, #9ac4e8); }
 .reading-content .t-green, .reading-content .t-green * { color: var(--tint-green, #9ad8b0); }
 
@@ -2238,7 +2238,7 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   width: 8px; height: 8px; border-radius: 50%;
 }
 .et-color.c-red::before { background: var(--tint-red, #e89a9a); }
-.et-color.c-yellow::before { background: var(--tint-yellow, #e8cf9a); }
+.et-color.c-yellow::before { background: var(--tint-yellow, var(--gold, #e8cf9a)); }
 .et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
 .et-color.c-green::before { background: var(--tint-green, #9ad8b0); }
 
@@ -2639,7 +2639,7 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   font-family: var(--font-body); font-size: var(--fs-sm); letter-spacing: .14em;
 }
 .num-hint.is-low { color: var(--tint-blue, #9ac4e8); }
-.num-hint.is-high { color: var(--tint-yellow, #e8cf9a); }
+.num-hint.is-high { color: var(--tint-yellow, var(--gold, #e8cf9a)); }
 .num-hint.is-hit { color: var(--tint-green, #9ad8b0); }
 
 .num-panel { justify-content: center; }
@@ -2672,7 +2672,7 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   opacity: .75;
 }
 .num-chip.is-low { color: var(--tint-blue, #9ac4e8); }
-.num-chip.is-high { color: var(--tint-yellow, #e8cf9a); }
+.num-chip.is-high { color: var(--tint-yellow, var(--gold, #e8cf9a)); }
 .num-chip.is-hit { color: var(--tint-green, #9ad8b0); border-color: var(--tint-green, #9ad8b0); opacity: 1; }
 .num-log { text-align: center; }
 
@@ -2778,8 +2778,8 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 /* 五类各一色 */
 .set-card[data-type="地点"] .set-dot { background: var(--tint-green, #9ad8b0); box-shadow: 0 0 9px -1px var(--tint-green, #9ad8b0), 0 0 0 3px color-mix(in srgb, var(--tint-green, #9ad8b0) 18%, transparent); }
 .set-card[data-type="地点"] { border-color: color-mix(in srgb, var(--tint-green, #9ad8b0) 55%, var(--line)); }
-.set-card[data-type="人物"] .set-dot { background: var(--tint-yellow, #e8cf9a); box-shadow: 0 0 9px -1px var(--tint-yellow, #e8cf9a), 0 0 0 3px color-mix(in srgb, var(--tint-yellow, #e8cf9a) 18%, transparent); }
-.set-card[data-type="人物"] { border-color: color-mix(in srgb, var(--tint-yellow, #e8cf9a) 55%, var(--line)); }
+.set-card[data-type="人物"] .set-dot { background: var(--tint-yellow, var(--gold, #e8cf9a)); box-shadow: 0 0 9px -1px var(--tint-yellow, var(--gold, #e8cf9a)), 0 0 0 3px color-mix(in srgb, var(--tint-yellow, var(--gold, #e8cf9a)) 18%, transparent); }
+.set-card[data-type="人物"] { border-color: color-mix(in srgb, var(--tint-yellow, var(--gold, #e8cf9a)) 55%, var(--line)); }
 .set-card[data-type="组织"] .set-dot { background: var(--tint-blue, #9ac4e8); box-shadow: 0 0 9px -1px var(--tint-blue, #9ac4e8), 0 0 0 3px color-mix(in srgb, var(--tint-blue, #9ac4e8) 18%, transparent); }
 .set-card[data-type="组织"] { border-color: color-mix(in srgb, var(--tint-blue, #9ac4e8) 55%, var(--line)); }
 .set-card[data-type="名词"] .set-dot { background: var(--tint-red, #e89a9a); box-shadow: 0 0 9px -1px var(--tint-red, #e89a9a), 0 0 0 3px color-mix(in srgb, var(--tint-red, #e89a9a) 18%, transparent); }
@@ -2788,7 +2788,7 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 
 /* 分组标题也带上同类颜色，和下面的方块呼应 */
 .setting-group[data-group="地点"] .set-group-title { color: var(--tint-green, #9ad8b0); }
-.setting-group[data-group="人物"] .set-group-title { color: var(--tint-yellow, #e8cf9a); }
+.setting-group[data-group="人物"] .set-group-title { color: var(--tint-yellow, var(--gold, #e8cf9a)); }
 .setting-group[data-group="组织"] .set-group-title { color: var(--tint-blue, #9ac4e8); }
 .setting-group[data-group="名词"] .set-group-title { color: var(--tint-red, #e89a9a); }
 
@@ -3073,3 +3073,110 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
 .reading-content b { font-weight: 700; letter-spacing: .01em; }
 /* 印刷体在浅底/深底上都偏细，350 若不被支持会自动落到 400，仍与 700 有区别 */
 
+
+/* ===== 游戏页：主推卡（幻梦牌）===== */
+.hub-card.hub-main {
+  border-color: rgba(232, 207, 154, .5);
+  background:
+    linear-gradient(180deg, rgba(232, 207, 154, .07), rgba(232, 207, 154, .02)),
+    var(--surface, #13212c);
+}
+.hub-card.hub-main .hub-tag-main {
+  color: var(--ink-on-gold, #2a1e07);
+  background: linear-gradient(180deg, var(--gold-2, #f0d9a4), var(--gold-3, #d8b271));
+  border-color: transparent;
+  font-weight: 600;
+}
+/* 主推卡占满一整行（不管容器是 grid 还是 flex 都能撑满） */
+.hub-card.hub-main {
+  grid-column: 1 / -1;
+  flex: 1 0 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+/* 主推卡标题：与游戏内左上角一致的烫金艺术字 */
+.hub-card.hub-main h2.hub-title-art {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: .2em;
+  font-family: "Noto Serif SC", "Songti SC", serif;
+  font-size: 23px;
+  font-weight: 400;
+}
+.hub-title-art .hub-emoji {
+  font-size: 22px;
+  line-height: 1;
+  /* emoji 不参与渐变裁切，否则会变透明 */
+  -webkit-text-fill-color: initial;
+  color: var(--gold, #e8cf9a);
+  filter: drop-shadow(0 0 8px rgba(232, 207, 154, .35));
+}
+.hub-title-art .hub-title-text {
+  background: linear-gradient(180deg, var(--gold-1, #fff4d0) 0%, var(--gold, #e8cf9a) 42%, var(--gold-4, #b98f45) 78%, var(--gold-5, #f2ddab) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .5)) drop-shadow(0 0 12px rgba(232, 207, 154, .3));
+}
+@media (min-width: 760px) {
+  .hub-card.hub-main h2.hub-title-art { font-size: 27px }
+  .hub-title-art .hub-emoji { font-size: 26px }
+}
+/* 主推标签靠右 */
+.hub-card.hub-main h2.hub-title-art { width: 100%; }
+.hub-card.hub-main h2.hub-title-art .hub-tag-main {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+/* 主推卡里的段位榜（前三）—— 与 hub-rank 同族，略作差异化 */
+.hub-rank-tier {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.hub-rank-tier li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, .08);
+}
+.hub-rank-tier li:last-child { border-bottom: 0; }
+
+.hub-rank-tier .hub-medal {
+  flex: 0 0 18px;
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.hub-rank-tier .hub-who {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink, #eaf1f7);
+  font-size: 12.5px;
+}
+
+.hub-rank-tier .hub-tier {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  color: var(--gold, #e8cf9a);
+  border: 1px solid var(--gold, #e8cf9a);
+  border-color: color-mix(in srgb, var(--gold, #e8cf9a) 40%, transparent);
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+.hub-rank-tier .hub-score {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--ink-3, #6d8496);
+  font-variant-numeric: tabular-nums;
+}

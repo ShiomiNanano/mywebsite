@@ -322,6 +322,10 @@ async function ensureSchema(env) {
       'CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY AUTOINCREMENT, game TEXT NOT NULL, user_id INTEGER, username TEXT, score INTEGER NOT NULL, created_at TEXT)'
     ).run();
     await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_scores_game ON scores (game, score DESC)').run();
+    /* 幻梦牌的段位：每人一行，服务端保存（跨设备）。rating 是段位分。 */
+    await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS game_rank (game TEXT NOT NULL, user_id INTEGER NOT NULL, username TEXT, rating INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (game, user_id))'
+    ).run();
   } catch (e) {}
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
@@ -668,6 +672,67 @@ export async function onRequest(context) {
       return json({ ok: true, best: (mine && mine.best) || score, tops: (rows && rows.results) || [] });
     }
 
+    /* ===== 幻梦牌 · 段位 =====
+       读：需登录（返回自己的段位）
+       写：需登录，服务端自己算涨幅（不信客户端传来的分数）
+       榜：公开，按段位分前五
+       段位阶梯与前端一致：学徒 0 / 侍者 800 / 咖啡师 1200 / 常客 1600 / 店长 2000 */
+    const RANK_GAME = 'quality';
+    function rankTier(rating) {
+      if (rating >= 2000) return '店长';
+      if (rating >= 1600) return '常客';
+      if (rating >= 1200) return '咖啡师';
+      if (rating >= 800) return '侍者';
+      return '学徒';
+    }
+    async function readRank(env, userId) {
+      const row = await env.DB.prepare(
+        'SELECT rating, wins, losses FROM game_rank WHERE game=? AND user_id=?'
+      ).bind(RANK_GAME, userId).first();
+      const rating = (row && row.rating) || 0;
+      return { rating, tier: rankTier(rating), wins: (row && row.wins) || 0, losses: (row && row.losses) || 0 };
+    }
+    if (method === 'GET' && path === '/games/rank') {
+      if (!user) return json({ error: '登录后才能查看段位' }, 401);
+      const me = await readRank(env, user.id);
+      return json({ game: RANK_GAME, ...me });
+    }
+    if (method === 'POST' && path === '/games/rank') {
+      if (!user) return json({ error: '登录后才能记录段位' }, 401);
+      const body = await readBody(request);
+      const result = String(body.result || '').slice(0, 12);
+      const rounds = Math.max(0, Math.min(999, Math.floor(Number(body.rounds) || 0)));
+      const oppPts = Math.max(0, Math.min(999, Math.floor(Number(body.oppPts) || 0)));
+      const cur = await readRank(env, user.id);
+      let rating = cur.rating;
+      let wins = cur.wins;
+      let losses = cur.losses;
+      let delta = 0;
+      if (result === 'win') {
+        // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~40
+        delta = Math.max(5, Math.min(40, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
+        rating += delta;
+        wins += 1;
+      } else if (result === 'loss' || result === 'abandon') {
+        delta = -8;
+        rating = Math.max(0, rating - 8);
+        losses += 1;
+      } else {
+        return json({ error: '结果不合法' }, 400);
+      }
+      await env.DB.prepare(
+        'INSERT INTO game_rank (game, user_id, username, rating, wins, losses, updated_at) VALUES (?,?,?,?,?,?,?) ' +
+        'ON CONFLICT(game, user_id) DO UPDATE SET username=excluded.username, rating=excluded.rating, wins=excluded.wins, losses=excluded.losses, updated_at=excluded.updated_at'
+      ).bind(RANK_GAME, user.id, user.username, rating, wins, losses, nowStr()).run();
+      return json({ ok: true, delta, rating, tier: rankTier(rating), wins, losses });
+    }
+    if (method === 'GET' && path === '/games/rank/tops') {
+      const rows = await env.DB.prepare(
+        'SELECT username, rating FROM game_rank WHERE game=? ORDER BY rating DESC, updated_at ASC LIMIT 5'
+      ).bind(RANK_GAME).all();
+      const tops = ((rows && rows.results) || []).map((x) => ({ username: x.username, rating: x.rating, tier: rankTier(x.rating) }));
+      return jsonPublic({ game: RANK_GAME, tops }, 10);
+    }
     if (method === 'GET' && path === '/board') {
       const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10) || 20, 1), 50);
       const before = parseInt(url.searchParams.get('before') || '', 10);
