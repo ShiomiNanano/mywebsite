@@ -174,7 +174,7 @@ const App = {
           if (m) {
             const art = (this.state.readArticle && String(this.state.readArticle.id) === m[1]) ? this.state.readArticle : null;
             const title = art ? (art.title || art.section_title || '原文') : '原文';
-            sessionStorage.setItem('daydream-wiki-back', JSON.stringify({ hash: cur, title: title, ts: Date.now() }));
+            sessionStorage.setItem('daydream-wiki-back', JSON.stringify({ hash: cur, title: title, ts: Date.now(), y: window.scrollY }));
           }
         } catch (e) { /* 存不了就算了，不影响跳转 */ }
       }
@@ -202,7 +202,8 @@ const App = {
          太早点会没反应；② 地址已经是 #/login 时再点，hash 没变、事件不触发。
          所以这里拦住默认跳转，自己显式改地址并走一次路由。 */
       const wb = e.target.closest && e.target.closest('[data-wikiback]');
-      if (wb) { try { sessionStorage.removeItem('daydream-wiki-back'); } catch (err) {} }
+      /* 注意：这里【不能】删记录 —— afterRender 还要用它还原滚动位置。
+         记录由还原那一步用完再删。 */
       const toLogin = e.target.closest && e.target.closest('a[href="#/login"]');
       if (toLogin) {
         e.preventDefault();
@@ -2244,6 +2245,18 @@ const App = {
 
   /* ---------- 事件绑定 ---------- */
   afterRender() {
+    /* 从互链跳走再点「回到原文」回来时，还原当时的滚动位置 ——
+       否则读者会被弹回文章开头，还得自己往下找刚才读到哪 ✗。
+       只在"回来的正是当初那篇文章"时生效一次，不影响正常翻页。 */
+    try {
+      const rec = JSON.parse(sessionStorage.getItem('daydream-wiki-back') || 'null');
+      if (rec && rec.hash && rec.y > 0 && !rec.restored && String(rec.hash) === String(location.hash || '')) {
+        rec.restored = true;
+        sessionStorage.setItem('daydream-wiki-back', JSON.stringify(rec));
+        requestAnimationFrame(() => { window.scrollTo(0, rec.y); });
+        try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e2) {}   // 用过就删
+      }
+    } catch (e) {}
     // 整本书都能点（原来的「翻开这本书」按钮已去掉）。
     // 去掉可见按钮后，键盘和读屏用户会打不开 —— 所以补 role=button + tabindex + 回车/空格
     const book = document.getElementById('bookCover');
