@@ -315,6 +315,8 @@ async function ensureSchema(env) {
   /* 设定篇的标签：类型复用 chapter_title（设定类文章本来不用章标题），
      标签另开一列，逗号分隔。老库自动补列。 */
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN tags TEXT').run(); } catch (e) {}
+  /* 设定的公开性：0 = 公开，1 = 锁定。锁定的设定在列表里只露名字，读不到正文。 */
+  try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN locked INTEGER').run(); } catch (e) {}
 
   /* 小游戏的分数表：一款游戏一个榜，取每个用户的最高分排前五 */
   try {
@@ -549,7 +551,7 @@ export async function onRequest(context) {
       // 否则每次打开书架都要下载整本小说。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
         a.section_no, a.section_title, a.title, a.created_at,
-        substr(a.content, 1, 400) AS head, a.summary, a.tags, a.chapter_title AS setting_type,
+        substr(a.content, 1, 400) AS head, a.summary, a.tags, a.chapter_title AS setting_type, a.locked,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
       const main = [], mmap = {}, personal = [], settings = [];
@@ -565,6 +567,7 @@ export async function onRequest(context) {
           title: a.title,
           excerpt: (a.summary && String(a.summary).trim()) ? String(a.summary).trim() : makeExcerpt(a.head),
           setting_type: a.setting_type || '',
+          locked: Number(a.locked) ? 1 : 0,
           tags: a.tags || '',
           comment_count: Number(a.comment_count),
         };
@@ -583,6 +586,10 @@ export async function onRequest(context) {
     if (method === 'GET' && m) {
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(Number(m[1])).first();
       if (!a) return json({ error: '文章不存在' }, 404);
+      // 锁定的设定：只有管理员能读正文（列表里仍然只有名字 ✓）
+      if (Number(a.locked) && !(user && user.role === 'admin')) {
+        return json({ error: '这篇设定是锁定的', locked: 1 }, 403);
+      }
       // source 是作者的标记原文，只走后台接口；塞进给读者的响应会让它大一倍
       const pub = Object.assign({}, a);
       delete pub.source;
@@ -1049,7 +1056,10 @@ export async function onRequest(context) {
         if (!t) return json({ error: '标题不能为空' }, 400);
         values = [category, null, type, null, null, t, content, source, summary, tags];
       }
-      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
+      // 新增时按传入的公开性（默认公开 0）
+      const lockedNew = body.locked ? 1 : 0;
+      values.push(lockedNew);
+      const r = await env.DB.prepare('INSERT INTO articles (category, chapter_no, chapter_title, section_no, section_title, title, content, source, summary, tags, locked, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(...values, nowStr(), nowStr()).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(r.meta.last_row_id).first();
       return json(a, 201);
     }
@@ -1077,7 +1087,10 @@ export async function onRequest(context) {
         const t = String(body.title || '').trim() || old.title || '未命名';
         values = [category, null, type, null, null, t, content, source, summary, tags];
       }
-      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, tags=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
+      // 编辑时：没传就沿用原来的公开性
+      const lockedPut = body.locked == null ? (Number(old.locked) ? 1 : 0) : (body.locked ? 1 : 0);
+      values.push(lockedPut);
+      await env.DB.prepare('UPDATE articles SET category=?, chapter_no=?, chapter_title=?, section_no=?, section_title=?, title=?, content=?, source=?, summary=?, tags=?, locked=?, updated_at=? WHERE id=?').bind(...values, nowStr(), old.id).run();
       const a = await env.DB.prepare('SELECT * FROM articles WHERE id=?').bind(old.id).first();
       return json(a);
     }

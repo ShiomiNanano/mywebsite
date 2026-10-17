@@ -1356,10 +1356,19 @@ const App = {
     const types = this.settingTypes(items);
     // 设定卡片做成小方块：只留名字，不要简介 —— 一行能塞下更多，
     // 类型靠颜色区分（data-type 给 CSS 用），一眼就能看出这页有哪几类。
-    const card = (x) => `
+const card = (x) => {
+      // 锁定的设定：只给胶囊 + 名字，点不开、没有悬停文案（🔒 代替彩色光点）
+      if (Number(x.locked)) {
+        return `
+          <span class="set-card locked" data-type="locked" aria-disabled="true">
+            <span class="set-lock">🔒</span><span class="set-name">${esc(x.title)}</span>
+          </span>`;
+      }
+      return `
           <a class="set-card" data-type="${esc(x.setting_type || '其它')}" href="#/read/${x.id}" title="${esc(this.excerpt(x))}">
             <span class="set-dot"></span><span class="set-name">${esc(x.title)}</span>
           </a>`;
+    };
     if (cur) return `<div class="article-grid grid-settings">${list.map(card).join('')}</div>`;
     return types.map(t => `
         <section class="setting-group" data-group="${esc(t)}">
@@ -1786,6 +1795,13 @@ const App = {
               <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
               <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
             </div>
+              <div>
+              <label>公开性 <span class="hint">（锁定后：别人只看得到名字和胶囊，点不开）</span></label>
+              <select name="locked">
+              <option value="0" ${a && Number(a.locked) ? '' : 'selected'}>公开</option>
+              <option value="1" ${a && Number(a.locked) ? 'selected' : ''}>锁定</option>
+              </select>
+              </div>
           </div>
           <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
             <label>标题</label>
@@ -2735,6 +2751,8 @@ const App = {
       if (form.tags) payload.tags = form.tags.value.trim();
       // 设定的「类型」写进 chapter_title —— 复用现成字段，后端无需改动
       if (category === 'settings' && form.setting_type) payload.chapter_title = form.setting_type.value;
+      // 设定的公开性：0 公开 / 1 锁定（锁定后别人读不到正文 ✓）
+      if (category === 'settings' && form.locked) payload.locked = Number(form.locked.value) ? 1 : 0;
     if (category === 'main') {
       payload.chapter_no = parseInt(form.chapter_no.value, 10);
       payload.chapter_title = form.chapter_title.value.trim();

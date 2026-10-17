@@ -3180,3 +3180,41 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
   color: var(--ink-3, #6d8496);
   font-variant-numeric: tabular-nums;
 }
+/* ==== 锁定的设定 ==== */
+/* 锁定 → 灰色胶囊 + 🔒，不可点、无悬停反馈。
+   注意：「其它」原本是灰调（var(--ink-2)），和这里的灰会撞色，
+   所以把「其它」改成紫色，让"灰 = 锁定"成为唯一含义 ✓ */
+
+.set-card.locked {
+  cursor: default;
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--grey-lock, #6b7280) 30%);
+  border-color: color-mix(in srgb, var(--grey-lock, #6b7280) 45%, var(--line));
+  opacity: .78;
+}
+.set-card.locked:hover {
+  transform: none;                    /* 不浮起来 ✓ */
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--grey-lock, #6b7280) 30%);
+  border-color: color-mix(in srgb, var(--grey-lock, #6b7280) 45%, var(--line));
+}
+.set-card.locked .set-name {
+  color: var(--ink-3, #6d8496);
+}
+.set-lock {
+  font-size: 11px;
+  line-height: 1;
+  flex: none;
+  filter: grayscale(1);
+  opacity: .85;
+}
+
+/* 「其它」换色：从灰改成紫，避免和锁定灰撞色 */
+.set-card[data-type="其它"] .set-dot {
+  background: var(--tint-purple, #b79ae8);
+  box-shadow: 0 0 9px -1px var(--tint-purple, #b79ae8);
+}
+.set-card[data-type="其它"] {
+  border-color: color-mix(in srgb, var(--tint-purple, #b79ae8) 55%, var(--line));
+}
+.setting-group[data-group="其它"] .set-group-title {
+  color: var(--tint-purple, #b79ae8);
+}
