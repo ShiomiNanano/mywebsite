@@ -1021,6 +1021,11 @@ const App = {
       </div>
 
       <section class="game-hub">
+        <a class="hub-card hub-main" href="/games/quality/">
+        <h2 class="hub-title-art"><span class="hub-emoji">🂡</span><span class="hub-title-text">幻梦牌</span><span class="hub-tag hub-tag-main">主推</span></h2>
+        <p>8 类品质牌的双人博弈：每回合各出两张，点数相加比大小，赢家夺走对手的牌。强牌用过要冷却，段位越高对手越难。</p>
+        <p class="hub-rank-empty">段位制 · 打完一局涨段位分</p>
+        </a>
         <a class="hub-card" href="#/games/memory">
             <span class="hub-ico">☕❧🐈</span>
             <span class="hub-tag">可玩</span>
