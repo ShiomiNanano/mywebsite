@@ -589,3 +589,43 @@ document.getElementById('backBtn').addEventListener('click', () => {
   if (window.history.length > 1 && document.referrer) { window.history.back(); }
   else { window.location.href = '/#/games'; }
 });
+
+// 返回上一步（带离开惩罚：本局已开始且未结束 → 确认后扣 8 分）
+(function () {
+  const b = document.getElementById('backBtn');
+  if (!b) return;
+  b.addEventListener('click', () => {
+    if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
+      const ok = window.confirm('这局还没打完，离开会扣 8 分。确定要回去吗？');
+      if (!ok) return;
+      RANK.rating = Math.max(0, RANK.rating - 8);
+      RANK.losses++;
+      saveRank(RANK); paintRank();
+    }
+    if (window.history.length > 1 && document.referrer) window.history.back();
+    else window.location.href = '/#/games';
+  });
+})();
+
+/* 页面刷新 / 关闭时的离开惩罚
+   · beforeunload 只负责弹浏览器原生提示（这里扣分不安全：用户可能点"取消" ✗）
+   · pagehide 只在真的离开时触发（取消不会触发 ✓）→ 在这里扣分才安全 ✓
+   · 关标签页 / 杀进程时事件可能不发 ✗ —— 这就是我们保留的灰色地带 ✓ */
+(function () {
+  window.addEventListener('beforeunload', (e) => {
+    if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
+      try {
+        RANK.rating = Math.max(0, RANK.rating - 8);
+        RANK.losses++;
+        saveRank(RANK);
+      } catch (err) {}
+    }
+  });
+})();
