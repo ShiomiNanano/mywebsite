@@ -2953,6 +2953,88 @@ html[data-wallpaper="on"] .profile-card .profile-avatar-edit input[type="text"] 
 }
 html[data-wallpaper="on"] .profile-card .profile-avatar-edit input[type="text"]::placeholder { color: rgba(255, 255, 255, .5); }
 html[data-wallpaper="on"] .profile-card .avatar-preview { color: rgba(255, 255, 255, .66); }
+/* ============================================================================
+   登录页：三个输入框统一（原来用户名没有 type，走的是浏览器默认尺寸，
+   比密码框短一大截）；logo 用站里的那张图嵌在金色圆里。
+   ============================================================================ */
+.login-card form input {
+  width: 100%; box-sizing: border-box;
+  height: 42px; padding: 0 13px;
+  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--ink);
+  background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.login-card form input:focus { border-color: var(--gold); outline: none; }
+.login-logo { width: 30px; height: 30px; object-fit: contain; display: block; }
+
+/* ============================================================================
+   登录卡：透明金色玻璃（与「我的」名片同一套参数，站里看起来是一族）
+   底是浅金且较透，所以卡内一律白系文字；金色只留给页签与聚焦描边。
+   仍然遵守站规：backdrop-filter 只写在 html[data-wallpaper="on"] 之下。
+   ============================================================================ */
+html[data-wallpaper="on"] .login-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(155deg,
+      color-mix(in srgb, var(--glass-gold, #d3b37e) 42%, transparent),
+      color-mix(in srgb, var(--glass-gold-2, #816d4d) 55%, transparent) 78%);
+  border-color: rgba(255, 255, 255, .24);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  color: rgba(255, 255, 255, .95);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    0 26px 50px -30px rgba(0, 0, 0, .85);
+}
+/* 不支持背景模糊时退回实底，别让字糊在壁纸上 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-wallpaper="on"] .login-card { background: var(--surface); border-color: var(--line); }
+}
+
+/* 卡内协调：标题、副标题、页签、标签、输入、按钮、底部访客链接 */
+html[data-wallpaper="on"] .login-card h2 { color: #fff; text-shadow: var(--wp-halo, 0 1px 6px rgba(0, 0, 0, .45)); }
+html[data-wallpaper="on"] .login-card .login-sub { color: rgba(255, 255, 255, .74); }
+html[data-wallpaper="on"] .login-card label { color: rgba(255, 255, 255, .78); }
+
+/* 那个装 logo 的金色圆，在金底上会糊成一团 —— 换成半透明白 */
+html[data-wallpaper="on"] .login-card .login-cat {
+  background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .26);
+}
+
+/* 页签：外层那个深色小盒子也要跟着变 —— 原来它是 var(--surface-2) 的实底，
+   卡变成透金之后它就是一块突兀的深色；选中项原来也是 var(--surface) 实底。 */
+html[data-wallpaper="on"] .login-card .login-tabs {
+  background: rgba(255, 255, 255, .10);
+  border-color: rgba(255, 255, 255, .24);
+}
+html[data-wallpaper="on"] .login-card .login-tabs .tab {
+  color: rgba(255, 255, 255, .66); background: transparent; border-color: transparent; box-shadow: none;
+}
+html[data-wallpaper="on"] .login-card .login-tabs .tab.active {
+  color: #3a2a16;                       /* 选中：半透明白底 + 深褐字，一眼看得出哪个亮着 */
+  background: rgba(255, 252, 245, .86);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+}
+html[data-wallpaper="on"] .login-card .login-tabs .tab:not(.active):hover {
+  color: #fff; background: rgba(255, 255, 255, .12);
+}
+
+html[data-wallpaper="on"] .login-card form input {
+  color: #fff; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .30);
+}
+html[data-wallpaper="on"] .login-card form input::placeholder { color: rgba(255, 255, 255, .5); }
+html[data-wallpaper="on"] .login-card form input:focus { border-color: #ffe6b8; background: rgba(255, 255, 255, .2); }
+
+/* 主按钮：一块实的米白，透金底上最清楚，和金色也不打架 */
+html[data-wallpaper="on"] .login-card .btn-primary {
+  color: #3a2a16; background: rgba(255, 252, 245, .94); border-color: rgba(255, 252, 245, .94);
+}
+html[data-wallpaper="on"] .login-card .btn-primary:hover { background: #fff; border-color: #fff; }
+
+html[data-wallpaper="on"] .login-card .login-guest a { color: rgba(255, 255, 255, .78); }
+html[data-wallpaper="on"] .login-card .login-guest a:hover { color: #fff; }
+html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
+
 /* fixed-color-region: end */
 
 /* 管理页的导出入口：看着像次按钮，不抢「新增」的主位 */

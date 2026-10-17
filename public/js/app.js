@@ -590,7 +590,7 @@ const App = {
       <div class="login-wrap">
         <div class="login-card">
           <div class="login-head">
-            <div class="login-cat">☾</div>
+            <div class="login-cat"><img class="login-logo" src="/media/logo-mark.png" alt="" aria-hidden="true"></div>
             <h2>白日梦咖啡馆</h2>
             <p class="login-sub">欢迎回来 · 请选择你的座位</p>
           </div>
@@ -600,7 +600,7 @@ const App = {
           </div>
           <form id="loginForm">
             <label>用户名</label>
-            <input name="username" placeholder="2-20位用户名" autocomplete="username" required>
+            <input name="username" type="text" placeholder="2-20位用户名" autocomplete="username" required>
             <label>密码</label>
             <input name="password" type="password" placeholder="至少8位" autocomplete="current-password" required>
             <div id="confirmRow">
@@ -613,9 +613,6 @@ const App = {
           </form>
           <div class="login-guest">
             <a href="#/menu">只想看看书？以访客身份进入 →</a>
-          </div>
-          <div class="demo-tip">
-            <p>咕咕嘎嘎</p>
           </div>
         </div>
       </div>
