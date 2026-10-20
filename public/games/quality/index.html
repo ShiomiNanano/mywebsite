@@ -6,8 +6,8 @@
 <title>幻梦牌</title>
 <style>
   :root{
-    --felt:#0b2a24; --felt2:#06110f;
-    --ink:#eaf1f7; --ink2:#a9bccb; --ink3:#6d8496;
+    --felt:#3a2f1a; --felt2:#20190c; --table:#4d3f26;
+    --ink:#f3e9d6; --ink2:#cfc0a4; --ink3:#a2937a;
     --gold:#e8cf9a;
     --serif:"Noto Serif SC","Songti SC",serif;
     /* 手牌尺寸与重叠：桌面端更大、手机端稍小；--overlap 负值越大叠得越多 */
@@ -22,16 +22,22 @@
   body{
     margin:0; color:var(--ink); font:14px/1.6 -apple-system,"PingFang SC",system-ui,sans-serif;
     background:
-      radial-gradient(120% 60% at 50% 0%, rgba(60,120,110,.18), transparent 60%),
-      radial-gradient(80% 70% at 50% 110%, rgba(0,0,0,.55), transparent 60%),
-      linear-gradient(180deg, var(--felt) 0%, var(--felt2) 100%);
+      radial-gradient(120% 62% at 50% -6%, rgba(240,214,158,.15), transparent 58%),
+      radial-gradient(78% 64% at 50% 112%, rgba(0,0,0,.52), transparent 64%),
+      radial-gradient(72% 56% at 50% 46%, var(--table) 0%, var(--felt) 56%, var(--felt2) 100%);
     background-attachment:fixed; padding-bottom:22px;
   }
   body::before{
     content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
     background-image:
-      repeating-linear-gradient(45deg, rgba(255,255,255,.014) 0 1px, transparent 1px 4px),
-      repeating-linear-gradient(-45deg, rgba(0,0,0,.05) 0 1px, transparent 1px 5px);
+      repeating-linear-gradient(0deg, rgba(255,236,200,.020) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.045) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(45deg, rgba(255,236,200,.012) 0 1px, transparent 1px 8px);
+  }
+  /* 桌沿：一圈内阴影把桌面压出深度，再加一道极细金线 */
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    box-shadow: inset 0 0 140px 34px rgba(0,0,0,.5), inset 0 0 0 1px rgba(232,207,154,.10);
   }
   .wrap{position:relative; z-index:1; max-width:520px; margin:0 auto; padding:12px}
   @media (min-width:760px){ .wrap{ max-width:860px; padding:18px 20px; } }
@@ -49,15 +55,56 @@
     margin-bottom:8px;
   }
   @media (min-width:760px){ .opp,.mine{ padding:14px; border-radius:16px; } }
+  .mine{ position:relative }
+  /* 选中彩卡时浮出的技能说明 */
+  .skill-pop{
+    position:absolute; left:8px; bottom:calc(100% + 8px); z-index:40;
+    max-width:min(340px, calc(100% - 16px)); padding:9px 11px; border-radius:12px;
+    background:rgba(10,14,22,.95); border:1px solid rgba(255,255,255,.18);
+    box-shadow:0 16px 34px -14px rgba(0,0,0,.95);
+    color:#fff; font-size:11.5px; line-height:1.65;
+    opacity:0; transform:translateY(6px); pointer-events:none;
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  .skill-pop.on{ opacity:1; transform:translateY(0) }
+  .skill-pop .sp-row + .sp-row{ margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,.18) }
+  .skill-pop b{ display:block; color:var(--gold); font-size:12.5px; letter-spacing:.06em; margin-bottom:1px }
+  .skill-pop span{ opacity:.92 }
+  @media (min-width:760px){ .skill-pop{ font-size:12.5px; padding:11px 13px } }
+
+  /* 技能横幅：从牌桌右缘自右向左拉出，停一小会儿再收回去。
+     多条（同层同时生效）竖着叠，按引擎给的层序从上到下。 */
+  .skill-fx{ position:absolute; right:0; top:50%; transform:translateY(-50%); display:flex; flex-direction:column;
+    gap:7px; align-items:flex-end; pointer-events:none; z-index:40; max-width:min(64vw, 320px) }
+  .fx-row{ display:flex; align-items:center; gap:9px; padding:9px 16px 9px 12px; border-radius:12px;
+    background:linear-gradient(100deg, rgba(10,9,7,.95) 0%, rgba(56,41,20,.93) 100%);
+    border:1px solid rgba(232,207,154,.42); border-right:3px solid rgba(232,207,154,.75);
+    box-shadow:0 8px 26px rgba(0,0,0,.5), inset 0 0 20px rgba(232,207,154,.07);
+    color:#f6ecd4; opacity:0; transform:translateX(130%);
+    transition:transform .46s cubic-bezier(.16,.86,.22,1), opacity .3s ease }
+  .fx-row.in{ opacity:1; transform:translateX(0) }
+  .fx-ico{ font-size:18px; line-height:1; filter:drop-shadow(0 0 7px rgba(232,207,154,.55)) }
+  .fx-name{ font-family:var(--serif); font-size:13.5px; letter-spacing:.14em; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis }
+  .fx-row[data-t="☕️"]{ border-right-color:#d9b48a }
+  .fx-row[data-t="🐋"]{ border-right-color:#8fc7e8 }
+  .fx-row[data-t="☀️"]{ border-right-color:#ffd27a }
+  .fx-row[data-t="🌙"]{ border-right-color:#c9b6ff }
+  .fx-row[data-t="☘️"]{ border-right-color:#9be8a8 }
+  .fx-row[data-t="༄"]{ border-right-color:#a8e0e8 }
+  .fx-row[data-t="🌈"]{ border-right-color:#ffb3d9 }
+  .fx-row[data-t="☂"]{ border-right-color:#b9d4ff }
+  @media (min-width:1100px){ .fx-row{ padding:11px 19px 11px 14px } .fx-name{ font-size:15px } .fx-ico{ font-size:21px } }
+  @media (max-width:420px){ .fx-row{ padding:7px 12px 7px 10px } .fx-name{ font-size:12px; letter-spacing:.08em } }
   .lbl{font-size:11px; color:var(--ink3); letter-spacing:.06em; margin-bottom:7px}
   @media (min-width:760px){ .lbl{font-size:12.5px} }
 
   .backs{display:flex; flex-wrap:wrap; gap:3px}
-  .bk{width:24px; height:34px; border-radius:5px; display:grid; place-items:center; font-size:11px; color:rgba(180,200,220,.55);
+  .bk{width:24px; height:34px; border-radius:5px; display:grid; place-items:center; font-size:11px; color:rgba(232,207,154,.55);
       background:
-        linear-gradient(135deg, rgba(255,255,255,.08), transparent 60%),
-        repeating-linear-gradient(45deg, #22304a 0 3px, #1a2537 3px 6px);
-      border:1px solid #38465f}
+        linear-gradient(135deg, rgba(255,236,200,.10), transparent 60%),
+        repeating-linear-gradient(45deg, #3d3120 0 3px, #2c2315 3px 6px);
+      border:1px solid #5b4a2c}
   @media (min-width:760px){ .bk{ width:30px; height:42px; font-size:13px; } }
 
   .slots{display:flex; gap:12px; justify-content:center; margin:10px 0}
@@ -99,6 +146,16 @@
   .card b{font-size:calc(var(--cw) * .39); line-height:1.05; filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
   .card i{font-style:normal; font-size:9px; letter-spacing:.04em; opacity:.9}
   @media (min-width:760px){ .card i{ font-size:11px } }
+  /* 彩卡：牌底一行技能名（普/金不显示） */
+  .card .sk{position:absolute; left:0; right:0; bottom:3px; text-align:center; font-style:normal;
+    font-weight:700; font-size:8px; letter-spacing:.08em; color:#fff; opacity:.9;
+    text-shadow:0 1px 3px rgba(0,0,0,.85); pointer-events:none}
+  @media (min-width:760px){ .card .sk{ font-size:10px; bottom:4px } }
+  .codex{margin-top:8px; border-top:1px dashed rgba(255,255,255,.16); padding-top:8px}
+  .codex-t{color:var(--gold); font-size:12px; letter-spacing:.08em; margin-bottom:5px}
+  .codex-i{font-size:12px; line-height:1.7; opacity:.92}
+  .codex-i .cb{margin-right:4px}
+  .codex-i b{color:var(--gold); font-weight:700}
   .card u{position:absolute; top:4px; left:6px; text-decoration:none; font-style:normal; font-weight:700}
   .card u.c{color:#ffd08a; font-size:12px; text-shadow:0 0 7px rgba(255,150,40,.9), 0 1px 2px #000}
   @media (min-width:760px){ .card u.c{ font-size:15px } }
@@ -141,11 +198,11 @@
 
   /* ---- 普卡：瓷白 ---- */
   .card.q-pu{
-    background:linear-gradient(160deg,#f4f6f8 0%,#dfe5ea 55%,#c8d0d7 100%);
-    border:1px solid #aeb8c2; color:#2a333c;
-    box-shadow:inset 0 1px 0 #fff, inset 0 -2px 4px rgba(0,0,0,.12), 0 6px 14px -8px rgba(0,0,0,.9);
+    background:linear-gradient(160deg,#fdfaf0 0%,#efe5cd 55%,#dbcba7 100%);
+    border:1px solid #b7a684; color:#3a3122;
+    box-shadow:inset 0 1px 0 #fff, inset 0 -2px 4px rgba(120,95,50,.16), 0 6px 14px -8px rgba(0,0,0,.9);
   }
-  .card.q-pu i{color:#5b6672}
+  .card.q-pu i{color:#6d5e41}
   .card.q-pu::after{content:""; position:absolute; inset:2px; border-radius:8px; pointer-events:none;
     background:radial-gradient(120% 80% at 30% 0%, rgba(255,255,255,.85), transparent 55%); opacity:.55}
 
@@ -181,7 +238,7 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 8px 18px -12px rgba(0,0,0,.8);
   }
   .card.q-blank::after{content:""; position:absolute; inset:0; border-radius:9px; pointer-events:none;
-    background:linear-gradient(125deg, rgba(255,255,255,.45) 0%, transparent 32%, transparent 70%, rgba(255,255,255,.18) 100%)}
+    background:linear-gradient(125deg, rgba(255,244,222,.26) 0%, transparent 34%, transparent 72%, rgba(255,244,222,.12) 100%)}
   .card.q-blank i{color:rgba(255,255,255,.6)}
   /* 空白卡容器：居中、不重叠、不拱形 */
   #meBlank{ display:flex; justify-content:center; align-items:flex-end; gap:8px;
@@ -190,7 +247,7 @@
   #meBlank .card:hover{ translate:0 -10px }
 
   /* status / buttons */
-  .banner{background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.12); border-left:3px solid var(--gold);
+  .banner{background:rgba(24,17,6,.42); border:1px solid rgba(232,207,154,.16); border-left:3px solid var(--gold);
     border-radius:10px; padding:9px 12px; font-size:12.5px; color:var(--ink2); margin:8px 0; min-height:40px}
   .banner b{color:var(--gold)}
   @media (min-width:760px){ .banner{ font-size:14px; padding:12px 14px } }
@@ -200,6 +257,9 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 8px 18px -10px rgba(0,0,0,.9);
     transition:transform .12s ease}
   @media (min-width:760px){ button{ padding:15px; font-size:16px } }
+  button.sfx-btn{ flex:0 0 44px; padding:0; font-size:15px; line-height:1; background:rgba(255,255,255,.08); color:var(--ink2); border:1px solid rgba(255,255,255,.14) }
+  button.sfx-btn.off{ opacity:.55 }
+  @media (min-width:760px){ button.sfx-btn{ flex:0 0 48px; font-size:16px } }
   button:active{transform:translateY(1px) scale(.99)}
   button.ghost{flex:0 0 84px; background:rgba(255,255,255,.08); color:var(--ink2);
     border:1px solid rgba(255,255,255,.16); box-shadow:none; font-weight:500}
@@ -335,6 +395,20 @@
   .banner .lg-line:last-child{ border-bottom:0 }
   .banner .lg-line.now{ color:var(--ink2) }
   .banner .lg-line b{ color:var(--gold) }
+
+  /* 播报里的回合块：一行一件事，扫一眼就够 */
+  .rb-list{ margin-top:6px }
+  .rb{ padding:5px 0 6px; border-bottom:1px dashed rgba(255,255,255,.08) }
+  .rb:first-child{ padding-top:0 }
+  .rb:last-child{ border-bottom:0; padding-bottom:0 }
+  .rb-h{ font-size:10.5px; color:var(--gold); letter-spacing:.14em; opacity:.85; margin-bottom:1px }
+  .rb-l{ display:flex; align-items:baseline; gap:7px; font-size:11.5px; line-height:1.65 }
+  .rb-l i{ font-style:normal; flex:0 0 28px; color:var(--ink3); opacity:.8 }
+  .rb-l span{ flex:1 1 auto; min-width:0; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .rb-l em{ font-style:normal; font-variant-numeric:tabular-nums; font-weight:700; color:var(--gold); flex:0 0 auto }
+  .rb-fx{ font-size:11px; color:var(--gold); opacity:.88; letter-spacing:.02em; margin-top:1px }
+  .rb-res{ font-size:11.5px; letter-spacing:.08em; margin-top:1px }
+  .rb-res.me{ color:#8fe6b0 } .rb-res.ai{ color:#e79a9a } .rb-res.tie{ color:var(--ink3) }
   @media (orientation:landscape) and (max-height:560px){
     .battle .banner{ flex-basis:104px; max-height:150px; font-size:10.5px }
   }
@@ -690,6 +764,10 @@
     white-space:nowrap;
   }
   #diff{ display:none !important }
+  /* 只在本地预览（html.dev-mode）显示：测试用的 AI 难度开关，线上按段位自动 */
+  .dev-only{ display:none }
+  html.dev-mode .dev-only{ display:inline-block; font-size:11px; color:var(--ink3); letter-spacing:.08em; margin-right:4px }
+  html.dev-mode #diff{ display:inline-block !important; min-width:96px }
   @media (min-width:760px){
     #gameTitle{ font-size:28px !important }
     #rankName{ font-size:16px !important }
@@ -727,6 +805,73 @@
   .rank-board li.rank-empty{ color:var(--ink3); justify-content:center; border:0 }
   .rank-board li.me .nm{ color:var(--gold) }
 </style>
+<style>
+  /* 牌桌本体：一块带边的桌面，中间亮、四周压暗，边缘一道细金线 */
+  .battle{
+    position:relative;
+    border-radius:18px;
+    border:1px solid rgba(232,207,154,.17);
+    background:
+      radial-gradient(72% 78% at 50% 46%, rgba(255,238,200,.10), transparent 72%),
+      linear-gradient(180deg, rgba(84,67,40,.55), rgba(50,40,23,.30));
+    box-shadow:
+      inset 0 1px 0 rgba(255,244,222,.10),
+      inset 0 0 60px rgba(0,0,0,.32),
+      0 18px 40px -30px #000;
+    padding-top:10px;
+    padding-bottom:10px;
+  }
+  @media (min-width:760px){ .battle{ padding-top:14px; padding-bottom:14px } }
+
+  /* ---- 米黄牌桌 v2：面板、空位、空白牌都换成暖色系 ---- */
+  .opp,.mine{
+    background:linear-gradient(180deg, rgba(255,240,214,.055), rgba(255,240,214,.018));
+    border:1px solid rgba(232,207,154,.16);
+    box-shadow:inset 0 1px 0 rgba(255,244,222,.08), 0 10px 24px -18px rgba(0,0,0,.9);
+  }
+  .slot{
+    border-color:rgba(232,207,154,.26);
+    color:rgba(246,236,217,.34);
+    background:radial-gradient(circle at 50% 32%, rgba(255,236,200,.07), transparent 72%);
+  }
+  .card.q-blank{
+    background:linear-gradient(150deg, rgba(255,244,222,.26), rgba(255,244,222,.06) 55%, rgba(255,244,222,.16));
+    border:1px solid rgba(255,236,200,.45);
+    color:rgba(255,244,222,.9);
+  }
+  .card.q-blank i{ color:rgba(255,244,222,.66) }
+  .top select{ background:rgba(255,240,214,.07); border-color:rgba(232,207,154,.28) }
+
+  /* 手机：顶栏与手牌行允许换行，别把"跟随段位"和空白牌挤出屏幕 */
+  @media (max-width:560px){
+    .top{ flex-wrap:wrap !important; row-gap:6px !important }
+    .blank-col{ flex:0 0 96px !important }   /* 让手牌那一栏多一点余量，别把空白牌挤出面板 */
+    #gameTitle{ font-size:20px !important; letter-spacing:.2em !important }
+    #diff{ max-width:132px }
+  }
+  @media (max-width:480px){
+    .mine-row{ flex-wrap:wrap !important }
+    .blank-col{ flex:1 1 100% !important; order:2 }
+    #meBlank{ justify-content:center !important }
+  }
+
+  /* ---- 噩梦局：牌桌描红边（暗指危险）---- */
+  html.hard .battle{
+    border-color:rgba(206,62,48,.62);
+    animation:hardPulse 3.2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce){ html.hard .battle{ animation:none } }
+  @keyframes hardPulse{
+    0%, 100%{ box-shadow: inset 0 1px 0 rgba(255,214,200,.10), inset 0 0 64px rgba(120,16,10,.26), 0 0 0 1px rgba(206,62,48,.20), 0 0 30px -8px rgba(214,52,40,.48) }
+    50%{ box-shadow: inset 0 1px 0 rgba(255,214,200,.14), inset 0 0 72px rgba(130,18,10,.40), 0 0 0 1px rgba(220,72,56,.36), 0 0 42px -6px rgba(226,60,44,.72) }
+  }
+  html.hard .battle .slot{ border-color:rgba(206,62,48,.28); color:rgba(255,190,180,.34) }
+  html.hard #rankName{ color:#f0a08c !important; text-shadow:0 0 16px rgba(226,60,44,.45) !important }
+
+  /* ---- 结算弹层里的"被盯上"预告 ---- */
+  .ov-omen{ color:#e8836f; font-size:12.5px; letter-spacing:.04em; margin:6px 0 0; display:none }
+  .ov-omen.on{ display:block }
+</style>
 </head>
 <body>
 <div class="back-bar"><button id="backBtn" title="回到上一步" aria-label="回到上一步">←</button></div>
@@ -738,10 +883,11 @@
       <div id="rankScore" style="font-size:10px;color:var(--ink3)">0 分</div>
       <div id="rankSync" style="font-size:10px;color:var(--ink3);letter-spacing:.04em"></div>
     </div>
+    <span class="dev-only">测试 · AI 难度</span>
     <select id="diff">
       <option value="auto" selected>跟随段位 ✓</option>
       <option value="easy">简单</option>
-      <option value="normal" selected>普通</option>
+      <option value="normal">普通</option>
       <option value="hard">困难</option>
       <option value="nightmare">噩梦</option>
     </select>
@@ -760,6 +906,7 @@
   <div class="mid" id="mid"></div>
   <div class="slots" id="meSlots"></div>
   </div>
+  <div class="skill-fx" id="skillFx" aria-live="polite"></div>
 </div>
 
 
@@ -774,11 +921,13 @@
         <div class="hand" id="meBlank"></div>
       </div>
     </div>
+    <div class="skill-pop" id="skillPop" aria-live="polite"></div>
   </div>
 
   <div class="btns">
     <button id="primary" disabled>盖牌并声明准备</button>
     <button class="ghost" id="restart">重开</button>
+    <button class="ghost sfx-btn" id="sfxBtn" title="音效开关" aria-label="音效开关">🔊</button>
   </div>
 
 
@@ -792,14 +941,25 @@
   <details>
     <summary>规则速查</summary>
     <div class="rule">
-    <div style="margin-top:10px"><a href="javascript:void 0" id="viewGuide" style="color:var(--gold);font-size:12px">再看一次新手引导 →</a></div>
-    <div style="margin-top:6px"><a href="javascript:void 0" id="resetRank" style="display:none" style="display:none" style="color:var(--ink3);font-size:12px">（实验室）重置段位与难度 →</a></div>
+    <div style="margin-top:10px"><a role="button" tabindex="0" id="viewGuide" style="color:var(--gold);font-size:12px">再看一次新手引导 →</a></div>
+    <div style="margin-top:6px"><a role="button" tabindex="0" id="resetRank" style="display:none;color:var(--ink3);font-size:12px">（实验室）重置段位与难度 →</a></div>
       · 32 张特殊牌 = 8 类 ×（2 普 + 1 金 + 1 彩）；双方各 1 张空白（0 点、不占上限、永不被夺）。<br>
       · 每回合双方各出 2 张，点数相加比大小；<b>赢家夺走对手的特殊牌</b>（空白不夺）。<br>
-      · <b>冷却</b>：本回合出过和赢下的特殊牌 —— 普 0 / 金锁 1 回合 / 彩锁 2 回合。<br>
+      · <b>冷却</b>：本回合出过和赢下的特殊牌 —— 普 0 / 金锁 1 回合 / 彩锁 2 回合（彩卡技能会改写它）。<br>
       · 手牌上限 9（空白不计），超出要手动弃置，弃置回牌堆。<br>
-      · 输：<b>轮到你的回合却只剩空白能出</b>，或特殊牌被夺光。<br>
-      · 补牌只在前 13 回合；连续 3 次平局双方各弃本回合最大牌；满 77 回合按手牌点数判定。
+      · 输：<b>轮到你的回合却只剩空白能出</b>，特殊牌被夺光，或被月亮刺杀。<br>
+      · 补牌只在前 13 回合（☂ 会把窗口再推后 5 回合）；连续 3 次平局双方各弃本回合最大牌；满 100 回合按手牌点数判定。
+      <div class="codex">
+        <div class="codex-t">八张彩卡的特效（按结算顺序生效）</div>
+        <div class="codex-i"><span class="cb">🐋</span><b>塔尔塔洛斯的瞥视</b>（封印）　取消对手本回合两张牌的全部特效；自身冷却随搭档：彩 4 / 金 3 / 普或空白 1 回合。</div>
+        <div class="codex-i"><span class="cb">☂</span><b>无染之泉</b>（重置）　双方原始点数相同时锁定平局（不计连平），双方特殊牌全部重抽、新牌无冷却，补牌窗口再推后 5 回合。</div>
+        <div class="codex-i"><span class="cb">☘️</span><b>最新爆点！！</b>（加持）　与彩卡搭档时本回合 +1 点，自身冷却延长至 3 回合。</div>
+        <div class="codex-i"><span class="cb">༄</span><b>微风中的小憩</b>（削弱）　搭档非彩卡时对手 −1 点；搭档同为风则 −2 点（点数可为负）。</div>
+        <div class="codex-i"><span class="cb">🌈</span><b>牵起晴空的手</b>（改判）　本回合点数落后时改判为平局，且己方本回合出牌冷却 −1。</div>
+        <div class="codex-i"><span class="cb">☕️</span><b>白日梦特调</b>（回手）　本卡与非彩卡搭档时，落败也不被夺走，直接回手。</div>
+        <div class="codex-i"><span class="cb">☀️</span><b>我仍会向前</b>（抽牌）　打出即抽 1 张；本彩太阳在冷却中时，每打出 1 张同类普/金再额外抽 1 张（余晖，不受封印影响）。</div>
+        <div class="codex-i"><span class="cb">🌙</span><b>༺弦月镰†终末断罪༺</b>（弃置）　令对手弃置 1 张特殊牌；若因此对手再没有能出的特殊牌，直接判负（刺杀）。</div>
+      </div>
     </div>
   </details>
 </div>
@@ -819,10 +979,11 @@
     <h2 id="ovTitle">—</h2>
     <p id="ovReason"></p>
     <p id="ovRank" style="color:var(--gold);font-size:13px"></p>
+    <p id="ovOmen" class="ov-omen"></p>
     <button id="ovAgain">再来一局</button>
   </div>
 </div>
 
-<script src="./game.js"></script>
+<script src="./game.js?v=20261021"></script>
 </body>
 </html>

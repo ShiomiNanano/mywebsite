@@ -714,6 +714,7 @@ export async function onRequest(context) {
       const rounds = Math.max(0, Math.min(999, Math.floor(Number(body.rounds) || 0)));
       const oppPts = Math.max(0, Math.min(999, Math.floor(Number(body.oppPts) || 0)));
       const cur = await readRank(env, user.id);
+      const haunt = body.haunt === true;      // 这一局是不是"被噩梦盯上"的那局
       let rating = cur.rating;
       let wins = cur.wins;
       let losses = cur.losses;
@@ -721,6 +722,8 @@ export async function onRequest(context) {
       if (result === 'win') {
         // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~40
         delta = Math.max(5, Math.min(40, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
+        // 连胜彩蛋：本来打不到噩梦的段位（<1200 分 = 咖啡师及以下）打赢被盯上的那局，额外 +20
+        if (haunt && cur.rating < 1200) delta += 20;
         rating += delta;
         wins += 1;
       } else if (result === 'loss' || result === 'abandon') {
