@@ -1001,17 +1001,15 @@ const App = {
       const r2 = await this.getCached('/api/games/scores?game=number');
       numberTops = (r2 && r2.tops) || [];
     } catch (e) { numberTops = []; }
-    // 幻梦牌的段位榜：let 必须在 try 之外（try 里是块级作用域 ✗）
+    // 幻梦牌的段位榜（公开接口，没登录也能看；取不到就退成空状态）
+    let rankTops = [];
     try {
-      window.__rankDbg = "fetch 开始";
       const res3 = await fetch('/api/games/rank/tops', { headers: { accept: 'application/json' }, cache: 'no-store' });
-      window.__rankDbg = "HTTP " + res3.status;
       if (res3.ok) {
         const data3 = await res3.json();
         rankTops = (data3 && data3.tops) || [];
-        window.__rankDbg = "HTTP " + res3.status + "，拿到 " + rankTops.length + " 条";
       }
-    } catch (e) { rankTops = []; window.__rankDbg = "异常：" + e.message; }
+    } catch (e) { rankTops = []; }
     return `
     <div class="page game-page">
       ${this.topbar()}
@@ -1024,7 +1022,7 @@ const App = {
         <a class="hub-card hub-main" href="/games/quality/">
         <h2 class="hub-title-art"><span class="hub-emoji">🂡</span><span class="hub-title-text">幻梦牌</span><span class="hub-tag hub-tag-main">主推</span></h2>
         <p>8 类品质牌的双人博弈：每回合各出两张，点数相加比大小，赢家夺走对手的牌。强牌用过要冷却，段位越高对手越难。</p>
-        <p class="hub-rank-empty">段位制 · 打完一局涨段位分</p>
+        ${this.hubRankTier(rankTops)}
         </a>
         <a class="hub-card" href="#/games/memory">
             <span class="hub-ico">☕❧🐈</span>
@@ -1055,7 +1053,16 @@ const App = {
     ).join('') + '</ol>';
   },
   // 主推卡里的段位榜（前三，按段位分）
-
+  hubRankTier(tops) {
+    if (!tops || !tops.length) return '<p class="hub-rank-empty">段位制 · 打完一局涨段位分</p>';
+    const medal = ['👑', '②', '③'];
+    return '<ol class="hub-rank-tier">' + tops.slice(0, 3).map((x, i) =>
+      `<li><span class="hub-medal">${medal[i]}</span>`
+      + `<span class="hub-who">${esc(x.username || '无名')}</span>`
+      + `<span class="hub-tier">${esc(x.tier || '')}</span>`
+      + `<span class="hub-score">${Number(x.rating) || 0}</span></li>`
+    ).join('') + '</ol>';
+  },
   async renderMemory() {
     const u = this.state.user;
     if (!u) { location.hash = '#/login'; setTimeout(() => this.route(), 0); return ''; }
@@ -1625,11 +1632,15 @@ const card = (x) => {
     this.pageTitle = '个人中心 · 白日梦咖啡馆';
 
     let myRanks = [];
+    let myRank = null;   // 幻梦牌段位（服务端为准；没打过也返回 0 分，所以基本总是有）
     try {
-      const [mem, num] = await Promise.all([
+      const [mem, num, rankRes] = await Promise.all([
         this.getCached('/api/games/scores?game=memory'),
         this.getCached('/api/games/scores?game=number'),
+        fetch('/api/games/rank', { headers: { accept: 'application/json' }, cache: 'no-store' })
+          .then(r => (r.ok ? r.json() : null)).catch(() => null),
       ]);
+      if (rankRes && typeof rankRes.rating === 'number') myRank = rankRes;
       const pick = (label, res) => {
         const d = res && res.data ? res.data : res;
         const arr = Array.isArray(d) ? d : ((d && (d.tops || d.items || d.scores)) || []);
@@ -1665,14 +1676,20 @@ const card = (x) => {
 
         <section class="profile-ranks">
           <h3>游戏成绩</h3>
+          ${myRank ? `
+            <div class="profile-rank-row profile-rank-tier">
+              <span class="profile-rank-game">幻梦牌 · 段位</span>
+              <span class="profile-rank-no">${esc(myRank.tier || '学徒')}</span>
+              <b>${Number(myRank.rating) || 0} 分</b>
+            </div>` : ''}
           ${myRanks.length ? myRanks.map(r => `
             <div class="profile-rank-row">
               <span class="profile-rank-game">${esc(r.label)}</span>
               <span class="profile-rank-no">${r.rank === 1 ? '👑' : '第 ' + r.rank + ' 名'}</span>
               <b>${r.score}</b>
-            </div>`).join('') : `
+            </div>`).join('') : (myRank ? '' : `
             <p class="profile-rank-none">暂无</p>
-            <p class="profile-rank-tip">进了某个游戏排行榜的前五名，成绩就会显示在这里。</p>`}
+            <p class="profile-rank-tip">进了某个游戏排行榜的前五名，成绩就会显示在这里。</p>`)}
         </section>
 
         <div class="profile-actions">

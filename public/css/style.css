@@ -2858,6 +2858,8 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .profile-rank-game { flex: 1; color: var(--ink-2); font-size: var(--fs-sm); }
 .profile-rank-no { color: var(--gold); font-size: var(--fs-sm); }
 .profile-rank-row b { color: var(--gold); font-variant-numeric: tabular-nums; }
+/* 第一行是幻梦牌段位（服务端分数），比下面两个小游戏的"第几名"更醒目一点 */
+.profile-rank-tier .profile-rank-no { font-family: var(--font-serif); letter-spacing: .08em; }
 
 .profile-actions {
   display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);

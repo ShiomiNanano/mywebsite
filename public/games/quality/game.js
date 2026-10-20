@@ -264,12 +264,14 @@ const QC = { '普': 'var(--普)', '金': 'var(--金)', '彩': 'var(--彩)' };
 let g = null, sel = [], phase = 'ready', STARTED = false, msg = '', miss = 0;
 
 // ===== 段位（本地存储；接站点时换成服务端）=====
+// 门槛比最初设计整体低 400：原设计是"初始 400 分 + 门槛 800/1200/1600/2000"，
+// 上线时初始分落成 0、已有玩家在玩，于是改降门槛，段位效果与"初始 +400"一致。
 const TIERS = [
   { name: '学徒',   min: 0,    ai: 'easy' },
-  { name: '侍者',   min: 800,  ai: 'normal' },
-  { name: '咖啡师', min: 1200, ai: 'hard' },
-  { name: '常客',   min: 1600, ai: 'nightmare' },
-  { name: '店长',   min: 2000, ai: 'nightmare' }
+  { name: '侍者',   min: 400,  ai: 'normal' },
+  { name: '咖啡师', min: 800,  ai: 'hard' },
+  { name: '常客',   min: 1200, ai: 'nightmare' },
+  { name: '店长',   min: 1600, ai: 'nightmare' }
 ];
 const loadRank = () => {
   try { return JSON.parse(localStorage.getItem('qc_rank') || 'null') || { rating: 0, wins: 0, losses: 0 }; }
@@ -283,6 +285,73 @@ function paintRank() {
   const t = tierOf(RANK.rating);
   document.getElementById('rankName').textContent = t.name;
   document.getElementById('rankScore').textContent = RANK.rating + ' 分';
+}
+
+// ===== 段位同步：登录了就存在云端（跨设备），没登录就只存这台设备 =====
+// 服务端才是权威：POST 回来的是「绝对 rating」而不是增量，所以直接采用不会重复累加。
+const SYNC = { online: false, guest: false, note: '' };
+const escT = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function paintSync(note) {
+  const el = $('rankSync');
+  if (!el) return;
+  el.textContent = SYNC.online ? '已同步到云端' : (note || SYNC.note || '本地段位 · 登录后可上榜');
+  el.style.color = SYNC.online ? 'var(--gold, #d9b76a)' : 'var(--ink3, #6d8496)';
+}
+
+// 读服务端段位；未登录（401）就安静地留在本地模式
+async function loadRemoteRank() {
+  try {
+    const r = await fetch('/api/games/rank', { credentials: 'same-origin', cache: 'no-store' });
+    if (r.status === 401) { SYNC.online = false; SYNC.guest = true; SYNC.note = ''; paintSync(); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    RANK = { rating: j.rating | 0, wins: j.wins | 0, losses: j.losses | 0 };
+    saveRank(RANK); paintRank();
+    SYNC.online = true; SYNC.guest = false; paintSync();
+  } catch (e) {
+    SYNC.online = false; SYNC.note = '云端没连上 · 先记本机'; paintSync();
+  }
+}
+
+// 交一局结果给服务端；进来先把本地算的分显示出来，服务端回来再以服务端为准
+async function pushResult(result, rounds, oppPts) {
+  // 已经确认是游客（401 过）就不再每局白发一次请求
+  if (SYNC.guest) return;
+  try {
+    const r = await fetch('/api/games/rank', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ game: 'quality', result: result, rounds: rounds | 0, oppPts: oppPts | 0 })
+    });
+    if (r.status === 401) { SYNC.online = false; SYNC.guest = true; paintSync(); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    RANK = { rating: j.rating | 0, wins: j.wins | 0, losses: j.losses | 0 };
+    saveRank(RANK); paintRank();
+    SYNC.online = true; SYNC.guest = false; paintSync();
+    const box = $('ovRank');
+    if (box && g && g.over) {
+      const d = typeof j.delta === 'number' ? j.delta : (j.rating | 0) - (RANK.rating | 0);
+      box.textContent = (d >= 0 ? '+' + d : String(d)) + ' 分 · ' + tierOf(RANK.rating).name;
+    }
+  } catch (e) {
+    SYNC.online = false; SYNC.note = '云端没连上 · 先记本机'; paintSync();
+  }
+}
+
+// 中途放弃：尽量用 sendBeacon（页面正在关闭时 fetch 会被掐断）
+function pushAbandon() {
+  if (!g || SYNC.guest) return;
+  const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
+  const body = JSON.stringify({ game: 'quality', result: 'abandon', rounds: g.round | 0, oppPts: oppPts | 0 });
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/games/rank', new Blob([body], { type: 'application/json' }));
+      return;
+    }
+  } catch (e) { /* 退回到 fetch */ }
+  pushResult('abandon', g.round, oppPts);
 }
 
 // 段位变化：赢 = 钳制((1000 − 回合×8 − 对手剩余特殊点数×3) / 10, 5, 40)；输 = −8；下限 0
@@ -305,6 +374,12 @@ function applyRank(result) {
   const upTxt = afterTier !== beforeTier ? '　→ ' + afterTier + ' · 对手变强了' : '';
   const box = document.getElementById('ovRank');
   box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分' + upTxt;
+  // 本地先算（弹层立刻有数），再把这局交给服务端；服务端回来的绝对值会覆盖上面的显示
+  if (result === 'me') {
+    pushResult('win', g.round, specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0));
+  } else if (result === 'ai') {
+    pushResult('loss', g.round, 0);
+  }
 }
 
 // ===== 新手引导（只教规则，不教策略）=====
@@ -559,6 +634,7 @@ function doRestart() {
     RANK.rating = Math.max(0, RANK.rating - 8);
     RANK.losses++;
     saveRank(RANK); paintRank();
+    pushAbandon();
   }
   start();
 }
@@ -583,13 +659,9 @@ document.getElementById('resetRank').addEventListener('click', () => {
 // 第一次进入自动弹引导（只教规则，可跳过；本地记一个标记）
 try { if (!localStorage.getItem('qc_guided')) openGuide(); } catch (e) {}
 start();
-
-// 返回上一步
-document.getElementById('backBtn').addEventListener('click', () => {
-  if (window.history.length > 1 && document.referrer) { window.history.back(); }
-  else { window.location.href = '/#/games'; }
-});
-
+// 进来先问一次服务端：登录了就用云端段位，没登录安静地留在本地
+paintSync();
+loadRemoteRank();
 // 返回上一步（带离开惩罚：本局已开始且未结束 → 确认后扣 8 分）
 // (已移除 __qcLeaving 机制：后退与刷新统一走同一套离开处理)
 // 返回上一步：这里【只做返回】✓
@@ -622,6 +694,7 @@ document.getElementById('backBtn').addEventListener('click', () => {
         RANK.rating = Math.max(0, RANK.rating - 8);
         RANK.losses++;
         saveRank(RANK);
+        pushAbandon();
       } catch (err) {}
     }
   });

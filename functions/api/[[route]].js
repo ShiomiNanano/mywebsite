@@ -683,13 +683,16 @@ export async function onRequest(context) {
        读：需登录（返回自己的段位）
        写：需登录，服务端自己算涨幅（不信客户端传来的分数）
        榜：公开，按段位分前五
-       段位阶梯与前端一致：学徒 0 / 侍者 800 / 咖啡师 1200 / 常客 1600 / 店长 2000 */
+       段位阶梯与前端一致：学徒 0 / 侍者 400 / 咖啡师 800 / 常客 1200 / 店长 1600
+       注意：原先设计是"每人初始 400 分、门槛 800/1200/1600/2000"。
+       上线时初始分写成了 0，已经有玩家在玩，不便清库；
+       所以改成把四道门槛整体降 400 —— 对段位而言与"初始 +400"完全等价。 */
     const RANK_GAME = 'quality';
     function rankTier(rating) {
-      if (rating >= 2000) return '店长';
-      if (rating >= 1600) return '常客';
-      if (rating >= 1200) return '咖啡师';
-      if (rating >= 800) return '侍者';
+      if (rating >= 1600) return '店长';
+      if (rating >= 1200) return '常客';
+      if (rating >= 800) return '咖啡师';
+      if (rating >= 400) return '侍者';
       return '学徒';
     }
     async function readRank(env, userId) {
