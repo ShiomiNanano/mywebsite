@@ -790,6 +790,18 @@ if (typeof RANK.omen !== 'number') RANK.omen = 0;
 const omenChance = (n) => (n >= 5 ? 0.45 : n === 4 ? 0.30 : n === 3 ? 0.20 : 0);
 const HAUNT_BONUS = 30;      // 低段位打赢被盯上的那局，额外加分
 
+// 连胜奖励：到 3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）；连胜中断就归零
+const STREAK_FROM = 3;
+const streakBonusOf = (n) => (n >= STREAK_FROM ? 3 * n : 0);
+
+// 结算里那行「（含 …）」：把附加奖励拼出来，没有附加就返回空串
+function bonusTxt(omen, streak) {
+  const parts = [];
+  if (omen) parts.push('噩梦加成 +' + omen);
+  if (streak) parts.push('连胜奖励 +' + streak);
+  return parts.length ? '（含 ' + parts.join('、') + '）' : '';
+}
+
 function paintRank() {
   const t = tierOf(RANK.rating);
   const el = document.getElementById('rankName');
@@ -881,13 +893,18 @@ async function pushResult(result, rounds, oppPts, haunt) {
     if (r.status === 401) { SYNC.online = false; SYNC.guest = true; paintSync(); return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    RANK = Object.assign({}, RANK, { rating: j.rating | 0, wins: j.wins | 0, losses: j.losses | 0 });
+    RANK = Object.assign({}, RANK, {
+      rating: j.rating | 0, wins: j.wins | 0, losses: j.losses | 0,
+      streak: typeof j.streak === 'number' ? j.streak : RANK.streak
+    });
     saveRank(RANK); paintRank();
     SYNC.online = true; SYNC.guest = false; paintSync();
     const box = $('ovRank');
     if (box && g && g.over) {
+      const b = j.bonus || {};
       const d = typeof j.delta === 'number' ? j.delta : (j.rating | 0) - (RANK.rating | 0);
-      box.textContent = (d >= 0 ? '+' + d : String(d)) + ' 分 · ' + tierOf(RANK.rating).name;
+      box.textContent = (d >= 0 ? '+' + d : String(d)) + ' 分'
+        + bonusTxt(b.omen | 0, b.streak | 0) + ' · ' + tierOf(RANK.rating).name;
     }
   } catch (e) {
     SYNC.online = false; SYNC.note = '云端没连上 · 先记本机'; paintSync();
@@ -914,16 +931,20 @@ function applyRank(result) {
   const beforeTier = tierOf(before).name;
   const lowTier = tierOf(before).ai !== 'nightmare';   // 本来就不打噩梦的段位
   let delta = 0;
-  let bonus = 0;
+  let omenBonus = 0;
+  let streakBonus = 0;
   if (result === 'me') {
     const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
     // 原始值 = 1000 − 回合×8 − 对手剩余点数×3；减去基线 400 再除 12，钳 5~50
     const raw = 1000 - g.round * 8 - oppPts * 3;
     delta = Math.max(5, Math.min(50, Math.round((raw - 400) / 12)));
     // 彩蛋：低段位打赢被噩梦盯上的那局 → 额外加分
-    if (g.haunt && lowTier) { bonus = HAUNT_BONUS; delta += bonus; }
-    RANK.rating += delta; RANK.wins++;
+    if (g.haunt && lowTier) { omenBonus = HAUNT_BONUS; delta += omenBonus; }
     RANK.streak = (RANK.streak || 0) + 1;
+    // 连胜奖励：3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）
+    streakBonus = streakBonusOf(RANK.streak);
+    delta += streakBonus;
+    RANK.rating += delta; RANK.wins++;
     // 连胜够了就摇一次：这一局赢完之后，下一局会不会被盯上
     if (lowTier && document.getElementById('diff').value === 'auto' && Math.random() < omenChance(RANK.streak)) {
       RANK.omen = 1;
@@ -941,8 +962,7 @@ function applyRank(result) {
   const afterTier = tierOf(RANK.rating).name;
   const upTxt = afterTier !== beforeTier ? '　→ ' + afterTier + ' · 对手变强了' : '';
   const box = document.getElementById('ovRank');
-  box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分'
-    + (bonus ? '（含噩梦加成 +' + bonus + '）' : '') + upTxt;
+  box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分' + bonusTxt(omenBonus, streakBonus) + upTxt;
   // 本地先算（弹层立刻有数），再把这局交给服务端；服务端回来的绝对值会覆盖上面的显示
   if (result === 'me') {
     pushResult('win', g.round, specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0), !!g.haunt && lowTier);

@@ -328,6 +328,8 @@ async function ensureSchema(env) {
     await env.DB.prepare(
     'CREATE TABLE IF NOT EXISTS game_rank (game TEXT NOT NULL, user_id INTEGER NOT NULL, username TEXT, rating INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, losses INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (game, user_id))'
     ).run();
+    /* 连胜：服务端也记一份，连胜奖励按这里的数算（跨设备一致）。老库自动补列。 */
+    try { await env.DB.prepare('ALTER TABLE game_rank ADD COLUMN streak INTEGER NOT NULL DEFAULT 0').run(); } catch (e) { /* 已经有了 */ }
   } catch (e) {}
   await env.DB.batch([
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`),
@@ -735,10 +737,13 @@ export async function onRequest(context) {
     }
     async function readRank(env, userId) {
       const row = await env.DB.prepare(
-        'SELECT rating, wins, losses FROM game_rank WHERE game=? AND user_id=?'
+        'SELECT rating, wins, losses, streak FROM game_rank WHERE game=? AND user_id=?'
       ).bind(RANK_GAME, userId).first();
       const rating = (row && row.rating) || 0;
-      return { rating, tier: rankTier(rating), wins: (row && row.wins) || 0, losses: (row && row.losses) || 0 };
+      return {
+        rating, tier: rankTier(rating), wins: (row && row.wins) || 0, losses: (row && row.losses) || 0,
+        streak: (row && row.streak) || 0
+      };
     }
     if (method === 'GET' && path === '/games/rank') {
       if (!user) return json({ error: '登录后才能查看段位' }, 401);
@@ -756,26 +761,33 @@ export async function onRequest(context) {
       let rating = cur.rating;
       let wins = cur.wins;
       let losses = cur.losses;
+      let streak = cur.streak;
       let delta = 0;
+      let omenBonus = 0;
+      let streakBonus = 0;
       if (result === 'win') {
         // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~50
         delta = Math.max(5, Math.min(50, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
         // 连胜彩蛋：本来打不到噩梦的段位（<4200 分 = 梦游咖啡师及以下）打赢被盯上的那局，额外 +30
-        if (haunt && cur.rating < 4200) delta += 30;
+        if (haunt && cur.rating < 4200) { omenBonus = 30; delta += omenBonus; }
+        // 连胜奖励：到 3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）
+        streak = cur.streak + 1;
+        if (streak >= 3) { streakBonus = 3 * streak; delta += streakBonus; }
         rating += delta;
         wins += 1;
       } else if (result === 'loss' || result === 'abandon') {
         delta = -18;
         rating = Math.max(0, rating - 18);
         losses += 1;
+        streak = 0;                 // 输了 / 中途放弃 = 连胜中断
       } else {
         return json({ error: '结果不合法' }, 400);
       }
       await env.DB.prepare(
-        'INSERT INTO game_rank (game, user_id, username, rating, wins, losses, updated_at) VALUES (?,?,?,?,?,?,?) ' +
-        'ON CONFLICT(game, user_id) DO UPDATE SET username=excluded.username, rating=excluded.rating, wins=excluded.wins, losses=excluded.losses, updated_at=excluded.updated_at'
-      ).bind(RANK_GAME, user.id, user.username, rating, wins, losses, nowStr()).run();
-      return json({ ok: true, delta, rating, tier: rankTier(rating), wins, losses });
+        'INSERT INTO game_rank (game, user_id, username, rating, wins, losses, streak, updated_at) VALUES (?,?,?,?,?,?,?,?) ' +
+        'ON CONFLICT(game, user_id) DO UPDATE SET username=excluded.username, rating=excluded.rating, wins=excluded.wins, losses=excluded.losses, streak=excluded.streak, updated_at=excluded.updated_at'
+      ).bind(RANK_GAME, user.id, user.username, rating, wins, losses, streak, nowStr()).run();
+      return json({ ok: true, delta, rating, tier: rankTier(rating), wins, losses, streak, bonus: { omen: omenBonus, streak: streakBonus } });
     }
     if (method === 'GET' && path === '/games/rank/tops') {
       const rows = await env.DB.prepare(
