@@ -1,0 +1,1295 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>幻梦牌 · 对局分析</title>
+<style>
+:root{
+  --bg:#14100a; --bg2:#0c0906;
+  --ink:#f0e7d3; --dim:#b9aa8b; --faint:#8c7f66;
+  --gold:#d9b877; --gold2:#f2dda9; --line:rgba(216,186,128,.20);
+  --panel:linear-gradient(180deg, rgba(72,57,33,.52), rgba(36,28,16,.66));
+  --me:#e8c06a; --ai:#84b0c9; --win:#8fdcae; --lose:#e79a9a; --tie:#9aa0a8; --sk:#d8a0e0;
+  --serif:"Source Han Serif SC","Noto Serif SC","Songti SC",STSong,SimSun,Georgia,serif;
+  --sans:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;
+  --r:18px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(240,214,158,.10), transparent 60%),
+    radial-gradient(90% 70% at 50% 40%, rgba(90,68,34,.32), transparent 70%),
+    linear-gradient(180deg, var(--bg), var(--bg2));
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:repeating-linear-gradient(90deg, rgba(255,240,210,.014) 0 1px, transparent 1px 4px);
+  opacity:.7;
+}
+.wrap{position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:38px 22px 80px}
+@media (max-width:640px){ .wrap{padding:24px 14px 64px} }
+
+/* ---------- 头部 ---------- */
+.hd{display:flex; gap:18px; align-items:flex-start; margin-bottom:26px}
+.hd-mark{
+  flex:0 0 auto; width:52px; height:52px; border-radius:14px; display:grid; place-items:center;
+  font-size:24px; color:var(--gold2);
+  border:1px solid rgba(216,186,128,.34);
+  background:radial-gradient(circle at 30% 25%, rgba(255,230,180,.22), rgba(60,46,26,.5));
+  box-shadow:0 10px 26px -18px #000, inset 0 1px 0 rgba(255,240,210,.14);
+}
+h1{
+  font-family:var(--serif); font-weight:600; letter-spacing:.06em;
+  font-size:clamp(22px,3.4vw,30px); margin:0 0 6px;
+  background:linear-gradient(180deg,#fff8e6,var(--gold) 60%,#a98b4e);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hd-sub{margin:0; color:var(--dim); font-size:13.5px; max-width:74ch}
+.hd-sub code{font-family:var(--mono); font-size:12.5px; color:var(--gold2); background:rgba(216,186,128,.10); padding:1px 5px; border-radius:5px}
+
+/* ---------- 拖放区 ---------- */
+.drop{
+  position:relative; border:1.5px dashed rgba(216,186,128,.34); border-radius:var(--r);
+  background:var(--panel); padding:34px 20px; text-align:center;
+  transition:border-color .2s, background .2s, transform .15s;
+  box-shadow:0 20px 46px -38px #000, inset 0 1px 0 rgba(255,240,210,.06);
+}
+.drop.over{border-color:rgba(242,221,169,.85); background:linear-gradient(180deg, rgba(96,76,44,.6), rgba(44,34,18,.7)); transform:translateY(-1px)}
+.drop.mini{padding:14px 18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-start; text-align:left}
+.drop.mini .drop-ico{font-size:18px; margin:0}
+.drop.mini .drop-t{font-size:14px; margin:0; letter-spacing:.02em}
+.drop.mini .drop-s{margin:0 0 0 auto; font-size:12px}
+.drop-ico{font-size:30px; line-height:1; margin-bottom:10px; opacity:.9}
+.drop-t{font-family:var(--serif); font-size:18px; margin:0 0 6px; letter-spacing:.04em}
+.drop-s{margin:0; color:var(--faint); font-size:13px}
+.legend.facts{gap:0}
+.legend.facts span + span::before{content:'·'; margin:0 11px; color:rgba(216,186,128,.45)}
+.link{
+  appearance:none; border:0; background:none; padding:0 2px; cursor:pointer;
+  color:var(--gold2); font:inherit; font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:#fff}
+.paste{
+  width:100%; min-height:180px; margin-top:14px; padding:14px 16px; resize:vertical;
+  border-radius:14px; border:1px solid var(--line); background:rgba(12,9,5,.62); color:var(--ink);
+  font-family:var(--mono); font-size:12.5px; line-height:1.6;
+}
+.paste:focus{outline:none; border-color:rgba(242,221,169,.6)}
+.acts{display:flex; gap:10px; margin-top:10px}
+.btn{
+  appearance:none; cursor:pointer; font:inherit; font-size:13.5px;
+  padding:9px 18px; border-radius:11px; border:1px solid rgba(216,186,128,.5);
+  background:linear-gradient(180deg,#f0d9a4,#d3ae6a); color:#2a1e0c; font-weight:600;
+  box-shadow:0 12px 26px -20px #000;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn.ghost{background:rgba(255,240,210,.06); color:var(--dim); border-color:var(--line); font-weight:400}
+.err{
+  margin-top:14px; padding:12px 16px; border-radius:12px; font-size:13px;
+  border:1px solid rgba(226,110,96,.5); background:rgba(120,44,36,.24); color:#f3c3bb;
+}
+
+/* ---------- 章节 ---------- */
+.sec{margin-top:34px}
+.sec-h{display:flex; align-items:baseline; gap:12px; margin:0 0 14px}
+.sec-no{
+  font-family:var(--mono); font-size:12px; color:var(--gold); letter-spacing:.14em;
+  border:1px solid rgba(216,186,128,.3); border-radius:6px; padding:1px 7px;
+}
+.sec-h h2{
+  font-family:var(--serif); font-weight:600; font-size:19px; margin:0; letter-spacing:.08em; color:var(--gold2);
+}
+.sec-h .hint{margin-left:auto; font-size:12px; color:var(--faint)}
+.sec-h::after{content:""; flex:1 1 auto; height:1px; background:linear-gradient(90deg, rgba(216,186,128,.34), transparent); margin-left:6px; order:1}
+.sec-h h2{order:0} .sec-h .sec-no{order:-1} .sec-h .hint{order:2}
+
+.card{
+  border:1px solid var(--line); border-radius:var(--r); background:var(--panel);
+  box-shadow:0 22px 48px -40px #000, inset 0 1px 0 rgba(255,240,210,.055);
+  padding:18px 20px;
+}
+.card + .card{margin-top:14px}
+.grid{display:grid; gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){ .g2,.g3{grid-template-columns:1fr} }
+
+/* ---------- 结果横幅 ---------- */
+.banner{
+  position:relative; overflow:hidden; border-radius:var(--r); padding:24px 26px;
+  border:1px solid var(--line); background:var(--panel);
+  box-shadow:0 26px 60px -44px #000, inset 0 1px 0 rgba(255,240,210,.07);
+}
+.banner::after{
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+  background:radial-gradient(90% 120% at 88% -30%, var(--tint, rgba(216,186,128,.28)), transparent 62%);
+}
+.banner h2{
+  font-family:var(--serif); font-size:clamp(24px,4vw,34px); margin:0 0 4px; letter-spacing:.1em;
+  color:var(--tone, var(--gold2));
+}
+.banner .why{margin:0; color:var(--dim); font-size:13.5px}
+.banner .why b{color:var(--ink); font-weight:600}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px}
+.chip{
+  font-size:12px; padding:3px 10px; border-radius:999px; color:var(--dim);
+  border:1px solid var(--line); background:rgba(255,240,210,.045);
+}
+.chip b{color:var(--gold2); font-weight:600}
+.chip.warn{border-color:rgba(226,110,96,.45); color:#eab6ad}
+
+/* ---------- KPI ---------- */
+.kpi{
+  border:1px solid var(--line); border-radius:14px; padding:14px 16px; background:rgba(255,240,210,.028);
+}
+.kpi .k{font-size:11.5px; color:var(--faint); letter-spacing:.1em; text-transform:uppercase}
+.kpi .v{font-family:var(--serif); font-size:26px; line-height:1.25; color:var(--gold2); margin-top:2px}
+.kpi .v small{font-size:13px; color:var(--dim); font-family:var(--sans); margin-left:3px}
+.kpi .n{font-size:12px; color:var(--faint); margin-top:2px}
+.kpi.good .v{color:var(--win)} .kpi.bad .v{color:var(--lose)}
+
+/* ---------- 时间线 ---------- */
+.strip{display:flex; flex-wrap:wrap; gap:3px; margin:2px 0 14px}
+.strip .b{
+  width:calc(2.2% - 3px); min-width:9px; height:22px; border-radius:4px; opacity:.92;
+  position:relative; cursor:default;
+}
+.strip .b.me{background:linear-gradient(180deg,#a6e8c4,#6bbd92)}
+.strip .b.ai{background:linear-gradient(180deg,#f0b6b0,#cf827b)}
+.strip .b.tie{background:linear-gradient(180deg,#b9c0c8,#878e97)}
+.strip .b.umb{box-shadow:0 0 0 1.5px rgba(216,160,224,.9)}
+.strip .b:hover{outline:1px solid rgba(255,248,230,.75); outline-offset:1px}
+
+/* ---------- 图例 ---------- */
+.legend{display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--dim); margin-top:8px}
+.legend i{display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:6px}
+.legend i.dot{width:8px; height:8px; border-radius:50%}
+
+/* ---------- 建议 ---------- */
+.adv{list-style:none; margin:0; padding:0; display:grid; gap:10px}
+.adv li{
+  border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:12px;
+  padding:12px 15px; background:rgba(255,240,210,.03);
+}
+.adv li.warn{border-left-color:#e0665a}
+.adv li.good{border-left-color:#79c99a}
+.adv li b{display:block; font-size:14px; color:var(--ink); font-weight:600; margin-bottom:2px}
+.adv li span{font-size:13px; color:var(--dim)}
+.adv li code{font-family:var(--mono); font-size:12.5px; color:var(--gold2)}
+
+/* ---------- 表格 ---------- */
+.tblwrap{overflow-x:auto; border-radius:12px; border:1px solid var(--line)}
+table{border-collapse:collapse; width:100%; font-size:12.5px}
+th,td{padding:7px 10px; text-align:left; white-space:nowrap; border-bottom:1px solid rgba(216,186,128,.10)}
+th{position:sticky; top:0; background:#241b0e; color:var(--gold); font-weight:600; font-size:11.5px; letter-spacing:.06em; z-index:2}
+tbody tr:nth-child(even){background:rgba(255,240,210,.022)}
+td.num{font-family:var(--mono); text-align:right; color:var(--ink)}
+td.me{color:var(--win)} td.ai{color:var(--lose)} td.tie{color:var(--tie)}
+tr.sealed td{background:rgba(226,110,96,.10)}
+.fxb{display:inline-block; padding:1px 6px; margin:1px 4px 1px 0; border-radius:6px; font-size:11px; line-height:1.5; border:1px solid transparent}
+.fxb.me{color:#f0dca8; background:rgba(232,192,106,.13); border-color:rgba(232,192,106,.30)}
+.fxb.ai{color:#bcd8e6; background:rgba(132,176,201,.13); border-color:rgba(132,176,201,.30)}
+details{border:1px solid var(--line); border-radius:12px; padding:10px 14px; background:rgba(255,240,210,.025)}
+details summary{cursor:pointer; font-size:13px; color:var(--gold2); letter-spacing:.04em}
+details pre{
+  margin:12px 0 0; max-height:340px; overflow:auto; font-family:var(--mono); font-size:11.5px;
+  line-height:1.55; color:#cbbfa4; background:rgba(0,0,0,.34); border-radius:10px; padding:12px;
+}
+.ft{margin-top:44px; padding-top:16px; border-top:1px solid var(--line); color:var(--faint); font-size:12px; display:flex; flex-wrap:wrap; gap:10px}
+.ft .sp{margin-left:auto}
+svg{display:block; max-width:100%; height:auto}
+.tt{position:fixed; z-index:99; pointer-events:none; padding:6px 9px; border-radius:8px; font-size:12px;
+  background:rgba(16,12,7,.96); border:1px solid rgba(216,186,128,.4); color:var(--ink); opacity:0; transition:opacity .12s}
+.tt.on{opacity:1}
+@media print{
+  body{background:#fff; color:#111} .wrap{max-width:none}
+  .drop,.ft,.tt{display:none} .card,.banner{break-inside:avoid; box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hd">
+    <div class="hd-mark">☕️</div>
+    <div>
+      <h1>幻梦牌 · 对局分析</h1>
+      <p class="hd-sub">
+        导入一局「导出本场对局」得到的 <code>.txt</code>，这里会把这一局拆开：胜负怎么来的、点数怎么走的、
+        彩卡特效有没有白打、手牌与牌堆怎么耗的，以及下一局能改哪里。全程在本地跑，不上传任何东西。
+      </p>
+    </div>
+  </header>
+
+  <section id="drop" class="drop">
+    <div class="drop-ico">📜</div>
+    <p class="drop-t">把对局记录拖进来</p>
+    <p class="drop-s">
+      或者 <button id="pick" class="link" type="button">选择文件</button> ·
+      也可以 <button id="pasteBtn" class="link" type="button">直接粘贴文本</button>
+    </p>
+  </section>
+  <input id="file" type="file" accept=".txt,text/plain" hidden>
+
+  <div id="pasteWrap" hidden>
+    <textarea id="pasteBox" class="paste" spellcheck="false" placeholder="把整份对局记录粘到这里（从「=====」那行开始，到末尾的 JSON 结束）…"></textarea>
+    <div class="acts">
+      <button id="pasteGo" class="btn" type="button">开始分析</button>
+      <button id="pasteCancel" class="btn ghost" type="button">取消</button>
+    </div>
+  </div>
+
+  <div id="err" class="err" hidden></div>
+
+  <main id="out" hidden></main>
+
+  <footer class="ft">
+    <span>幻梦牌 · 对局分析 <span id="ftVer">v1</span></span>
+    <span id="ftFile"></span>
+    <span class="sp">本地页面 · 不联网 · 不保存任何数据</span>
+  </footer>
+</div>
+
+<div id="tt" class="tt"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     基础工具
+     ============================================================ */
+  const $ = (s, r) => (r || document).querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = (v, d) => { const n = Number(v); return isFinite(n) ? n : (d || 0); };
+  const fix = (v, k) => { const p = Math.pow(10, k || 1); return String(Math.round(num(v) * p) / p); };
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  const pct = (x) => (isFinite(x) ? Math.round(x * 100) + '%' : '—');
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
+  const mmss = (s) => { s = Math.max(0, Math.round(num(s))); return Math.floor(s / 60) + ' 分 ' + pad2(s % 60) + ' 秒'; };
+
+  /* ============================================================
+     卡牌与技能字典（与游戏内保持一致）
+     ============================================================ */
+  const TYPE_LIST = ['☕️', '🐋', '☀️', '🌙', '☘️', '༄', '🌈', '☂'];
+  const TYPE_NAME = {
+    '☕️': '咖啡', '🐋': '鲸鱼', '☀️': '太阳', '🌙': '月亮',
+    '☘️': '三叶草', '༄': '风', '🌈': '彩虹', '☂': '雨伞'
+  };
+  const SKILL = {
+    '☕️': '白日梦特调', '🐋': '塔尔塔洛斯的瞥视', '☀️': '我仍会向前', '🌙': '༺弦月镰†终末断罪༺',
+    '☘️': '最新爆点！！', '༄': '微风中的小憩', '🌈': '牵起晴空的手', '☂': '无染之泉'
+  };
+  const SKILL_SHORT = {
+    '☕️': '回手', '🐋': '封印', '☀️': '抽牌', '🌙': '弃牌', '☘️': '加点', '༄': '削点', '🌈': '平局', '☂': '重置'
+  };
+  const SKILL_ONE = {
+    '☕️': '另一张不是彩卡时，无论胜负本卡都回到手上',
+    '🐋': '本回合对方两张牌的特效全部失效',
+    '☀️': '打出即抽 1 张；在手且冷却中时，同族普/金每打出 1 张再抽 1 张',
+    '🌙': '令对方弃 1 张；对方若再没有能出的特殊牌，直接判负',
+    '☘️': '另一张不是彩卡时，我方这一手 +1 点',
+    '༄': '另一张不是彩卡时，对方这一手 −1 点；同为风则 −2',
+    '🌈': '落后时改判为平局，并让我方出牌冷却 −1',
+    '☂': '原始点数相同时锁定平局，双方特殊牌清空重抽'
+  };
+  const NAME2TYPE = (function () {
+    const m = {};
+    for (const k of TYPE_LIST) m[SKILL[k]] = k;
+    return m;
+  })();
+  const QUAL_PT = { '普': 1, '金': 2, '彩': 3 };
+
+  function cardOf(txt) {
+    const s = String(txt || '').trim();
+    if (!s) return null;
+    if (s === '空白') return { raw: s, type: '空白', qual: '', pt: 0, blank: true };
+    const qual = s.slice(-1);
+    const type = s.slice(0, -1);
+    return { raw: s, type: type, qual: qual, pt: QUAL_PT[qual] || 0, blank: false };
+  }
+  function cardsOf(arr) {
+    return (Array.isArray(arr) ? arr : []).map(cardOf).filter(Boolean);
+  }
+  function skillTypeOf(name) {
+    const n = String(name || '').trim();
+    if (NAME2TYPE[n]) return NAME2TYPE[n];
+    if (n === '余晖') return '☀️';
+    return '';
+  }
+  function levelName(lv) {
+    return ({ easy: '简单', normal: '普通', hard: '困难', nightmare: '噩梦' })[lv] || lv || '未知';
+  }
+
+  /* ============================================================
+     解析：优先用末尾 JSON，退化为读文本表格
+     ============================================================ */
+  function parseLog(text) {
+    const t = String(text || '').replace(/\r\n?/g, '\n');
+    const out = { json: null, fromJson: false, warnings: [], text: t };
+
+    const at = t.indexOf('【结构化 JSON】');
+    if (at >= 0) {
+      const brace = t.indexOf('{', at);
+      if (brace >= 0) {
+        try { out.json = JSON.parse(t.slice(brace)); out.fromJson = true; }
+        catch (e) { out.warnings.push('末尾 JSON 解析失败：' + e.message); }
+      }
+    }
+    if (!out.json) {
+      const brace = t.indexOf('{');
+      if (brace >= 0) {
+        try {
+          const j = JSON.parse(t.slice(brace));
+          if (j && j.format === 'dreamcard-match') { out.json = j; out.fromJson = true; }
+        } catch (e) { /* 忽略 */ }
+      }
+    }
+    if (!out.json) {
+      const j = parseTextFallback(t);
+      if (j && j.rounds && j.rounds.length) { out.json = j; out.warnings.push('没有找到 JSON，已按文本表格还原（信息会少一些）。'); }
+    }
+    if (!out.json) throw new Error('看不懂这份文件：既没有末尾的 JSON，也没有可解析的回合表。');
+    return out;
+  }
+
+  function parseTextFallback(t) {
+    const m = { format: 'dreamcard-match', ver: 'v1', rounds: [], meta: {} };
+    const info = {};
+    const reKV = /^\s{2,}([^：:\n]{2,12})[：:]\s*(.+)$/;
+    for (const line of t.split('\n')) {
+      const mm = line.match(reKV);
+      if (mm && t.indexOf(line) < t.indexOf('【逐回合】') + 1) info[mm[1].trim()] = mm[2].trim();
+    }
+    const at = t.indexOf('【回合表】');
+    if (at < 0) return m;
+    const headLine = t.indexOf('\n', at);
+    const rows = t.slice(headLine + 1).split('\n').filter((l) => l.indexOf('\t') > 0);
+    if (rows.length < 2) return m;
+    const head = rows[0].split('\t').map((s) => s.trim());
+    const body = rows.slice(2);
+    const arr = (s) => (s && s !== '-' ? String(s).split(/\s+/).filter(Boolean) : []);
+    for (const line of body) {
+      const c = line.split('\t');
+      if (c.length < 10) continue;
+      const o = {};
+      head.forEach((k, i) => { o[k] = c[i]; });
+      const resTxt = String(o.res || '').trim();
+      m.rounds.push({
+        r: num(o.R), handMe: arr(o.handMe), handAi: arr(o.handAi), playMe: arr(o.playMe), playAi: arr(o.playAi),
+        rawP: num(o.rawP), rawA: num(o.rawA), pP: num(o.pP), aP: num(o.aP),
+        res: resTxt === '我方' ? 'me' : resTxt === '对方' ? 'ai' : 'tie',
+        fx: String(o.fx || '').split(' / ').filter(Boolean).map((s) => {
+          const p = s.split('·');
+          return { side: p[0] === '我方' ? 'me' : 'ai', name: p.slice(1).join('·') };
+        }),
+        loot: arr(o.loot), umb: 0, kill: '',
+        deckB: num(o.deckB), deckA: num(o.deckA), coldMe: num(o.coldMe), coldAi: num(o.coldAi),
+        dropMe: arr(o.dropMe), dropAi: arr(o.dropAi)
+      });
+    }
+    m.result = {
+      winner: m.rounds.length && m.rounds[m.rounds.length - 1] ? '' : '',
+      reason: info['结束原因'] || '', rounds: m.rounds.length, nextRound: m.rounds.length
+    };
+    const winnerTxt = String(info['结果'] || '');
+    m.result.winner = winnerTxt.indexOf('赢') >= 0 ? 'me' : winnerTxt.indexOf('输') >= 0 ? 'ai' : 'tie';
+    m.seconds = num(String(info['对局用时'] || '').replace(/\D+/g, ''));
+    m.seed = num(info['随机种子']);
+    m.tier = info['段位'] || '';
+    m.level = ({ '简单': 'easy', '普通': 'normal', '困难': 'hard', '噩梦': 'nightmare' })[info['AI 难度']] || '';
+    m.haunt = String(info['被盯上的局'] || '').indexOf('是') === 0;
+    m.docVer = info['规则版本'] || '';
+    return m;
+  }
+
+  /* 把任意来源的回合数组补成统一形状 */
+  function normalize(json) {
+    const rounds = (Array.isArray(json.rounds) ? json.rounds : []).map((r) => ({
+      r: num(r.r),
+      handMe: Array.isArray(r.handMe) ? r.handMe : [],
+      handAi: Array.isArray(r.handAi) ? r.handAi : [],
+      playMe: Array.isArray(r.playMe) ? r.playMe : [],
+      playAi: Array.isArray(r.playAi) ? r.playAi : [],
+      rawP: num(r.rawP), rawA: num(r.rawA), pP: num(r.pP), aP: num(r.aP),
+      res: (r.res === 'me' || r.res === 'ai' || r.res === 'tie') ? r.res : 'tie',
+      fx: (Array.isArray(r.fx) ? r.fx : []).map((x) => ({ side: x.side === 'ai' ? 'ai' : 'me', name: String(x.name || '') })),
+      loot: Array.isArray(r.loot) ? r.loot : [],
+      umb: num(r.umb), kill: String(r.kill || ''),
+      deckB: num(r.deckB), deckA: num(r.deckA),
+      coldMe: num(r.coldMe), coldAi: num(r.coldAi),
+      dropMe: Array.isArray(r.dropMe) ? r.dropMe : [],
+      dropAi: Array.isArray(r.dropAi) ? r.dropAi : []
+    })).filter((r) => r.playMe.length || r.playAi.length).sort((a, b) => a.r - b.r);
+
+    const res = json.result || {};
+    const gh = json.globalHands || json.finalHands || {};
+    return {
+      format: json.format || 'dreamcard-match',
+      ver: json.ver || 'v1',
+      docVer: json.docVer || '',
+      ts: json.ts || '',
+      seconds: num(json.seconds),
+      seed: num(json.seed),
+      level: json.level || '',
+      haunt: !!json.haunt,
+      tier: json.tier || '',
+      ratingBefore: json.ratingBefore == null ? null : num(json.ratingBefore),
+      ratingAfter: json.ratingAfter == null ? null : num(json.ratingAfter),
+      conf: json.conf || {},
+      result: {
+        winner: (res.winner === 'me' || res.winner === 'ai' || res.winner === 'tie') ? res.winner : '',
+        reason: String(res.reason || ''),
+        rounds: num(res.rounds),
+        nextRound: num(res.nextRound)
+      },
+      finalHands: { me: (gh.me || []), ai: (gh.ai || []), deck: num(gh.deck), dealUntil: num(gh.dealUntil) },
+      stats: json.stats || {},
+      rounds: rounds
+    };
+  }
+
+  /* ============================================================
+     分析
+     ============================================================ */
+  function analyze(m) {
+    const R = m.rounds, n = R.length;
+    const A = { meta: {}, res: {}, streak: {}, blank: {}, gain: {}, disc: {}, skill: {}, hand: {}, deck: {}, mod: {}, lead: {}, phase: {}, tags: [], radar: [], advice: [], n: n };
+
+    /* ---- 元信息 ---- */
+    A.meta = {
+      level: m.level, levelName: levelName(m.level), haunt: m.haunt, tier: m.tier,
+      ratingBefore: m.ratingBefore, ratingAfter: m.ratingAfter,
+      delta: (m.ratingBefore != null && m.ratingAfter != null) ? m.ratingAfter - m.ratingBefore : null,
+      seconds: m.seconds, seed: m.seed, docVer: m.docVer, conf: m.conf,
+      deckLeft: m.finalHands.deck, dealUntil: m.finalHands.dealUntil, ts: m.ts, ver: m.ver
+    };
+
+    /* ---- 胜负 ---- */
+    const wins = R.filter((r) => r.res === 'me').length;
+    const losses = R.filter((r) => r.res === 'ai').length;
+    const ties = R.filter((r) => r.res === 'tie').length;
+    A.wins = wins; A.losses = losses; A.ties = ties;
+    A.winRate = n ? wins / n : 0;
+    A.res = {
+      winner: m.result.winner, reason: m.result.reason,
+      label: m.result.winner === 'me' ? '你赢了' : m.result.winner === 'ai' ? '你输了' : m.result.winner === 'tie' ? '平局收场' : '结果不明',
+      rounds: n, nextRound: m.result.nextRound
+    };
+
+    /* ---- 点数 ---- */
+    const pP = R.map((r) => r.pP), aP = R.map((r) => r.aP);
+    A.sumP = sum(pP); A.sumA = sum(aP);
+    A.avgP = avg(pP); A.avgA = avg(aP);
+    A.diffAvg = A.avgP - A.avgA;
+    A.diffs = R.map((r) => r.pP - r.aP);
+    A.maxP = Math.max(0, ...pP); A.maxA = Math.max(0, ...aP);
+    A.rawP = sum(R.map((r) => r.rawP)); A.rawA = sum(R.map((r) => r.rawA));
+
+    /* ---- 领先/落后 ---- */
+    let run = 0, maxLead = 0, maxLeadAt = 0, maxDef = 0, maxDefAt = 0;
+    const cum = [];
+    for (let i = 0; i < n; i++) {
+      run += A.diffs[i];
+      cum.push(run);
+      if (run > maxLead) { maxLead = run; maxLeadAt = R[i].r; }
+      if (run < maxDef) { maxDef = run; maxDefAt = R[i].r; }
+    }
+    A.lead = { cum: cum, max: maxLead, maxAt: maxLeadAt, min: maxDef, minAt: maxDefAt, final: run };
+
+    /* ---- 连胜 / 连败 ---- */
+    function longest(target) {
+      let best = { len: 0, from: 0, to: 0 }, cur = 0, from = 0;
+      R.forEach((r, i) => {
+        if (r.res === target) { if (!cur) from = r.r; cur++; if (cur > best.len) best = { len: cur, from: from, to: r.r }; }
+        else cur = 0;
+      });
+      return best;
+    }
+    const lastRes = R.length ? R[R.length - 1].res : '';
+    let finalRun = 0;
+    for (let i = R.length - 1; i >= 0 && R[i].res === lastRes; i--) finalRun++;
+    A.streak = {
+      win: longest('me'), loss: longest('ai'),
+      finalType: lastRes, finalLen: finalRun
+    };
+
+    /* ---- 空白（0 点）回合 ---- */
+    A.blank = { rounds: [], count: 0, rate: 0 };
+    R.forEach((r) => {
+      const play = cardsOf(r.playMe);
+      const hasBlank = play.some((c) => c.blank);
+      if (hasBlank) A.blank.rounds.push(r.r);
+    });
+    A.blank.count = A.blank.rounds.length;
+    A.blank.rate = n ? A.blank.count / n : 0;
+
+    /* ---- 牌流 ---- */
+    A.gain = { got: 0, lost: 0, net: 0, gotRounds: [], lostRounds: [] };
+    R.forEach((r) => {
+      const k = r.loot.length;
+      if (!k) return;
+      if (r.res === 'me') { A.gain.got += k; A.gain.gotRounds.push(r.r); }
+      else if (r.res === 'ai') { A.gain.lost += k; A.gain.lostRounds.push(r.r); }
+    });
+    A.gain.net = A.gain.got - A.gain.lost;
+
+    /* ---- 弃置 ---- */
+    A.disc = {
+      me: sum(R.map((r) => r.dropMe.length)), ai: sum(R.map((r) => r.dropAi.length)),
+      timesMe: R.filter((r) => r.dropMe.length).length, timesAi: R.filter((r) => r.dropAi.length).length
+    };
+
+    /* ---- 技能 ---- */
+    const mine = {}, theirs = {}, evByRound = [];
+    R.forEach((r) => {
+      r.fx.forEach((e) => {
+        const t = skillTypeOf(e.name);
+        if (!t) return;
+        const bucket = e.side === 'me' ? mine : theirs;
+        bucket[t] = (bucket[t] || 0) + 1;
+        evByRound.push({ r: r.r, side: e.side, type: t, name: e.name, glow: e.name === '余晖' });
+      });
+    });
+    A.skill = { mine: mine, theirs: theirs, events: evByRound, byType: {} };
+    let playedCai = 0, triggered = 0, glow = 0;
+    const sealedRounds = [];
+    R.forEach((r) => {
+      const myCai = cardsOf(r.playMe).filter((c) => !c.blank && c.qual === '彩');
+      const oppCai = cardsOf(r.playAi).filter((c) => !c.blank && c.qual === '彩');
+      const myFx = r.fx.filter((e) => e.side === 'me');
+      playedCai += myCai.length;
+      triggered += myFx.length;
+      if (myFx.some((e) => e.name === '余晖')) glow++;
+      const oppSeal = oppCai.some((c) => c.type === '🐋');
+      if (myCai.length && myFx.length === 0 && oppSeal) sealedRounds.push(r.r);
+    });
+    A.skill.opp = { playedCai: playedCai, triggered: triggered, rate: playedCai ? triggered / playedCai : null, sealed: sealedRounds.length, sealedRounds: sealedRounds, glow: glow };
+
+    for (const t of TYPE_LIST) {
+      A.skill.byType[t] = { name: SKILL[t], short: SKILL_SHORT[t], one: SKILL_ONE[t], me: mine[t] || 0, ai: theirs[t] || 0 };
+    }
+
+    /* ---- 手牌 / 牌堆 ---- */
+    A.hand = {
+      me: R.map((r) => r.handMe.length),
+      ai: R.map((r) => r.handAi.length),
+      cap: num(m.conf.cap, 9),
+      coldMe: R.map((r) => r.coldMe),
+      coldAi: R.map((r) => r.coldAi),
+      maxMe: Math.max(0, ...R.map((r) => r.handMe.length)),
+      maxAi: Math.max(0, ...R.map((r) => r.handAi.length)),
+      coldTurnsMe: R.filter((r) => r.coldMe > 0).length
+    };
+    A.deck = {
+      b: R.map((r) => r.deckB), a: R.map((r) => r.deckA),
+      dealUntil: num(m.finalHands.dealUntil, num(m.conf.window, 13)),
+      left: num(m.finalHands.deck),
+      endCap: num(m.conf.endCap, 100)
+    };
+
+    /* ---- 点数修正（加点/削点生效的回合） ---- */
+    A.mod = {
+      me: R.filter((r) => r.pP !== r.rawP).map((r) => ({ r: r.r, from: r.rawP, to: r.pP })),
+      ai: R.filter((r) => r.aP !== r.rawA).map((r) => ({ r: r.r, from: r.rawA, to: r.aP }))
+    };
+
+    /* ---- 分阶段 ---- */
+    const half = Math.max(1, Math.floor(n / 2));
+    const seg = (arr) => ({ w: arr.filter((r) => r.res === 'me').length, l: arr.filter((r) => r.res === 'ai').length, t: arr.filter((r) => r.res === 'tie').length, n: arr.length });
+    A.phase = {
+      first: seg(R.slice(0, half)),
+      second: seg(R.slice(half)),
+      last5: seg(R.slice(Math.max(0, n - 5)))
+    };
+
+    /* ---- 点数分布 ---- */
+    A.dist = { me: {}, ai: {} };
+    for (let k = 0; k <= 6; k++) { A.dist.me[k] = 0; A.dist.ai[k] = 0; }
+    pP.forEach((v) => { const k = Math.min(6, Math.max(0, v)); A.dist.me[k]++; });
+    aP.forEach((v) => { const k = Math.min(6, Math.max(0, v)); A.dist.ai[k]++; });
+
+    /* ---- 标签 ---- */
+    const tags = [];
+    if (n && n <= 8) tags.push('速决战');
+    if (n >= 25) tags.push('消耗战');
+    if (triggered >= 8) tags.push('技能秀');
+    if (A.skill.opp.sealed >= 2) tags.push('被封印压制');
+    if (A.blank.count === 0 && n >= 5) tags.push('零空白');
+    if (m.haunt) tags.push('彩蛋局');
+    if (m.level === 'nightmare') tags.push('噩梦难度');
+    if (ties >= 3) tags.push('平局偏多');
+    if (A.lead.min <= -4) tags.push('逆风局');
+    if (m.result.winner === 'me' && A.lead.min <= -4) tags.push('逆风翻盘');
+    if (m.result.winner === 'ai' && A.lead.max >= 4) tags.push('优势被翻');
+    A.tags = tags;
+
+    /* ---- 六维评分 ---- */
+    const overflow = A.disc.timesMe;
+    const dimOff = clamp01(A.avgP / 6) * 100;
+    const dimPress = A.winRate * 100;
+    const dimSkill = A.skill.opp.rate == null ? 0 : clamp01(A.skill.opp.rate) * 100;
+    const dimManage = clamp01(1 - A.blank.rate - Math.min(0.3, overflow * 0.04)) * 100;
+    const dimRes = clamp01(0.5 + A.gain.net / (2 * Math.max(1, n))) * 100;
+    const last5Rate = A.phase.last5.n ? A.phase.last5.w / A.phase.last5.n : A.winRate;
+    const dimEnd = clamp01(last5Rate) * 100;
+    A.radar = [
+      { label: '进攻', val: dimOff, note: '平均每回合 ' + fix(A.avgP) + ' 点（满值 6）' },
+      { label: '压制', val: dimPress, note: wins + ' 胜 / ' + losses + ' 负 / ' + ties + ' 平' },
+      { label: '技巧', val: dimSkill, note: playedCai + ' 张彩卡打出，生效 ' + triggered + ' 次' },
+      { label: '管理', val: dimManage, note: A.blank.count + ' 个空白回合、' + A.disc.timesMe + ' 次超限弃置' },
+      { label: '资源', val: dimRes, note: '夺 ' + A.gain.got + ' 张 / 被夺 ' + A.gain.lost + ' 张' },
+      { label: '残局', val: dimEnd, note: '最后 5 回合 ' + A.phase.last5.w + ' 胜' }
+    ];
+    A.score = Math.round(avg(A.radar.map((d) => d.val)));
+
+    /* ---- 建议 ---- */
+    A.advice = buildAdvice(m, A);
+    return A;
+  }
+
+  /* ============================================================
+     建议生成
+     ============================================================ */
+  function buildAdvice(m, A) {
+    const out = [];
+    const n = A.n;
+    const add = (level, title, text) => out.push({ level: level, title: title, text: text });
+    const R = m.rounds;
+
+    /* 1 判负方式 */
+    const reason = A.res.reason || '';
+    if (A.res.winner === 'ai') {
+      if (reason.indexOf('夺光') >= 0) {
+        add('warn', '输在「特殊牌被夺光」——这是最伤的一种输法', '你的特殊牌全被对方赢走了，说明输的那些回合不止丢分，还把牌送了出去。第 1 回合就该盯住「我这张输掉会被夺走吗」，尤其是彩卡和最后一张同族牌。');
+      } else if (reason.indexOf('空白') >= 0 || reason.indexOf('只剩') >= 0) {
+        add('warn', '输在「只剩空白能出」', '到最后一回合，你手上能出的只剩空白（0 点），对方只要出任意一点就赢了。这是冷却与补牌节奏崩掉的结果，不是最后一回合的问题。');
+      } else if (reason.indexOf('月亮') >= 0 || reason.indexOf('刺杀') >= 0) {
+        add('warn', '被月亮「刺杀」判负', '对方打出月亮时，你手上已经没有第二张能出的特殊牌，直接被判负。月亮在场时，手里至少要留一张能出的特殊牌当缓冲。');
+      } else if (reason.indexOf('回合') >= 0 || reason.indexOf('安全') >= 0) {
+        add('info', '打到安全网按手牌点数判定', '这一局拖到了回合上限。回合越往后点数越值钱，彩卡全部冷却时，普卡的 1 点也要尽量留住。');
+      } else {
+        add('warn', '这一局输了：' + (reason || '原因未记录'), '看下面「回合谱」里红色那几段——连续输 2 回合以上就要换思路：别把手里的高点数牌当消耗品，能赢一手就拿走对方一张特殊牌。');
+      }
+    } else if (A.res.winner === 'me') {
+      if (reason.indexOf('夺光') >= 0) add('good', '赢得干净：把对方特殊牌全夺光了', '这是最彻底的赢法。保持这种「赢就赢在能夺牌的位置」的节奏。');
+      else add('good', '这一局拿下了', '结果不错。下面几条是能继续抠的细节。');
+    }
+
+    /* 2 空白率 */
+    if (A.blank.rate >= 0.3 && n >= 5) {
+      add('warn', '有 ' + A.blank.count + ' / ' + n + ' 回合只能凑出 0 点（空白）',
+        '空白回合等于把这一手白送。常见原因：彩卡连出导致冷却堆在一起，或者把手上仅有的两张能出的牌拆开用。看到手牌只剩 1 张能出时，宁可先用掉一张普卡，也别把彩卡压到最后。');
+    } else if (A.blank.count === 0 && n >= 5) {
+      add('good', '一次空白都没出', '每一手都至少有一点，说明出牌节奏很稳。');
+    }
+
+    /* 3 彩卡生效 */
+    const op = A.skill.opp;
+    if (op.playedCai >= 2) {
+      if (op.rate != null && op.rate < 0.6) {
+        add('warn', '彩卡打出 ' + op.playedCai + ' 张，只有 ' + op.triggered + ' 次真正生效' + (op.sealed ? '（其中 ' + op.sealed + ' 个回合被对方鲸鱼封印）' : ''),
+          '彩卡是这游戏最贵的资源：冷却 2 回合、还特别容易被夺走。' + (op.sealed
+            ? '被封印说明对方用鲸鱼在「卡」你的彩卡——对方打出鲸鱼的那一回合，不如先出普卡把鲸鱼耗掉。'
+            : '不生效多半是搭档问题：咖啡要另一张非彩卡才回手、三叶草/风要搭档不是彩卡才生效、彩虹只有落后才改判。'));
+      } else if (op.rate != null && op.rate >= 0.8) {
+        add('good', '彩卡利用率很高（' + op.playedCai + ' 张打出，' + op.triggered + ' 次生效）', '每一张彩卡都换成实际收益了，这是本局最值得保留的习惯。');
+      }
+    }
+
+    /* 4 牌流 */
+    if (A.gain.net < 0) {
+      add('warn', '净亏 ' + Math.abs(A.gain.net) + ' 张牌（夺走 ' + A.gain.got + ' 张，被夺 ' + A.gain.lost + ' 张）',
+        '赢下的回合要能「夺到牌」，输的回合尽量只丢普卡。被夺走的牌在 R' + (A.gain.lostRounds.slice(0, 4).join('、R') || '—') + '：那几回合你出的是特殊牌，输掉就直接进对方手里。');
+    } else if (A.gain.net > 0) {
+      add('good', '牌流是正的（净赚 ' + A.gain.net + ' 张）', '赢的回合基本都夺到了牌，资源的雪球是往你这边滚的。');
+    }
+
+    /* 5 弃置 */
+    if (A.disc.timesMe >= 3) {
+      add('warn', '被动弃牌 ' + A.disc.timesMe + ' 次，共丢掉 ' + A.disc.me + ' 张',
+        '手牌上限就那么多，超了只能丢。丢牌优先级：冷却中的低品质牌 → 用不上的同族多余牌 → 保彩卡。' + (A.disc.ai > 0 ? '（对方也被迫弃了 ' + A.disc.ai + ' 张，说明你也在用抽牌/月亮压他。）' : ''));
+    }
+
+    /* 6 平局 */
+    if (A.ties >= 2) {
+      add('info', '本局 ' + A.ties + ' 次平局', '平局不改变牌，但连续 3 次平局双方要各弃一张最大的牌。平局多说明双方点数咬得很紧——这种局第 2 张牌（决定修正的那张）比第 1 张更关键。');
+    }
+
+    /* 7 点数与胜率不匹配 */
+    if (A.diffAvg > 1 && A.winRate < 0.45 && n >= 6) {
+      add('warn', '平均点数比对方高 ' + fix(A.diffAvg) + '，却只赢了 ' + wins + ' / ' + n + ' 回合',
+        '点数没有换成胜局，说明赢的小、输的大。看「点数走势」里两条线的交叉点——赢 1~2 分的回合其实不值得用掉彩卡，把彩卡留到能一次夺 2 张的位置。');
+    } else if (A.diffAvg < -1 && A.winRate > 0.5 && n >= 6) {
+      add('good', '以巧取胜：平均点数落后 ' + fix(Math.abs(A.diffAvg)) + '，胜率却有 ' + pct(A.winRate),
+        '你靠关键回合的时机赢的。这种打法要小心平局——对方一旦把点数咬平，你的优势就没了。');
+    }
+
+    /* 8 冷牌拖累 */
+    if (A.hand.coldTurnsMe >= Math.max(3, Math.round(n * 0.35))) {
+      add('warn', '有 ' + A.hand.coldTurnsMe + ' 个回合手上带着冷却中的牌',
+        '冷却中的牌不能出、还占着手牌位。彩卡冷却 2 回合，连着出两张彩卡，中间那两回合基本只能靠普卡和空白撑——这就是空白率高的来源。');
+    }
+
+    /* 9 残局 */
+    if (A.phase.last5.n >= 3) {
+      const r5 = A.phase.last5.w / A.phase.last5.n;
+      if (r5 <= 0.2 && A.phase.first.n && (A.phase.first.w / A.phase.first.n) >= 0.5) {
+        add('warn', '前半段打得不错，最后 5 回合只赢了 ' + A.phase.last5.w + ' 回合',
+          '体力（牌）在后半段跟不上了：前期用彩卡太豪爽，后期手牌全是冷却和低点牌。前期赢 1 点也该赢，但别拿彩卡去赢 1 点。');
+      } else if (r5 >= 0.6) {
+        add('good', '最后 5 回合赢了 ' + A.phase.last5.w + ' 回合', '越到后面越稳，残局处理是加分项。');
+      }
+    }
+
+    /* 10 补牌窗口 */
+    if (A.deck.dealUntil && n > A.deck.dealUntil + 3) {
+      add('info', '打过了补牌窗口（第 ' + A.deck.dealUntil + ' 回合后不再补牌）', '补牌停了以后手牌只会越来越少，这时候「不丢牌」比「多拿点」重要——赢下来的牌才是你的。');
+    }
+
+    /* 11 彩蛋局 */
+    if (m.haunt) {
+      add('info', '这是一局「被盯上」的噩梦局', '噩梦 AI 用的影子解算器会算得比你深。这种局输了不必当成实力差距，赢下来才有额外段位分。');
+    }
+
+    /* 12 时长 */
+    if (A.meta.seconds && A.meta.seconds > 0 && n > 0) {
+      const per = A.meta.seconds / n;
+      if (per < 6) add('info', '平均每回合只想了 ' + fix(per, 1) + ' 秒', '出得快不是坏事，但如果输的回合集中在后半段，可能就是「没算下一手」。');
+    }
+
+    /* 排序：warn → good → info，各取前几条 */
+    const order = { warn: 0, good: 1, info: 2 };
+    out.sort((a, b) => order[a.level] - order[b.level]);
+    return out.slice(0, 9);
+  }
+
+  /* 暴露给下一段 */
+  window.__AN = {
+    $: $, esc: esc, num: num, fix: fix, avg: avg, sum: sum, pct: pct, mmss: mmss,
+    TYPE_LIST: TYPE_LIST, TYPE_NAME: TYPE_NAME, SKILL: SKILL, SKILL_SHORT: SKILL_SHORT,
+    cardOf: cardOf, cardsOf: cardsOf, levelName: levelName,
+    parseLog: parseLog, normalize: normalize, analyze: analyze
+  };
+})();
+
+(function () {
+  'use strict';
+  const N = window.__AN;
+  const $ = N.$, esc = N.esc, num = N.num, fix = N.fix, avg = N.avg, sum = N.sum, pct = N.pct, mmss = N.mmss;
+  const TYPE_LIST = N.TYPE_LIST, TYPE_NAME = N.TYPE_NAME, SKILL = N.SKILL, SKILL_SHORT = N.SKILL_SHORT;
+  const cardsOf = N.cardsOf, levelName = N.levelName;
+
+  /* ============================================================
+     配色与 SVG 小工具
+     ============================================================ */
+  const C = {
+    me: '#e8c06a', ai: '#84b0c9', win: '#8fdcae', lose: '#e79a9a',
+    tie: '#9aa0a8', sk: '#d8a0e0', ink: '#f0e7d3', dim: '#8c7f66',
+    grid: 'rgba(216,186,128,.13)', axis: 'rgba(216,186,128,.32)'
+  };
+  const FONT = '"Cascadia Mono",Consolas,"PingFang SC","Microsoft YaHei",monospace';
+  const SERIF = '"Source Han Serif SC","Noto Serif SC","Songti SC",Georgia,serif';
+
+  function svg(w, h, inner) {
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="auto" role="img">' + inner + '</svg>';
+  }
+  function txt(x, y, s, o) {
+    o = o || {};
+    return '<text x="' + fix(x, 1) + '" y="' + fix(y, 1) + '" fill="' + (o.fill || C.dim) + '" font-size="' + (o.size || 10.5) +
+      '" font-family="' + (o.serif ? SERIF : FONT) + '" text-anchor="' + (o.anchor || 'start') + '"' +
+      (o.weight ? ' font-weight="' + o.weight + '"' : '') + '>' + esc(s) + '</text>';
+  }
+  function line(x1, y1, x2, y2, color, w, dash) {
+    return '<line x1="' + fix(x1, 1) + '" y1="' + fix(y1, 1) + '" x2="' + fix(x2, 1) + '" y2="' + fix(y2, 1) +
+      '" stroke="' + color + '" stroke-width="' + (w || 1) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>';
+  }
+  function dot(x, y, r, color, tip) {
+    return '<circle cx="' + fix(x, 1) + '" cy="' + fix(y, 1) + '" r="' + r + '" fill="' + color + '">' + (tip ? '<title>' + esc(tip) + '</title>' : '') + '</circle>';
+  }
+
+  /* 通用折线图 */
+  function lineChart(o) {
+    const w = o.w || 860, h = o.h || 250, pl = 42, pr = 14, pt = 16, pb = 30;
+    const n = o.labels.length;
+    const yMax = o.yMax, yMin = o.yMin || 0;
+    const iw = w - pl - pr, ih = h - pt - pb;
+    const xAt = (i) => pl + (n <= 1 ? iw / 2 : iw * i / (n - 1));
+    const yAt = (v) => pt + ih * (1 - (v - yMin) / ((yMax - yMin) || 1));
+    let s = '';
+    const ticks = o.yTicks || [0, 1, 2, 3, 4, 5, 6];
+    ticks.forEach((t) => {
+      if (t > yMax || t < yMin) return;
+      const y = yAt(t);
+      s += line(pl, y, w - pr, y, C.grid, 1);
+      s += txt(pl - 6, y + 3.5, String(t), { anchor: 'end' });
+    });
+    s += line(pl, yAt(yMin), w - pr, yAt(yMin), C.axis, 1);
+    const step = Math.max(1, Math.ceil(n / (o.xTicks || 13)));
+    o.labels.forEach((lb, i) => {
+      if (i % step && i !== n - 1) return;
+      s += txt(xAt(i), h - 10, lb, { anchor: 'middle', size: 9.5 });
+    });
+    (o.hlines || []).forEach((h2) => {
+      s += line(pl, yAt(h2.v), w - pr, yAt(h2.v), h2.color || C.axis, 1, '4 4');
+      if (h2.label) s += txt(w - pr - 2, yAt(h2.v) - 4, h2.label, { anchor: 'end', size: 9.5, fill: h2.color || C.dim });
+    });
+    (o.vlines || []).forEach((v) => {
+      s += line(xAt(v.i), pt, xAt(v.i), h - pb, v.color || 'rgba(216,160,224,.5)', 1, '3 4');
+      if (v.label) s += txt(xAt(v.i) + 3, pt + 10, v.label, { size: 9.5, fill: v.color || C.dim });
+    });
+    (o.series || []).forEach((se) => {
+      const pts = se.vals.map((v, i) => [xAt(i), yAt(v)]);
+      s += '<polyline fill="none" stroke="' + se.color + '" stroke-width="' + (se.width || 2) + '" stroke-linejoin="round"' +
+        (se.dash ? ' stroke-dasharray="' + se.dash + '"' : '') + ' points="' +
+        pts.map((p) => fix(p[0], 1) + ',' + fix(p[1], 1)).join(' ') + '"/>';
+      if (se.dots) pts.forEach((p, i) => { s += dot(p[0], p[1], 2.4, se.color, (o.tips && o.tips[i]) || ''); });
+    });
+    (o.marks || []).forEach((mk) => {
+      s += dot(xAt(mk.i), yAt(mk.v), 3.4, mk.color || C.sk, mk.tip || '');
+    });
+    return svg(w, h, s);
+  }
+
+  /* 柱状（可为负），每个 x 一根 */
+  function barChart(o) {
+    const w = o.w || 860, h = o.h || 180, pl = 42, pr = 14, pt = 14, pb = 28;
+    const n = o.labels.length;
+    const yMax = o.yMax, yMin = o.yMin;
+    const iw = w - pl - pr, ih = h - pt - pb;
+    const bw = Math.max(2, Math.min(20, iw / n * 0.62));
+    const xAt = (i) => pl + iw * (i + 0.5) / n;
+    const yAt = (v) => pt + ih * (1 - (v - yMin) / ((yMax - yMin) || 1));
+    let s = '';
+    (o.yTicks || []).forEach((t) => {
+      const y = yAt(t);
+      s += line(pl, y, w - pr, y, t === 0 ? C.axis : C.grid, 1);
+      s += txt(pl - 6, y + 3.5, String(t), { anchor: 'end' });
+    });
+    const step = Math.max(1, Math.ceil(n / 16));
+    o.labels.forEach((lb, i) => {
+      if (i % step && i !== n - 1) return;
+      s += txt(xAt(i), h - 9, lb, { anchor: 'middle', size: 9 });
+    });
+    o.vals.forEach((v, i) => {
+      const y0 = yAt(0), y1 = yAt(v);
+      const y = Math.min(y0, y1), hh = Math.max(1.2, Math.abs(y0 - y1));
+      const col = v >= 0 ? (o.posColor || C.win) : (o.negColor || C.lose);
+      s += '<rect x="' + fix(xAt(i) - bw / 2, 1) + '" y="' + fix(y, 1) + '" width="' + fix(bw, 1) + '" height="' + fix(hh, 1) +
+        '" rx="1.5" fill="' + col + '" opacity=".82"><title>' + esc((o.labels[i] || '') + '：' + v) + '</title></rect>';
+    });
+    return svg(w, h, s);
+  }
+
+  /* 分组柱（双方分布） */
+  function groupBars(o) {
+    const w = o.w || 860, h = o.h || 210, pl = 42, pr = 14, pt = 16, pb = 30;
+    const n = o.labels.length, iw = w - pl - pr, ih = h - pt - pb;
+    const yMax = o.yMax, yAt = (v) => pt + ih * (1 - v / (yMax || 1));
+    const gw = iw / n, bw = Math.min(26, gw / (o.series.length + 1));
+    let s = '';
+    (o.yTicks || [0, 1, 2, 3, 4]).forEach((t) => {
+      const y = yAt(t);
+      s += line(pl, y, w - pr, y, C.grid, 1);
+      s += txt(pl - 6, y + 3.5, String(t), { anchor: 'end' });
+    });
+    s += line(pl, yAt(0), w - pr, yAt(0), C.axis, 1);
+    o.labels.forEach((lb, i) => {
+      const cx = pl + gw * (i + 0.5);
+      s += txt(cx, h - 10, lb, { anchor: 'middle', size: 10 });
+      o.series.forEach((se, k) => {
+        const v = se.vals[i];
+        const x = cx - (bw * o.series.length) / 2 + bw * k;
+        const y = yAt(v);
+        s += '<rect x="' + fix(x, 1) + '" y="' + fix(y, 1) + '" width="' + fix(bw * 0.86, 1) + '" height="' + fix(Math.max(1, yAt(0) - y), 1) +
+          '" rx="2" fill="' + se.color + '" opacity=".85"><title>' + esc(lb + ' · ' + se.name + '：' + v + ' 回合') + '</title></rect>';
+      });
+    });
+    return svg(w, h, s);
+  }
+
+  /* 横向双条（技能对比） */
+  function hBars(o) {
+    const rowH = 34, w = 860, h = rowH * o.rows.length + 26, pl = 104, pr = 16, pt = 14;
+    const max = o.max || 1;
+    const iw = w - pl - pr;
+    let s = '';
+    o.rows.forEach((r, i) => {
+      const y = pt + i * rowH;
+      s += txt(pl - 10, y + 13, r.label, { anchor: 'end', size: 11.5, fill: C.ink, serif: true });
+      s += txt(pl - 10, y + 25, r.sub || '', { anchor: 'end', size: 9 });
+      const mk = (v, k, color) => {
+        const bw = iw * Math.max(0, v) / max;
+        const yy = y + 6 + k * 9;
+        return '<rect x="' + pl + '" y="' + yy + '" width="' + fix(Math.max(bw, v ? 1.5 : 0), 1) + '" height="6" rx="3" fill="' + color + '" opacity="' + (v ? 0.9 : 0.25) + '"><title>' + esc(r.label + '：' + v + ' 次') + '</title></rect>' +
+          (v ? txt(pl + Math.max(bw, 1.5) + 5, yy + 6, String(v), { size: 9.5, fill: color }) : '');
+      };
+      s += mk(r.me, 0, C.me);
+      s += mk(r.ai, 1, C.ai);
+    });
+    return svg(w, h, s);
+  }
+
+  /* 雷达图 */
+  function radar(o) {
+    const size = 384, cx = size / 2, cy = size / 2 + 6, R = 132;
+    const n = o.axes.length;
+    const ang = (i) => -Math.PI / 2 + (Math.PI * 2 * i) / n;
+    const pt = (i, k) => [cx + Math.cos(ang(i)) * R * k, cy + Math.sin(ang(i)) * R * k];
+    let s = '';
+    [0.25, 0.5, 0.75, 1].forEach((k) => {
+      const p = [];
+      for (let i = 0; i < n; i++) { const q = pt(i, k); p.push(fix(q[0], 1) + ',' + fix(q[1], 1)); }
+      s += '<polygon points="' + p.join(' ') + '" fill="' + (k === 1 ? 'rgba(216,186,128,.03)' : 'none') + '" stroke="' + (k === 1 ? 'rgba(216,186,128,.30)' : C.grid) + '" stroke-width="1"/>';
+    });
+    for (let i = 0; i < n; i++) {
+      const q = pt(i, 1);
+      s += line(cx, cy, q[0], q[1], C.grid, 1);
+    }
+    /* 刻度：沿正上方那条轴标 25 / 50 / 75 / 100 */
+    [0.25, 0.5, 0.75].forEach((k) => {
+      s += txt(cx + 9, cy - R * k + 3.5, String(Math.round(k * 100)), { size: 8.5, fill: 'rgba(216,186,128,.52)' });
+    });
+    const poly = [];
+    o.axes.forEach((a, i) => {
+      const q = pt(i, Math.max(0.02, Math.min(1, a.val / 100)));
+      poly.push(fix(q[0], 1) + ',' + fix(q[1], 1));
+    });
+    s += '<polygon points="' + poly.join(' ') + '" fill="rgba(232,192,106,.20)" stroke="' + C.me + '" stroke-width="2" stroke-linejoin="round"/>';
+    o.axes.forEach((a, i) => {
+      const q = pt(i, Math.max(0.02, Math.min(1, a.val / 100)));
+      s += dot(q[0], q[1], 3, C.me, a.label + '：' + Math.round(a.val) + '/100');
+      const lp = pt(i, 1.21);
+      const anchor = Math.abs(lp[0] - cx) < 8 ? 'middle' : (lp[0] > cx ? 'start' : 'end');
+      s += txt(lp[0], lp[1] + 4, a.label, { anchor: anchor, size: 12, fill: C.ink, serif: true });
+      s += txt(lp[0], lp[1] + 18, Math.round(a.val) + '', { anchor: anchor, size: 10, fill: C.dim });
+    });
+    return svg(size, size + 8, s);
+  }
+
+  /* ============================================================
+     各段 HTML
+     ============================================================ */
+  function bannerHtml(m, A) {
+    const win = A.res.winner === 'me';
+    const tone = win ? 'var(--win)' : A.res.winner === 'ai' ? 'var(--lose)' : 'var(--tie)';
+    const tint = win ? 'rgba(120,200,160,.26)' : A.res.winner === 'ai' ? 'rgba(210,100,90,.24)' : 'rgba(150,160,175,.22)';
+    const chips = [];
+    chips.push('<span class="chip">对手 <b>' + esc(A.meta.levelName) + '</b></span>');
+    if (A.meta.tier) chips.push('<span class="chip">段位 <b>' + esc(A.meta.tier) + '</b>' + (A.meta.ratingBefore != null ? ' ' + A.meta.ratingBefore + ' 分' : '') + '</span>');
+    if (A.meta.delta != null && A.meta.delta !== 0) {
+      chips.push('<span class="chip' + (A.meta.delta < 0 ? ' warn' : '') + '">段位分 <b>' + (A.meta.delta > 0 ? '+' : '') + A.meta.delta + '</b>（' + A.meta.ratingBefore + ' → ' + A.meta.ratingAfter + '）</span>');
+    }
+    chips.push('<span class="chip">共 <b>' + A.n + '</b> 回合</span>');
+    if (A.meta.seconds) chips.push('<span class="chip">用时 <b>' + esc(mmss(A.meta.seconds)) + '</b></span>');
+    if (A.meta.seed) chips.push('<span class="chip">种子 <b>' + A.meta.seed + '</b></span>');
+    if (A.meta.docVer) chips.push('<span class="chip">规则 <b>' + esc(A.meta.docVer) + '</b></span>');
+    A.tags.forEach((t) => chips.push('<span class="chip"># ' + esc(t) + '</span>'));
+
+    return '<section class="banner" style="--tone:' + tone + ';--tint:' + tint + '">' +
+      '<h2>' + esc(A.res.label) + '</h2>' +
+      '<p class="why">' + (A.res.reason ? '<b>' + esc(A.res.reason) + '</b>' : '（这份记录没有写结束原因）') + '</p>' +
+      '<div class="chips">' + chips.join('') + '</div>' +
+      '</section>';
+  }
+
+  function kpiHtml(A) {
+    const k = [
+      { k: '回合胜率', v: pct(A.winRate), n: A.wins + ' 胜 / ' + A.losses + ' 负 / ' + A.ties + ' 平', cls: A.winRate >= 0.5 ? 'good' : A.winRate < 0.35 ? 'bad' : '' },
+      { k: '平均点数差', v: (A.diffAvg >= 0 ? '+' : '') + fix(A.diffAvg), n: '我方 ' + fix(A.avgP) + ' vs 对方 ' + fix(A.avgA), cls: A.diffAvg > 0 ? 'good' : A.diffAvg < 0 ? 'bad' : '' },
+      { k: '净牌流', v: (A.gain.net >= 0 ? '+' : '') + A.gain.net, n: '夺走 ' + A.gain.got + ' / 被夺 ' + A.gain.lost, cls: A.gain.net > 0 ? 'good' : A.gain.net < 0 ? 'bad' : '' },
+      { k: '彩卡生效', v: A.skill.opp.rate == null ? '—' : pct(A.skill.opp.rate), n: '打出 ' + A.skill.opp.playedCai + ' 张 · 生效 ' + A.skill.opp.triggered + ' 次', cls: (A.skill.opp.rate || 0) >= 0.6 ? 'good' : (A.skill.opp.playedCai >= 2 ? 'bad' : '') },
+      { k: '空白回合', v: A.blank.count + '<small>/ ' + A.n + '</small>', n: '占比 ' + pct(A.blank.rate), cls: A.blank.rate > 0.3 ? 'bad' : A.blank.count === 0 ? 'good' : '' },
+      { k: '被动弃牌', v: A.disc.me + '<small>张</small>', n: A.disc.timesMe + ' 次超限 · 对方弃 ' + A.disc.ai + ' 张', cls: A.disc.timesMe >= 3 ? 'bad' : '' }
+    ];
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">01</span><h2>关键指标</h2></div>' +
+      '<div class="grid g3">' + k.map((x) => '<div class="kpi ' + x.cls + '"><div class="k">' + esc(x.k) + '</div><div class="v">' + x.v + '</div><div class="n">' + esc(x.n) + '</div></div>').join('') + '</div>' +
+      '</section>';
+  }
+
+  function secTimeline(m, A) {
+    const R = m.rounds;
+    const blocks = R.map((r) => {
+      const cls = r.res === 'me' ? 'me' : r.res === 'ai' ? 'ai' : 'tie';
+      const label = 'R' + r.r + ' · ' + (r.res === 'me' ? '你赢' : r.res === 'ai' ? '你输' : '平局') +
+        ' · ' + r.pP + ':' + r.aP + (r.fx.length ? ' · ' + r.fx.map((e) => (e.side === 'me' ? '我方·' : '对方·') + e.name).join(' / ') : '');
+      return '<div class="b ' + cls + (r.umb ? ' umb' : '') + '" title="' + esc(label) + '"></div>';
+    }).join('');
+    const best = A.streak.win, worst = A.streak.loss;
+    const facts = [
+      best.len >= 2 ? '最长连胜 <b>' + best.len + '</b>（R' + best.from + (best.to > best.from ? '–R' + best.to : '') + '）' : '',
+      worst.len >= 2 ? '最长连败 <b>' + worst.len + '</b>（R' + worst.from + (worst.to > worst.from ? '–R' + worst.to : '') + '）' : '',
+      A.streak.finalLen >= 2 ? '结尾连' + (A.streak.finalType === 'me' ? '胜' : A.streak.finalType === 'ai' ? '败' : '平') + ' <b>' + A.streak.finalLen + '</b>' : '',
+      '累计点数 ' + (A.lead.final >= 0 ? '领先 ' : '落后 ') + '<b>' + Math.abs(A.lead.final) + '</b>',
+      A.lead.max > 0 ? '最大领先 <b>' + A.lead.max + '</b>（R' + A.lead.maxAt + '）' : '',
+      A.lead.min < 0 ? '最大落后 <b>' + Math.abs(A.lead.min) + '</b>（R' + A.lead.minAt + '）' : ''
+    ].filter(Boolean);
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">02</span><h2>回合谱</h2><span class="hint">鼠标停在色块上看这一回合</span></div>' +
+      '<div class="card"><div class="strip">' + blocks + '</div>' +
+      '<div class="legend"><span><i style="background:' + C.win + '"></i>你赢</span><span><i style="background:' + C.lose + '"></i>你输</span><span><i style="background:' + C.tie + '"></i>平局</span><span><i class="dot" style="background:transparent;box-shadow:0 0 0 1.5px ' + C.sk + '"></i>雨伞重置发生在本回合</span></div>' +
+      (facts.length ? '<div class="legend facts" style="margin-top:10px">' + facts.map((f) => '<span>' + f + '</span>').join('') + '</div>' : '') +
+      '</div></section>';
+  }
+
+  function secPoints(m, A) {
+    const labels = m.rounds.map((r) => 'R' + r.r);
+    const chart1 = lineChart({
+      labels: labels, n: labels.length,
+      series: [
+        { color: C.me, vals: m.rounds.map((r) => r.pP), dots: true },
+        { color: C.ai, vals: m.rounds.map((r) => r.aP), dots: true, dash: '0' }
+      ],
+      yMax: Math.max(6, A.maxP, A.maxA),
+      yTicks: [0, 1, 2, 3, 4, 5, 6].filter((t) => t <= Math.max(6, A.maxP, A.maxA)),
+      tips: m.rounds.map((r) => 'R' + r.r + '：你 ' + r.pP + '（原始 ' + r.rawP + '） / 对方 ' + r.aP + '（原始 ' + r.rawA + '）')
+    });
+    const chart2 = barChart({
+      labels: labels, n: labels.length, vals: A.diffs,
+      yMax: Math.max(3, ...A.diffs.map((v) => Math.abs(v))), yMin: -Math.max(3, ...A.diffs.map((v) => Math.abs(v))),
+      yTicks: (() => { const mx = Math.max(3, ...A.diffs.map((v) => Math.abs(v))); return [-mx, -Math.round(mx / 2), 0, Math.round(mx / 2), mx]; })(),
+      posColor: C.win, negColor: C.lose
+    });
+    const ties = m.rounds.filter((r) => r.res === 'tie').map((r) => r.r);
+    const modMe = A.mod.me.length, modAi = A.mod.ai.length;
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">03</span><h2>点数走势</h2><span class="hint">修正后的点数（加点/削点已计入）</span></div>' +
+      '<div class="card">' + chart1 +
+      '<div class="legend"><span><i style="background:' + C.me + '"></i>我方</span><span><i style="background:' + C.ai + '"></i>对方</span></div>' +
+      '</div>' +
+      '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">每回合点数差（我方 − 对方）</div>' + chart2 + '</div>' +
+      '<div class="grid g2" style="margin-top:14px">' +
+      '<div class="card"><div class="kpi" style="border:0;padding:0;background:none"><div class="k">修正生效</div><div class="v">' + modMe + '<small>回合</small></div><div class="n">对方被修正 ' + modAi + ' 回合；修正来自三叶草（+1）与风（−1 / −2）</div></div></div>' +
+      '<div class="card"><div class="kpi" style="border:0;padding:0;background:none"><div class="k">平局</div><div class="v">' + ties.length + '<small>次</small></div><div class="n">' + (ties.length ? 'R' + ties.join('、R') : '没有平局') + '：平局不换牌，连续 3 次双方各弃最大牌</div></div></div>' +
+      '</div></section>';
+  }
+
+  function secSkills(m, A) {
+    const rows = TYPE_LIST.map((t) => ({
+      label: t + ' ' + SKILL_SHORT[t], sub: SKILL[t].length > 12 ? SKILL[t].slice(0, 11) + '…' : SKILL[t],
+      me: A.skill.byType[t].me, ai: A.skill.byType[t].ai
+    })).filter((r) => r.me || r.ai);
+    const max = Math.max(1, ...rows.map((r) => Math.max(r.me, r.ai)));
+    const op = A.skill.opp;
+    const detail = TYPE_LIST.filter((t) => A.skill.byType[t].me || A.skill.byType[t].ai).map((t) => {
+      const b = A.skill.byType[t];
+      return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">' +
+        '<div style="flex:0 0 26px;font-size:17px;line-height:1.3">' + t + '</div>' +
+        '<div style="flex:1 1 auto"><div style="font-size:13px;color:var(--ink)">' + esc(SKILL_SHORT[t]) + ' · <span style="color:var(--faint);font-size:12px">' + esc(SKILL[t]) + '</span></div>' +
+        '<div style="font-size:12px;color:var(--dim)">' + esc(b.one) + '</div></div>' +
+        '<div style="flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--dim)">我 ' + b.me + ' · 敌 ' + b.ai + '</div></div>';
+    }).join('');
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">04</span><h2>彩卡特效</h2><span class="hint">只统计真正生效的那一次</span></div>' +
+      '<div class="card">' +
+      (rows.length ? hBars({ rows: rows, max: max }) : '<p style="color:var(--dim)">这一局双方都没有彩卡特效生效。</p>') +
+      '<div class="legend"><span><i style="background:' + C.me + '"></i>我方触发</span><span><i style="background:' + C.ai + '"></i>对方触发</span></div>' +
+      '</div>' +
+      '<div class="grid g2" style="margin-top:14px">' +
+      '<div class="card"><div class="kpi" style="border:0;padding:0;background:none"><div class="k">彩卡生效率</div><div class="v">' + (op.rate == null ? '—' : pct(op.rate)) + '</div><div class="n">打出 ' + op.playedCai + ' 张（含空白以外的彩卡），生效 ' + op.triggered + ' 次；余晖 ' + op.glow + ' 次</div></div>' +
+      (op.sealed ? '<p style="font-size:12.5px;color:#eab6ad;margin:8px 0 0">其中 <b>' + op.sealed + '</b> 个回合你的彩卡被对方鲸鱼封印（R' + op.sealedRounds.slice(0, 8).join('、R') + (op.sealedRounds.length > 8 ? '…' : '') + '）</p>' : '') +
+      '</div>' +
+      '<div class="card"><div class="kpi" style="border:0;padding:0;background:none"><div class="k">对方彩卡</div><div class="v">' + sum(TYPE_LIST.map((t) => A.skill.byType[t].ai)) + '<small>次</small></div><div class="n">对方触发总数；被你的鲸鱼封印的回合可能更多</div></div></div>' +
+      '</div>' +
+      '<div class="card" style="margin-top:14px"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:4px">八张彩卡说明书（本局出现过的）</div>' + detail + '</div>' +
+      '</section>';
+  }
+
+  function secResource(m, A) {
+    const labels = m.rounds.map((r) => 'R' + r.r);
+    const handChart = lineChart({
+      labels: labels, n: labels.length,
+      series: [{ color: C.me, vals: A.hand.me }, { color: C.ai, vals: A.hand.ai, dash: '4 3' }],
+      yMax: Math.max(11, A.hand.maxMe + 1, A.hand.maxAi + 1), yTicks: null,
+      yTicks: (() => { const mx = Math.max(11, A.hand.maxMe + 1, A.hand.maxAi + 1); return [0, 3, 6, 9, mx]; })(),
+      hlines: [{ v: A.hand.cap, color: 'rgba(226,110,96,.55)', label: '上限 ' + A.hand.cap }],
+      tips: m.rounds.map((r) => 'R' + r.r + '：我方 ' + r.handMe.length + ' 张 / 对方 ' + r.handAi.length + ' 张')
+    });
+    const umbRounds = m.rounds.filter((r) => r.umb).map((r) => r.r);
+    const deckChart = lineChart({
+      labels: labels, n: labels.length,
+      series: [{ color: C.ai, vals: A.deck.b }],
+      yMax: Math.max(26, ...A.deck.b), yTicks: null,
+      yTicks: (() => { const mx = Math.max(26, ...A.deck.b); return [0, Math.round(mx / 2), mx]; })(),
+      vlines: [{ i: Math.min(labels.length - 1, Math.max(0, A.deck.dealUntil - 1)), label: '停止补牌', color: 'rgba(216,160,224,.6)' }]
+        .concat(umbRounds.map((r) => ({ i: Math.min(labels.length - 1, r - 1), label: '雨伞重置', color: 'rgba(232,192,106,.75)' }))),
+      tips: m.rounds.map((r) => 'R' + r.r + '：牌堆剩 ' + r.deckB + ' 张' + (r.umb ? '（雨伞重置：特殊牌清空重抽）' : ''))
+    });
+    const dropMe = m.rounds.map((r) => r.dropMe.length);
+    const dropAi = m.rounds.map((r) => r.dropAi.length);
+    const dropChart = groupBars({
+      labels: labels, n: labels.length, yMax: Math.max(2, ...dropMe, ...dropAi),
+      yTicks: (() => { const mx = Math.max(2, ...dropMe, ...dropAi); return [0, 1, 2, 3, 4].filter((t) => t <= mx); })(),
+      series: [{ name: '我方弃置', color: C.me, vals: dropMe }, { name: '对方弃置', color: C.ai, vals: dropAi }]
+    });
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">05</span><h2>手牌与牌堆</h2><span class="hint">每回合开始时的张数</span></div>' +
+      '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">手牌张数</div>' + handChart +
+      '<div class="legend"><span><i style="background:' + C.me + '"></i>我方</span><span><i style="background:' + C.ai + '"></i>对方</span><span><i style="background:rgba(226,110,96,.55)"></i>手牌上限</span></div></div>' +
+      '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">牌堆剩余</div>' + deckChart +
+      '<div class="legend"><span><i style="background:' + C.ai + '"></i>牌堆</span><span><i style="background:rgba(216,160,224,.6)"></i>第 ' + A.deck.dealUntil + ' 回合后不再补牌</span>' +
+      (umbRounds.length ? '<span><i style="background:rgba(232,192,106,.75)"></i>R' + umbRounds.join('、R') + ' 雨伞重置（特殊牌清空重抽，牌堆会回补）</span>' : '') + '</div></div>' +
+      '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">每回合弃置张数（超上限 / 被月亮逼弃）</div>' + dropChart +
+      '<div class="legend"><span><i style="background:' + C.me + '"></i>我方 ' + A.disc.me + ' 张</span><span><i style="background:' + C.ai + '"></i>对方 ' + A.disc.ai + ' 张</span></div></div>' +
+      '</section>';
+  }
+
+  function secRadar(m, A) {
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">06</span><h2>六维评估</h2><span class="hint">综合 ' + A.score + ' / 100</span></div>' +
+      '<div class="grid g2">' +
+      '<div class="card" style="display:grid;place-items:center">' + radar({ axes: A.radar }) + '</div>' +
+      '<div class="card">' + A.radar.map((d) => '<div style="padding:9px 0;border-bottom:1px solid var(--line)">' +
+        '<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--ink)">' + esc(d.label) + '</span>' +
+        '<span style="font-family:var(--mono);color:' + (d.val >= 60 ? C.win : d.val >= 35 ? C.me : C.lose) + '">' + Math.round(d.val) + '</span></div>' +
+        '<div style="font-size:12px;color:var(--dim)">' + esc(d.note) + '</div></div>').join('') + '</div>' +
+      '</div></section>';
+  }
+
+  function secAdvice(A) {
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">07</span><h2>可以改的地方</h2><span class="hint">按重要度排序</span></div>' +
+      '<ul class="adv">' + A.advice.map((a) => '<li class="' + a.level + '"><b>' + esc(a.title) + '</b><span>' + esc(a.text) + '</span></li>').join('') + '</ul>' +
+      '</section>';
+  }
+
+  function secTable(m, A) {
+    const rows = m.rounds.map((r) => {
+      const sealed = A.skill.opp.sealedRounds.indexOf(r.r) >= 0;
+      const resCls = r.res === 'me' ? 'me' : r.res === 'ai' ? 'ai' : 'tie';
+      const resTxt = r.res === 'me' ? '赢' : r.res === 'ai' ? '输' : '平';
+      const typeOf = (name) => {
+        const n = String(name || '').trim();
+        if (n === '余晖') return '☀️';
+        const hit = Object.keys(SKILL).find((k) => SKILL[k] === n);
+        return hit || '';
+      };
+      const fx = r.fx.map((e) => {
+        const t = typeOf(e.name);
+        const short = t ? SKILL_SHORT[t] : e.name;
+        const isMe = e.side === 'me';
+        return '<span class="fxb ' + (isMe ? 'me' : 'ai') + '" title="' + esc((isMe ? '我方' : '对方') + ' · ' + (t ? TYPE_NAME[t] + ' · ' + SKILL[t] : e.name)) + '">' +
+          (isMe ? '我·' : '敌·') + short + '</span>';
+      }).join('');
+      return '<tr class="' + (sealed ? 'sealed' : '') + '">' +
+        '<td class="num">' + r.r + '</td>' +
+        '<td>' + esc(cardsOf(r.playMe).map((c) => c.raw).join(' ') || '—') + '</td>' +
+        '<td>' + esc(cardsOf(r.playAi).map((c) => c.raw).join(' ') || '—') + '</td>' +
+        '<td class="num">' + r.rawP + ':' + r.rawA + '</td>' +
+        '<td class="num">' + r.pP + ':' + r.aP + '</td>' +
+        '<td class="' + resCls + '">' + resTxt + '</td>' +
+        '<td class="num">' + (r.loot.length ? (r.res === 'me' ? '+' : '−') + r.loot.length : '0') + '</td>' +
+        '<td class="num">' + r.dropMe.length + '/' + r.dropAi.length + '</td>' +
+        '<td>' + (fx || '') + '</td>' +
+        '<td class="num">' + r.deckB + '</td>' +
+        '<td class="num">' + r.handMe.length + '/' + r.handAi.length + '</td>' +
+        '</tr>';
+    }).join('');
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">08</span><h2>逐回合</h2><span class="hint">红底行＝彩卡被鲸鱼封印</span></div>' +
+      '<div class="tblwrap"><table><thead><tr>' +
+      ['回合', '我方出牌', '对方出牌', '原始', '修正后', '结果', '牌流', '弃我/敌', '特效', '牌堆', '手牌我/敌']
+        .map((h) => '<th>' + h + '</th>').join('') +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+  }
+
+  function secRaw(m) {
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">09</span><h2>原始数据</h2></div>' +
+      '<details><summary>展开这份记录里的结构化 JSON（' + m.rounds.length + ' 回合）</summary><pre>' +
+      esc(JSON.stringify(m, null, 1)) + '</pre></details></section>';
+  }
+
+  function render(m, A, file) {
+    const out = $('#out');
+    out.innerHTML = bannerHtml(m, A) + kpiHtml(A) + secTimeline(m, A) + secPoints(m, A) + secSkills(m, A) +
+      secResource(m, A) + secRadar(m, A) + secAdvice(A) + secTable(m, A) + secRaw(m);
+    out.hidden = false;
+    $('#ftVer').textContent = m.ver || 'v1';
+    $('#ftFile').textContent = file ? file : '';
+    const d = $('#drop');
+    if (d) d.classList.add('mini');
+    const first = out.querySelector('.banner');
+    if (first && first.scrollIntoView) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ============================================================
+     交互
+     ============================================================ */
+  function showErr(msg) {
+    const e = $('#err');
+    e.textContent = msg;
+    e.hidden = false;
+  }
+  function clearErr() { $('#err').hidden = true; }
+
+  function handleText(text, label) {
+    clearErr();
+    try {
+      const p = N.parseLog(text);
+      const m = N.normalize(p.json);
+      if (!m.rounds.length) throw new Error('这份记录里没有任何回合数据（回合表是空的）。');
+      const A = N.analyze(m);
+      render(m, A, label);
+      if (p.warnings.length) showErr(p.warnings.join('　'));
+      window.__LAST = { m: m, A: A };
+    } catch (err) {
+      showErr('解析失败：' + (err && err.message ? err.message : err));
+      console.error(err);
+    }
+  }
+
+  function readFile(f) {
+    const label = f.name + ' · ' + Math.round(f.size / 1024) + ' KB';
+    const fr = new FileReader();
+    fr.onload = () => handleText(String(fr.result), label);
+    fr.onerror = () => showErr('读不了这个文件。');
+    fr.readAsText(f, 'utf-8');
+  }
+
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+  drop.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('button')) return;
+    $('#file').click();
+  });
+  $('#pick').addEventListener('click', (e) => { e.stopPropagation(); $('#file').click(); });
+  $('#file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) readFile(f); });
+
+  let pasteOpen = false;
+  $('#pasteBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    pasteOpen = !pasteOpen;
+    $('#pasteWrap').hidden = !pasteOpen;
+    if (pasteOpen) $('#pasteBox').focus();
+  });
+  $('#pasteCancel').addEventListener('click', () => { pasteOpen = false; $('#pasteWrap').hidden = true; });
+  $('#pasteGo').addEventListener('click', () => {
+    const t = $('#pasteBox').value;
+    if (!t.trim()) { showErr('先粘点东西进来。'); return; }
+    handleText(t, '粘贴的文本');
+  });
+
+  /* 直接把文件拖到整页也能收 */
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    if (e.target && e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+
+  window.__RENDER = { render: render };
+  window.__LOAD = handleText;
+})();
+
+</script>
+</body>
+</html>

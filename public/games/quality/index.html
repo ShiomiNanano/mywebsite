@@ -959,6 +959,35 @@
   html.hard .top > div[data-tier]:not([data-tier="5"]):not([data-tier="6"]) #rankScore{
     color:rgba(240,160,140,.88) !important;
   }
+
+  /* ===== 对局分析工具下载 ===== */
+  .foot{margin:18px 0 4px; display:flex; flex-direction:column; gap:7px}
+  .dl-tool{
+    display:flex; align-items:center; gap:12px; padding:12px 14px;
+    border-radius:12px; text-decoration:none;
+    border:1px solid rgba(232,207,154,.20);
+    background:linear-gradient(180deg, rgba(255,240,214,.055), rgba(255,240,214,.020));
+    transition:border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .dl-tool:hover, .dl-tool:focus-visible{
+    border-color:rgba(232,207,154,.44);
+    background:linear-gradient(180deg, rgba(255,240,214,.095), rgba(255,240,214,.035));
+    transform:translateY(-1px);
+  }
+  .dl-ico{font-size:19px; line-height:1; flex:0 0 auto}
+  .dl-tx{display:flex; flex-direction:column; gap:3px; min-width:0}
+  .dl-tx b{font-family:var(--serif); font-size:14.5px; color:var(--gold); letter-spacing:.05em}
+  .dl-tx em{font-style:normal; font-size:12px; line-height:1.45; color:var(--ink3)}
+  .dl-go{
+    margin-left:auto; flex:0 0 auto; font-size:12px; letter-spacing:.08em;
+    color:var(--gold); border:1px solid rgba(232,207,154,.34);
+    border-radius:999px; padding:4px 12px; white-space:nowrap;
+  }
+  .foot-note{margin:0; font-size:11px; color:var(--ink3); text-align:center; opacity:.82}
+  @media (max-width:420px){
+    .dl-tool{padding:11px 12px; gap:9px}
+    .dl-tx em{display:none}
+  }
 </style>
 </head>
 <body>
@@ -1049,6 +1078,18 @@
       </div>
     </div>
   </details>
+
+  <footer class="foot">
+    <a class="dl-tool" id="dlAnalysis" href="./analysis.html" download="幻梦牌对局分析.html">
+      <span class="dl-ico">📈</span>
+      <span class="dl-tx">
+        <b>对局分析工具</b>
+        <em>把「导出本场对局」得到的 .txt 拖进这个离线页面，就能看到整局的复盘报告</em>
+      </span>
+      <span class="dl-go">下载</span>
+    </a>
+    <p class="foot-note">单文件离线网页 · 打开后不上传任何对局数据</p>
+  </footer>
 </div>
 
 <div class="overlay" id="guide">
@@ -1078,6 +1119,7 @@
   <div class="ov ov-log">
     <h2>本场对局记录</h2>
     <p class="log-hint">「下载 .txt」保存到本地；也可以「复制」整段文本直接发出去。</p>
+    <p class="log-hint log-tip">想复盘这一局？页面最下方可以下载「对局分析工具」，把这份 txt 拖进去就行。</p>
     <textarea id="logText" readonly spellcheck="false" wrap="off"></textarea>
     <div class="log-btns">
       <button class="ghost" id="logClose">关闭</button>
