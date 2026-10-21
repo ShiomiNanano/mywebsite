@@ -1748,7 +1748,7 @@ const card = (x) => {
           ${myRank ? `
             <div class="profile-rank-row profile-rank-tier">
               <span class="profile-rank-game">幻梦牌 · 段位</span>
-              <span class="profile-rank-no">${esc(myRank.tier || '学徒')}</span>
+              <span class="profile-rank-no">${esc(myRank.tier || '浅眠初客')}</span>
               <b>${Number(myRank.rating) || 0} 分</b>
             </div>` : ''}
           ${myRanks.length ? myRanks.map(r => `

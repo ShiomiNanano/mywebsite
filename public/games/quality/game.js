@@ -760,14 +760,15 @@ function sfx(name) {
 }
 
 // ===== 段位（本地存储；接站点时换成服务端）=====
-// 门槛比最初设计整体低 400：原设计是"初始 400 分 + 门槛 800/1200/1600/2000"，
-// 上线时初始分落成 0、已有玩家在玩，于是改降门槛，段位效果与"初始 +400"一致。
+// 七段：分数越高对手越强。0~499 简单，500~1999 普通，2000~4199 困难，4200 起噩梦。
 const TIERS = [
-  { name: '学徒',   min: 0,    ai: 'easy' },
-  { name: '侍者',   min: 400,  ai: 'normal' },
-  { name: '咖啡师', min: 800,  ai: 'hard' },
-  { name: '常客',   min: 1200, ai: 'nightmare' },
-  { name: '店长',   min: 1600, ai: 'nightmare' }
+  { name: '浅眠初客',     min: 0,    ai: 'easy' },
+  { name: '云游熟客',     min: 500,  ai: 'normal' },
+  { name: '半醒学徒',     min: 1200, ai: 'normal' },
+  { name: '梦游咖啡师',   min: 2000, ai: 'hard' },
+  { name: '日光调梦师',   min: 3000, ai: 'hard' },
+  { name: '清醒造梦官',   min: 4200, ai: 'nightmare' },
+  { name: '白日梦掌梦人', min: 6000, ai: 'nightmare' }
 ];
 const loadRank = () => {
   try { return JSON.parse(localStorage.getItem('qc_rank') || 'null') || { rating: 0, wins: 0, losses: 0 }; }
@@ -782,13 +783,19 @@ if (typeof RANK.omen !== 'number') RANK.omen = 0;
 // ===== 连胜与「噩梦彩蛋」 =====
 // 三连胜起，下一局有概率被噩梦盯上：低段位玩家也会撞上最强的对手。
 // 不想打 —— 开牌前刷新页面、或按「重开」，就能把它刷掉；代价是连胜中断。
-// 本来就在打噩梦的段位（常客/店长）不触发，机制不变。
+// 本来就在打噩梦的段位（清醒造梦官 / 白日梦掌梦人）不触发，机制不变。
 const omenChance = (n) => (n >= 5 ? 0.45 : n === 4 ? 0.30 : n === 3 ? 0.20 : 0);
-const HAUNT_BONUS = 20;      // 低段位打赢被盯上的那局，额外加分
+const HAUNT_BONUS = 30;      // 低段位打赢被盯上的那局，额外加分
 
 function paintRank() {
   const t = tierOf(RANK.rating);
-  document.getElementById('rankName').textContent = t.name;
+  const el = document.getElementById('rankName');
+  el.textContent = t.name;
+  // 牌匾按段位换色：把段位序号写到外层，CSS 用 [data-tier] 取色
+  const box = el.parentNode;
+  const idx = String(TIERS.indexOf(t));
+  if (box && box.dataset) box.dataset.tier = idx;
+  else if (box && box.setAttribute) box.setAttribute('data-tier', idx);
   document.getElementById('rankScore').textContent = RANK.rating + ' 分'
     + (RANK.streak >= 2 ? ' · ' + RANK.streak + ' 连胜' : '');
 }
@@ -898,7 +905,7 @@ function pushAbandon() {
   pushResult('abandon', g.round, oppPts);
 }
 
-// 段位变化：赢 = 钳制((1000 − 回合×8 − 对手剩余特殊点数×3) / 10, 5, 40)；输 = −8；下限 0
+// 段位变化：赢 = 钳 5~50 的 (1000 − 回合×8 − 对手剩余点数×3 − 400) / 12；输 = −18；下限 0
 function applyRank(result) {
   const before = RANK.rating;
   const beforeTier = tierOf(before).name;
@@ -907,9 +914,9 @@ function applyRank(result) {
   let bonus = 0;
   if (result === 'me') {
     const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
-    // 原始值 = 1000 − 回合×8 − 对手剩余点数×3；减去基线 400 再除 12，钳 5~40
+    // 原始值 = 1000 − 回合×8 − 对手剩余点数×3；减去基线 400 再除 12，钳 5~50
     const raw = 1000 - g.round * 8 - oppPts * 3;
-    delta = Math.max(5, Math.min(40, Math.round((raw - 400) / 12)));
+    delta = Math.max(5, Math.min(50, Math.round((raw - 400) / 12)));
     // 彩蛋：低段位打赢被噩梦盯上的那局 → 额外加分
     if (g.haunt && lowTier) { bonus = HAUNT_BONUS; delta += bonus; }
     RANK.rating += delta; RANK.wins++;
@@ -919,8 +926,8 @@ function applyRank(result) {
       RANK.omen = 1;
     }
   } else if (result === 'ai') {
-    delta = -8;
-    RANK.rating = Math.max(0, RANK.rating - 8); RANK.losses++;
+    delta = -18;
+    RANK.rating = Math.max(0, RANK.rating - 18); RANK.losses++;
     RANK.streak = 0;
   } else {
     RANK.streak = 0;     // 平局也算连胜中断
@@ -1297,9 +1304,9 @@ function doRestart() {
   if (RANK.omen) { RANK.omen = 0; RANK.streak = 0; saveRank(RANK); paintRank(); }
   // 已经打完（over）或还没开始（ready）→ 不扣分
   if (STARTED && !g.over) {
-    const ok = window.confirm('这局还没打完，放弃会扣 8 分。确定要重开吗？');
+    const ok = window.confirm('这局还没打完，放弃会扣 18 分。确定要重开吗？');
     if (!ok) return;
-    RANK.rating = Math.max(0, RANK.rating - 8);
+    RANK.rating = Math.max(0, RANK.rating - 18);
     RANK.losses++;
     saveRank(RANK); paintRank();
     pushAbandon();
@@ -1347,7 +1354,7 @@ start();
 // 进来先问一次服务端：登录了就用云端段位，没登录安静地留在本地
 paintSync();
 loadRemoteRank();
-// 返回上一步（带离开惩罚：本局已开始且未结束 → 确认后扣 8 分）
+// 返回上一步（带离开惩罚：本局已开始且未结束 → 离开时扣 18 分）
 // (已移除 __qcLeaving 机制：后退与刷新统一走同一套离开处理)
 // 返回上一步：这里【只做返回】✓
 // 离开惩罚统一交给下面的 beforeunload（浏览器原生提示）+ pagehide（真正离开时扣分）✓
@@ -1376,7 +1383,7 @@ loadRemoteRank();
   window.addEventListener('pagehide', () => {
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       try {
-        RANK.rating = Math.max(0, RANK.rating - 8);
+        RANK.rating = Math.max(0, RANK.rating - 18);
         RANK.losses++;
         saveRank(RANK);
         pushAbandon();

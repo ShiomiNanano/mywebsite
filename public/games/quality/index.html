@@ -866,11 +866,78 @@
     50%{ box-shadow: inset 0 1px 0 rgba(255,214,200,.14), inset 0 0 72px rgba(130,18,10,.40), 0 0 0 1px rgba(220,72,56,.36), 0 0 42px -6px rgba(226,60,44,.72) }
   }
   html.hard .battle .slot{ border-color:rgba(206,62,48,.28); color:rgba(255,190,180,.34) }
-  html.hard #rankName{ color:#f0a08c !important; text-shadow:0 0 16px rgba(226,60,44,.45) !important }
 
   /* ---- 结算弹层里的"被盯上"预告 ---- */
   .ov-omen{ color:#e8836f; font-size:12.5px; letter-spacing:.04em; margin:6px 0 0; display:none }
   .ov-omen.on{ display:block }
+</style>
+<!-- 七段：段位名最长 6 字（白日梦掌梦人），牌匾要留出呼吸感 -->
+<style>
+  .top > div{ padding:11px 24px 10px !important; }
+  #rankName{ font-size:17px !important; letter-spacing:.16em !important; }
+  @media (min-width:760px){
+    #rankName{ font-size:19px !important; letter-spacing:.18em !important }
+  }
+</style>
+<!-- 七段牌匾：每个段位一套颜色，名字用衬线艺术字 -->
+<style>
+  /* 默认（还没写 data-tier 时）= 第二段米金，避免闪白 */
+  .top > div[data-tier]{
+    --tc1:#fffaf0; --tc2:#e6d5a8; --tc3:#b09a63;
+    --tline:rgba(226,210,160,.55); --tglow:rgba(226,210,160,.30);
+    border-color:var(--tline) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.14),
+      0 10px 24px -16px rgba(0,0,0,.95),
+      0 0 26px -14px var(--tglow) !important;
+  }
+  /* 0 浅眠初客 · 雾蓝银 */
+  .top > div[data-tier="0"]{ --tc1:#f4f8fd; --tc2:#c3d2e0; --tc3:#8496a8; --tline:rgba(190,212,232,.45); --tglow:rgba(160,190,215,.26) }
+  /* 1 云游熟客 · 青瓷 */
+  .top > div[data-tier="1"]{ --tc1:#eefbf4; --tc2:#8fd0b6; --tc3:#4a8572; --tline:rgba(143,208,182,.55); --tglow:rgba(120,200,175,.32) }
+  /* 2 半醒学徒 · 米金 */
+  .top > div[data-tier="2"]{ --tc1:#fffaf0; --tc2:#e6d5a8; --tc3:#b09a63; --tline:rgba(226,210,160,.55); --tglow:rgba(226,210,160,.30) }
+  /* 3 梦游咖啡师 · 焦糖 */
+  .top > div[data-tier="3"]{ --tc1:#f9e6c9; --tc2:#cf9250; --tc3:#7f5320; --tline:rgba(207,146,80,.6); --tglow:rgba(207,146,80,.34) }
+  /* 4 日光调梦师 · 日光金 */
+  .top > div[data-tier="4"]{ --tc1:#fffbe0; --tc2:#f7d05c; --tc3:#c68f14; --tline:rgba(247,208,92,.78); --tglow:rgba(247,208,92,.46) }
+  /* 5 清醒造梦官 · 玫瑰 */
+  .top > div[data-tier="5"]{ --tc1:#fff2f6; --tc2:#eba9bf; --tc3:#b0668a; --tline:rgba(235,169,191,.62); --tglow:rgba(235,169,191,.38) }
+  /* 6 白日梦掌梦人 · 幻紫 */
+  .top > div[data-tier="6"]{ --tc1:#f9f1ff; --tc2:#c9a6f2; --tc3:#8760c8; --tline:rgba(201,166,242,.72); --tglow:rgba(201,166,242,.46) }
+
+  /* 名字：衬线 + 渐变描金（用 filter 而不是 text-shadow，字是透明的） */
+  html .top > div[data-tier] #rankName{
+    font-family:var(--serif) !important;
+    font-weight:600;
+    font-size:19px !important;
+    letter-spacing:.14em !important;
+    background:linear-gradient(180deg, var(--tc1) 0%, var(--tc2) 54%, var(--tc3) 100%) !important;
+    -webkit-background-clip:text !important;
+    background-clip:text !important;
+    color:transparent !important;
+    -webkit-text-stroke:.3px rgba(255,248,224,.26);
+    text-shadow:none !important;
+    filter:drop-shadow(0 1px 0 rgba(0,0,0,.5)) drop-shadow(0 0 12px var(--tglow));
+  }
+  @media (min-width:760px){
+    html .top > div[data-tier] #rankName{ font-size:21px !important; letter-spacing:.16em !important }
+  }
+  /* 噩梦被盯上时，只有"本来不该打噩梦"的低段位才报警。
+     注意：只亮【牌匾边框 + 外光晕】，绝不碰名字的 background ——
+     用 !important 的 background 简写会顺手把 background-clip 重置成 border-box，
+     透明的字就变成一整块渐变盖住段位名（那次就是这样翻车的）。 */
+  html.hard .top > div[data-tier]:not([data-tier="5"]):not([data-tier="6"]){
+    border-color:rgba(226,72,50,.82) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.10),
+      0 10px 24px -16px rgba(0,0,0,.95),
+      0 0 30px -6px rgba(226,60,44,.62) !important;
+  }
+  /* 分数那行也稍微偏红一点，跟边框呼应 */
+  html.hard .top > div[data-tier]:not([data-tier="5"]):not([data-tier="6"]) #rankScore{
+    color:rgba(240,160,140,.88) !important;
+  }
 </style>
 </head>
 <body>
@@ -879,9 +946,8 @@
   <div class="top">
     <b id="gameTitle">幻梦牌</b>
     <div style="text-align:right;line-height:1.35;margin-right:8px">
-      <div id="rankName" style="font-size:13px;color:var(--gold);letter-spacing:.08em">学徒</div>
-      <div id="rankScore" style="font-size:10px;color:var(--ink3)">0 分</div>
-      <div id="rankSync" style="font-size:10px;color:var(--ink3);letter-spacing:.04em"></div>
+      <div id="rankName">浅眠初客</div>
+      <div id="rankScore">0 分</div>
     </div>
     <span class="dev-only">测试 · AI 难度</span>
     <select id="diff">
@@ -984,6 +1050,6 @@
   </div>
 </div>
 
-<script src="./game.js?v=20261021"></script>
+<script src="./game.js?v=20261022"></script>
 </body>
 </html>

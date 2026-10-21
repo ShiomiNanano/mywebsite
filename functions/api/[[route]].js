@@ -718,17 +718,20 @@ export async function onRequest(context) {
        读：需登录（返回自己的段位）
        写：需登录，服务端自己算涨幅（不信客户端传来的分数）
        榜：公开，按段位分前五
-       段位阶梯与前端一致：学徒 0 / 侍者 400 / 咖啡师 800 / 常客 1200 / 店长 1600
-       注意：原先设计是"每人初始 400 分、门槛 800/1200/1600/2000"。
-       上线时初始分写成了 0，已经有玩家在玩，不便清库；
-       所以改成把四道门槛整体降 400 —— 对段位而言与"初始 +400"完全等价。 */
+       段位阶梯与前端一致（七段）：
+         浅眠初客 0 / 云游熟客 500 / 半醒学徒 1200 / 梦游咖啡师 2000 /
+         日光调梦师 3000 / 清醒造梦官 4200 / 白日梦掌梦人 6000
+       对应的 AI：简单 / 普通 / 普通 / 困难 / 困难 / 噩梦 / 噩梦
+       （游戏里的 AI 由前端按同一张表决定；这里只管名字和分数线） */
     const RANK_GAME = 'quality';
-    function rankTier(rating) {
-      if (rating >= 1600) return '店长';
-      if (rating >= 1200) return '常客';
-      if (rating >= 800) return '咖啡师';
-      if (rating >= 400) return '侍者';
-      return '学徒';
+        function rankTier(rating) {
+      if (rating >= 6000) return '白日梦掌梦人';
+      if (rating >= 4200) return '清醒造梦官';
+      if (rating >= 3000) return '日光调梦师';
+      if (rating >= 2000) return '梦游咖啡师';
+      if (rating >= 1200) return '半醒学徒';
+      if (rating >= 500) return '云游熟客';
+      return '浅眠初客';
     }
     async function readRank(env, userId) {
       const row = await env.DB.prepare(
@@ -755,15 +758,15 @@ export async function onRequest(context) {
       let losses = cur.losses;
       let delta = 0;
       if (result === 'win') {
-        // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~40
-        delta = Math.max(5, Math.min(40, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
-        // 连胜彩蛋：本来打不到噩梦的段位（<1200 分 = 咖啡师及以下）打赢被盯上的那局，额外 +20
-        if (haunt && cur.rating < 1200) delta += 20;
+        // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~50
+        delta = Math.max(5, Math.min(50, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
+        // 连胜彩蛋：本来打不到噩梦的段位（<4200 分 = 梦游咖啡师及以下）打赢被盯上的那局，额外 +30
+        if (haunt && cur.rating < 4200) delta += 30;
         rating += delta;
         wins += 1;
       } else if (result === 'loss' || result === 'abandon') {
-        delta = -8;
-        rating = Math.max(0, rating - 8);
+        delta = -18;
+        rating = Math.max(0, rating - 18);
         losses += 1;
       } else {
         return json({ error: '结果不合法' }, 400);
