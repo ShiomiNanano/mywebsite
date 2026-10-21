@@ -84,6 +84,9 @@ function newGame(seed) {
     ai: { hand: [makeBlank()] },
     round: 0, phase: 'select', slots: { me: [], ai: [] },
     logs: [], blocks: [], over: false, winner: null, reason: '', tieStreak: 0,
+    hist: [],                      // 逐回合完整记录（不截断，只给「导出对局」用）
+    t0: Date.now(),                // 开局时间
+    seed: (seed >>> 0) || 1,       // 随机种子：同种子 = 同一副牌 + 同一套 AI 随机
     dealUntil: CONF.window,        // 补牌截止回合（☂ 会延长）
     pending: null,                 // 待玩家执行的强制弃置 { n, why }
     pstat: { n: 0, totSum: 0 },    // 玩家历史出牌（噩梦的对手模型输入）
@@ -933,6 +936,8 @@ function applyRank(result) {
     RANK.streak = 0;     // 平局也算连胜中断
   }
   saveRank(RANK); paintRank();
+  // 这一局到底加/减了多少（导出记录要用：不能拿"服务端同步回来的绝对值"当基准）
+  g.rankBefore = before; g.rankDelta = delta; g.rankAfter = RANK.rating;
   const afterTier = tierOf(RANK.rating).name;
   const upTxt = afterTier !== beforeTier ? '　→ ' + afterTier + ' · 对手变强了' : '';
   const box = document.getElementById('ovRank');
@@ -1004,6 +1009,10 @@ function start() {
   saveRank(RANK);
   g = newGame(Date.now() & 0x7fffffff);
   if (haunt) g.haunt = true;
+  g.level = aiLevel();             // 本局实际难度（导出记录里要写清楚）
+  g.ratingBefore = RANK.rating;
+  g.tierBefore = tierOf(RANK.rating).name;
+  closeLog();
   sel = []; phase = 'select'; msg = ''; miss = 0;
   nextRound(g);
   if (g.over) phase = 'over';
@@ -1223,6 +1232,8 @@ function primary() {
   if (phase === 'discard' && sel.length === discardNeed(g)) {
     const cards = sel.map((i) => g.me.hand[i]).filter((c) => c && !c.blank);
     discardCards(g, 'me', cards);
+    const lh2 = lastHist(g);
+    if (lh2) lh2.dropMe = cards.map(cTxt);
     g.pending = null;
     sfx('deal');
     sel = [];
@@ -1237,6 +1248,13 @@ function primary() {
 function playPair() {
   const mine = sel.map((i) => g.me.hand[i]);
   if (mine.some((c) => !isPlayable(c, g.round))) return;
+  // 出手前的现场（用于对局记录）
+  const snap = {
+    handMe: g.me.hand.slice(), handAi: g.ai.hand.slice(),
+    deckB: g.deck.length,
+    coldMe: specOf(g.me.hand).filter((c) => !isPlayable(c, g.round)).length,
+    coldAi: specOf(g.ai.hand).filter((c) => !isPlayable(c, g.round)).length
+  };
   const ap = pickPairs(g, 'ai', aiLevel());
   const theirs = ap.map((i) => g.ai.hand[i]);
   g.me.hand = g.me.hand.filter((c) => mine.indexOf(c) < 0);
@@ -1271,6 +1289,18 @@ function playPair() {
     g.blocks.unshift({ r: g.round, m: shortCards(mine), mp: res.pP, t: shortCards(theirs), tp: res.aP, fx: fxTxt, res: res.result });
     if (g.blocks.length > 8) g.blocks.length = 8;
 
+    // 对局记录：这一回合的完整细节（手牌/出牌/点数/特效/夺牌/弃置/牌堆）
+    g.hist.push({
+      r: g.round,
+      handMe: snap.handMe.map(cTxt), handAi: snap.handAi.map(cTxt),
+      playMe: mine.map(cTxt), playAi: theirs.map(cTxt),
+      rawP: res.rawP, rawA: res.rawA, pP: res.pP, aP: res.aP, res: res.result,
+      fx: (res.sk || []).map((x) => ({ side: x.side, name: x.name })),
+      loot: (res.loot || []).map(cTxt), umb: res.umb ? 1 : 0, kill: res.kill || '',
+      deckB: snap.deckB, deckA: g.deck.length, coldMe: snap.coldMe, coldAi: snap.coldAi,
+      dropMe: [], dropAi: []
+    });
+
     paintSkillFx(res.sk);
     if (res.sk && res.sk.length) sfx('skill');
 
@@ -1285,6 +1315,10 @@ function playPair() {
     // AI 超出上限：自动弃点数最低的若干张（文档 4.5）
     if (overCount(g, 'ai') > 0) {
       const dropped = trimHand(g, 'ai');
+      if (dropped && dropped.length) {
+        const lh = lastHist(g);
+        if (lh) lh.dropAi = dropped.map(cTxt);
+      }
       if (dropped && dropped.length) msg += '<br><span style="color:var(--ink3)">对手手牌超出上限，弃置了 ' + dropped.length + ' 张（回牌堆）</span>';
     }
     // 手牌特殊牌被清空 → 结算后立即判负（文档 3.3）
@@ -1332,7 +1366,207 @@ $('sfxBtn').onclick = () => {
 $('diff').onchange = start;
 $('ovAgain').onclick = start;
 
-// ===== 引导与实验室入口的绑定 =====
+/* ===================== 对局记录：导出 txt ===================== */
+/* 这一整节只在"结算弹层里点导出"时用，不影响对局本身。
+   格式说明：上半部分给人看，末尾附一段结构化 JSON 给分析用（后续的复盘页直接读它）。 */
+const MATCH_VER = 'v1';                 // 记录格式版本（复盘页按这个判断怎么读）
+const DOC_VER = '20261023';             // 规则版本：和 game.js 的 ?v= 一起递增
+const LEVEL_NAME = { easy: '简单', normal: '普通', hard: '困难', nightmare: '噩梦' };
+
+const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
+const cTxt = (c) => (!c ? '' : c.blank ? '空白' : c.type + c.q);
+const arrTxt = (a) => (a && a.length ? a.join(' ') : '-');
+
+// 「对局信息」一行一条：标签 + 全角冒号。不靠空格对齐 —— 等宽字体里中英文字宽不等，怎么填都会歪
+const kv = (k, v) => '  ' + k + '：' + v;
+
+function lastHist(g2) {
+  if (!g2 || !g2.hist || !g2.hist.length) return null;
+  return g2.hist[g2.hist.length - 1];
+}
+
+function stampNow() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+    + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+function durTxt(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return Math.floor(s / 60) + ' 分 ' + pad2(s % 60) + ' 秒';
+}
+
+// 把一局对局写成文本（人看的摘要 + 回合表 + JSON）
+function buildMatchTxt(g2) {
+  if (!g2) return '';
+  const win = g2.winner === 'me' ? '你赢了' : g2.winner === 'ai' ? '你输了' : '平局';
+  const rows = g2.hist || [];
+  const fxTxt = (list) => (list && list.length
+    ? list.map((x) => (x.side === 'me' ? '我方' : '对方') + '·' + x.name).join(' / ')
+    : '-');
+  const resTxt = (r) => (r === 'me' ? '我方' : r === 'ai' ? '对方' : '平局');
+  // 以「本局结算时」的记录为准：服务端同步可能在中途把本地段位覆盖成别的值
+  const after = (typeof g2.rankAfter === 'number') ? g2.rankAfter
+    : (typeof RANK.rating === 'number' ? RANK.rating : null);
+  const before = (typeof g2.rankBefore === 'number') ? g2.rankBefore
+    : (after === null ? null : after - (typeof g2.rankDelta === 'number' ? g2.rankDelta : 0));
+  const deltaTxt = (before === null || after === null) ? '-'
+    : before + ' → ' + after + '（' + (after >= before ? '+' : '') + (after - before) + '）';
+  const meSp = specOf(g2.me.hand).length, aiSp = specOf(g2.ai.hand).length;
+  const L = [];
+
+  L.push('==========================================================');
+  L.push('幻梦牌 · 对局记录 ' + MATCH_VER);
+  L.push('==========================================================');
+  L.push('【这份文件是什么】');
+  L.push('  一局「幻梦牌」的完整记录，用于复盘。');
+  L.push('  · 手牌与出牌写作「类型+品质」，例如 ☕普 / 🐋金 / 🌈彩；空白写作「空白」。');
+  L.push('  · 「我方」= 玩家，「对方」= AI。');
+  L.push('  · 中间是回合表（Tab 分隔，可粘进表格），末尾是结构化 JSON。');
+  L.push('');
+  L.push('【对局信息】');
+  L.push(kv('导出时间', stampNow()));
+  L.push(kv('对局用时', durTxt(Date.now() - (g2.t0 || Date.now()))));
+  L.push(kv('规则版本', DOC_VER));
+  L.push(kv('AI 难度', LEVEL_NAME[g2.level] || g2.level || '-'));
+  L.push(kv('段位', (g2.tierBefore || '-') + (before === null ? '' : '（' + before + ' 分）')));
+  L.push(kv('被盯上的局', g2.haunt ? '是（连胜彩蛋）' : '否'));
+  L.push(kv('随机种子', String(g2.seed)));
+  L.push(kv('结果', win));
+  L.push(kv('结束原因', g2.reason || '-'));
+  L.push(kv('回合数', String(rows.length) + ' 回合已结算' + (g2.round > rows.length ? '，第 ' + g2.round + ' 回合未开始' : '')));
+  L.push(kv('段位分', deltaTxt));
+  L.push(kv('终局手牌', '我方 ' + meSp + ' 特殊 + 空白　对方 ' + aiSp + ' 特殊 + 空白　牌堆 '
+    + g2.deck.length + ' 张　补牌截止 第 ' + g2.dealUntil + ' 回合'));
+  L.push('');
+
+  L.push('【逐回合】');
+  if (!rows.length) {
+    L.push('  （这一局没有打出的回合）');
+  } else {
+    for (const h of rows) {
+      L.push('  R' + h.r + '　你 ' + arrTxt(h.playMe) + '（' + h.pP + '）　对方 '
+        + arrTxt(h.playAi) + '（' + h.aP + '）　原始 ' + h.rawP + ':' + h.rawA
+        + '　' + (h.res === 'me' ? '你赢' : h.res === 'ai' ? '你输' : '平局')
+        + (fxTxt(h.fx) === '-' ? '' : '　特效 ' + fxTxt(h.fx))
+        + (h.loot && h.loot.length ? (h.res === 'me' ? '　夺 ' : '　被夺 ') + h.loot.join(' ') : '')
+        + (h.dropMe && h.dropMe.length ? '　你弃 ' + h.dropMe.join(' ') : '')
+        + (h.dropAi && h.dropAi.length ? '　对方弃 ' + h.dropAi.join(' ') : ''));
+    }
+  }
+  L.push('');
+  L.push('【回合表】（Tab 分隔）');
+  L.push(['R', 'handMe', 'handAi', 'playMe', 'playAi', 'rawP', 'rawA', 'pP', 'aP', 'res',
+    'deckB', 'deckA', 'coldMe', 'coldAi', 'fx', 'loot', 'dropMe', 'dropAi'].join('\t'));
+  L.push(['#', '回合开始手牌', '回合开始手牌', '本回合出牌', '本回合出牌', '原始点数', '原始点数',
+    '修正后', '修正后', '胜者', '战前牌堆', '战后牌堆', '我方冷却牌数', '对方冷却牌数',
+    '触发特效', '被夺走的牌', '我方弃置', '对方弃置'].join('\t'));
+  for (const h of rows) {
+    L.push([h.r, arrTxt(h.handMe), arrTxt(h.handAi), arrTxt(h.playMe), arrTxt(h.playAi),
+      h.rawP, h.rawA, h.pP, h.aP, resTxt(h.res), h.deckB, h.deckA, h.coldMe, h.coldAi,
+      fxTxt(h.fx), arrTxt(h.loot), arrTxt(h.dropMe), arrTxt(h.dropAi)].join('\t'));
+  }
+  L.push('');
+  L.push('==========================================================');
+  L.push('【结构化 JSON】（给复盘页面直接读：文件末尾这一段整体就是 JSON）');
+  try {
+    L.push(JSON.stringify({
+      format: 'dreamcard-match',
+      ver: MATCH_VER,
+      docVer: DOC_VER,
+      ts: new Date().toISOString(),
+      seconds: Math.max(0, Math.round((Date.now() - (g2.t0 || Date.now())) / 1000)),
+      seed: g2.seed,
+      level: g2.level || '',
+      haunt: !!g2.haunt,
+      tier: g2.tierBefore || '',
+      ratingBefore: before,
+      ratingAfter: after,
+      conf: { cap: CONF.cap, cd: CONF.cd, window: CONF.window, stallN: CONF.stallN, endCap: CONF.endCap },
+      result: { winner: g2.winner, reason: g2.reason, rounds: rows.length, nextRound: g2.round },
+      finalHands: {
+        me: g2.me.hand.map(cTxt), ai: g2.ai.hand.map(cTxt),
+        deck: g2.deck.length, dealUntil: g2.dealUntil
+      },
+      stats: g2.stats,
+      rounds: rows
+    }, null, 1));
+  } catch (e) {
+    L.push('（JSON 生成失败：' + (e && e.message ? e.message : e) + '）');
+  }
+  return L.join('\n');
+}
+
+function openLog() {
+  if (!g || !g.over) return;
+  const t = $('logText');
+  if (t) t.value = buildMatchTxt(g);
+  const p = $('logPanel');
+  if (p) p.classList.add('on');
+}
+
+function closeLog() {
+  const p = $('logPanel');
+  if (p) p.classList.remove('on');
+}
+
+function downloadLog() {
+  if (!g || !g.over) return;
+  const txt = buildMatchTxt(g);
+  const d = new Date();
+  const name = '幻梦牌_对局_' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate())
+    + '-' + pad2(d.getHours()) + pad2(d.getMinutes())
+    + '_' + (g.winner === 'me' ? '胜' : g.winner === 'ai' ? '负' : '平') + '.txt';
+  try {
+    const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.rel = 'noopener';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      if (a.parentNode) a.parentNode.removeChild(a);
+    }, 2000);
+  } catch (e) {
+    // 老浏览器不支持下载：退成"选中文本，让用户自己复制"
+    const t = $('logText');
+    if (t) { t.focus(); if (t.select) t.select(); }
+  }
+}
+
+function copyLog() {
+  const t = $('logText');
+  if (!t) return;
+  const txt = t.value || buildMatchTxt(g);
+  const btn = $('logCopy');
+  const done = (ok) => {
+    if (!btn) return;
+    btn.textContent = ok ? '已复制 ✓' : '请手动全选复制';
+    setTimeout(() => { btn.textContent = '复制'; }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(() => done(true)).catch(() => {
+      t.focus(); if (t.select) t.select();
+      done(false);
+    });
+  } else {
+    t.focus(); if (t.select) t.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    done(ok);
+  }
+}
+
+const ovExportBtn = $('ovExport');
+if (ovExportBtn) ovExportBtn.onclick = openLog;
+const logCloseBtn = $('logClose');
+if (logCloseBtn) logCloseBtn.onclick = closeLog;
+const logCopyBtn = $('logCopy');
+if (logCopyBtn) logCopyBtn.onclick = copyLog;
+const logSaveBtn = $('logSave');
+if (logSaveBtn) logSaveBtn.onclick = downloadLog;
+
+// ===== 引导与实验室入口的绑定 ====
 document.getElementById('gNext').addEventListener('click', () => {
   if (guideStep >= GUIDE_STEPS.length - 1) { closeGuide(); return; }
   guideStep++; paintGuide();

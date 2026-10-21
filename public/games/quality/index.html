@@ -868,6 +868,27 @@
   html.hard .battle .slot{ border-color:rgba(206,62,48,.28); color:rgba(255,190,180,.34) }
 
   /* ---- 结算弹层里的"被盯上"预告 ---- */
+  /* 结算弹层的两个按钮并排 */
+  .ov-btns{ display:flex; gap:8px; align-items:stretch }
+  .ov-btns #ovExport{ flex:0 0 auto; width:auto; padding:0 14px; font-size:13px }
+  .ov-btns #ovAgain{ flex:1 1 auto }
+
+  /* 对局记录面板（叠在结算弹层之上） */
+  #logPanel{ z-index:70 }
+  #logPanel .ov-log{ width:min(94vw,780px); max-width:min(94vw,780px); text-align:left }
+  #logPanel .ov-log h2{ font-size:20px; letter-spacing:.12em; margin-bottom:6px }
+  .log-hint{ font-size:12px; color:var(--ink3,#8b93a1); margin:0 0 10px }
+  #logText{
+    width:100%; height:min(52vh,400px); resize:vertical;
+    font-family:ui-monospace,SFMono-Regular,Consolas,'Courier New',monospace;
+    font-size:11.5px; line-height:1.6; white-space:pre; overflow:auto;
+    background:rgba(8,12,18,.72); color:var(--ink2,#cfd6df);
+    border:1px solid rgba(232,207,154,.22); border-radius:10px; padding:10px 12px;
+  }
+  #logText:focus{ outline:none; border-color:rgba(232,207,154,.5) }
+  .log-btns{ display:flex; gap:8px; margin-top:10px }
+  .log-btns #logSave{ flex:1 1 auto }
+  .log-btns .ghost{ flex:0 0 auto; width:auto; padding:0 16px }
   .ov-omen{ color:#e8836f; font-size:12.5px; letter-spacing:.04em; margin:6px 0 0; display:none }
   .ov-omen.on{ display:block }
 </style>
@@ -1046,10 +1067,26 @@
     <p id="ovReason"></p>
     <p id="ovRank" style="color:var(--gold);font-size:13px"></p>
     <p id="ovOmen" class="ov-omen"></p>
-    <button id="ovAgain">再来一局</button>
+    <div class="ov-btns">
+      <button class="ghost" id="ovExport">导出本场对局</button>
+      <button id="ovAgain">再来一局</button>
+    </div>
   </div>
 </div>
 
-<script src="./game.js?v=20261022"></script>
+<div class="overlay" id="logPanel">
+  <div class="ov ov-log">
+    <h2>本场对局记录</h2>
+    <p class="log-hint">「下载 .txt」保存到本地；也可以「复制」整段文本直接发出去。</p>
+    <textarea id="logText" readonly spellcheck="false" wrap="off"></textarea>
+    <div class="log-btns">
+      <button class="ghost" id="logClose">关闭</button>
+      <button class="ghost" id="logCopy">复制</button>
+      <button id="logSave">下载 .txt</button>
+    </div>
+  </div>
+</div>
+
+<script src="./game.js?v=20261023"></script>
 </body>
 </html>
