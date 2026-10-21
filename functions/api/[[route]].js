@@ -651,8 +651,29 @@ export async function onRequest(context) {
         comment_count 子查询是按 article_id = a.id 关联的，也不会把留言板算进去。）
        黑板上的那段话存在 settings 表，key = board_note，只能由管理员修改。 */
     /* ===== 小游戏排行榜 =====
-       读：公开（前五名，取每人最高分）。写：需登录，分数做了范围检查。
-       分数越高越好，所以排序是 score DESC。 */
+       读：公开（前五名，取每人最高分）。写：需登录 + 开局令牌 + 服务端封顶。
+       分数越高越好，所以排序是 score DESC。
+
+       ⚠️ 防作弊（2026-10 加）：以前客户端 POST 什么分数就存什么，改个包就能交
+       99999。现在开一局要先领一枚 HMAC 令牌（含游戏名、用户 id、开局时间），
+       交卷必须带上它；服务端用"开局到现在过了多少秒"反推理论上限：
+         memory 满分 = 1000 − 8 步×20 − 秒数×3   （8 对牌，最少 8 步）
+         number 满分 = 1000 − 3 次×20 − 秒数×3   （三个数，最少 3 次）
+       超过上限直接拒收 —— 手速再快也快不过真实时间。令牌绑用户、绑游戏、
+       两小时过期，所以拿别人的令牌或者拿昨天的令牌重放都不成立。 */
+    const GAME_LIMIT = {
+      memory: { steps: 8, stepPts: 20, minSec: 10, hard: 840 },
+      number: { steps: 3, stepPts: 20, minSec: 3, hard: 940 }
+    };
+    if (method === 'POST' && path === '/games/start') {
+      if (!user) return json({ error: '登录后才能开始' }, 401);
+      const body = await readBody(request);
+      const game = String(body.game || '').slice(0, 32) || 'memory';
+      if (!GAME_LIMIT[game]) return json({ error: '没有这个游戏' }, 400);
+      const t = Math.floor(Date.now() / 1000);
+      const token = await sign(encB64({ g: game, u: user.id, t: t, exp: t + 7200 }), authSecret(env));
+      return json({ ok: true, game, token });
+    }
     if (method === 'GET' && path === '/games/scores') {
       const game = String(url.searchParams.get('game') || '').slice(0, 32) || 'memory';
       const rows = await env.DB.prepare(
@@ -664,9 +685,23 @@ export async function onRequest(context) {
       if (!user) return json({ error: '登录后才能上榜' }, 401);
       const body = await readBody(request);
       const game = String(body.game || '').slice(0, 32) || 'memory';
+      const lim = GAME_LIMIT[game];
+      if (!lim) return json({ error: '没有这个游戏' }, 400);
       const score = Math.floor(Number(body.score));
-      if (!Number.isFinite(score) || score < 0 || score > 100000) {
-        return json({ error: '分数不合法' }, 400);
+      if (!Number.isFinite(score) || score < 0) return json({ error: '分数不合法' }, 400);
+      const claim = await verifyToken(String(body.token || ''), authSecret(env));
+      if (!claim || claim.g !== game || claim.u !== user.id) {
+        return json({ error: '这一局的凭证对不上，刷新页面重新开始吧' }, 400);
+      }
+      const spent = Math.floor(Date.now() / 1000) - Number(claim.t || 0);
+      if (!(spent >= 0)) return json({ error: '凭证时间异常' }, 400);
+      if (spent < lim.minSec) return json({ error: '这一局结束得太快了' }, 400);
+      /* 理论满分：1000 起手，每步/每次固定扣分，每秒扣 3 分。
+         留 2 秒的宽限（回合计时按整秒截断，客户端与服务端各数一次）。
+         再夹到 100 —— 慢局本来就只拿保底 100 分，不能因为太慢反被拒。 */
+      const ceiling = Math.min(lim.hard, Math.max(100, 1000 - lim.steps * lim.stepPts - Math.max(0, spent - 2) * 3));
+      if (score > ceiling) {
+        return json({ error: '这个分数不可能（按用时上限 ' + ceiling + ' 分），已拒收' }, 400);
       }
       await env.DB.prepare('INSERT INTO scores (game, user_id, username, score, created_at) VALUES (?,?,?,?,?)')
         .bind(game, user.id, user.username, score, nowStr()).run();
@@ -992,13 +1027,28 @@ export async function onRequest(context) {
       return json({ ok: true, note });
     }
 
-    /* ===== 清榜（仅管理员）=====
-       传 game=memory / number 清某一款；传 game=all 清全部
-       （要明说 all 才清全部，免得手滑一次把两个榜都抹了）。 */
+    /* ===== 清榜 / 删单条成绩（仅管理员）=====
+       整榜：传 game=memory / number 清某一款；传 game=all 清全部
+             （要明说 all 才清全部，免得手滑一次把两个榜都抹了）。
+       单人：传 name=用户名（或 uid=数字）只删这个人在这个榜上的成绩。
+             用户名注册时是唯一的，所以按名字删不会误伤同名的另一个号。 */
     if (method === 'DELETE' && path === '/admin/games/scores') {
       const e = needAdmin(); if (e) return e;
       const game = String(url.searchParams.get('game') || '').slice(0, 32);
+      const name = url.searchParams.get('name');
+      const uidRaw = url.searchParams.get('uid');
+      const uid = Number(uidRaw);
       if (!game) return json({ error: '要说清清哪一个榜（game=memory / number / all）' }, 400);
+      if (name) {
+        const r = await env.DB.prepare('DELETE FROM scores WHERE game=? AND username=?').bind(game, name).run();
+        const gone = (r && r.meta && r.meta.changes) || 0;
+        return json({ ok: true, game: game, name: name, removed: gone });
+      }
+      if (uidRaw !== null && Number.isFinite(uid)) {
+        const r2 = await env.DB.prepare('DELETE FROM scores WHERE game=? AND user_id=?').bind(game, uid).run();
+        const gone2 = (r2 && r2.meta && r2.meta.changes) || 0;
+        return json({ ok: true, game: game, uid: uid, removed: gone2 });
+      }
       const r = game === 'all'
         ? await env.DB.prepare('DELETE FROM scores').run()
         : await env.DB.prepare('DELETE FROM scores WHERE game=?').bind(game).run();

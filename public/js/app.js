@@ -27,6 +27,14 @@ function toast(msg, type = 'ok') {
   toast._t = setTimeout(() => box.classList.remove('show'), 2400);
 }
 
+/* ============ 小游戏的「底牌」存放处 ============
+   记忆翻牌的牌面、猜数字的答案都存在这里，而不是挂在 this.game 上。
+   原因：之前 16 张牌的牌面全都写进了 DOM（<span class="fc-back">☕</span>），
+   玩家一开「查看源代码」或审查元素就能看到整副牌，等于明牌在玩。
+   现在没翻开的牌，DOM 里那个格子是空的，牌面只活在这个闭包里。
+   （真想作弊还是能在控制台里翻到，但至少不再是「看一眼源码就会」的程度。） */
+const SECRET = { mem: [], num: [] };
+
 // 本地图片 → 正方形缩略图（默认 128px webp，约 10KB），避免把 2MB 原图塞进数据库
 function shrinkImage(file, size = 128) {
   /* 手机上失败的排查版：把「解码」这一步做成三条路，并把失败环节报出来。
@@ -216,6 +224,15 @@ const App = {
         const v = st.getAttribute('data-settype') || '';
         this.settingFilter = v;
         this.route();
+        return;
+      }
+      const one = e.target.closest && e.target.closest('.rank-del');
+      if (one) {
+        const gm1 = one.getAttribute('data-game');
+        const nm1 = one.getAttribute('data-name') || '';
+        const lab1 = gm1 === 'memory' ? '记忆翻牌' : '猜数字';
+        if (!confirm('删掉「' + nm1 + '」在' + lab1 + '榜上的成绩？只删这一个人，别人的不动。')) return;
+        this.removeScore(gm1, nm1);
         return;
       }
       const clr = e.target.closest && e.target.closest('.rank-clear');
@@ -833,17 +850,21 @@ const App = {
     const tops = this.numTops || [];
     if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
     const medal = ['👑', '②', '③', '④', '⑤'];
+    const admin = !!(this.state.user && this.state.user.role === 'admin');
     return tops.map((x, i) =>
-      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
+      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span>` +
+      (admin ? `<button type="button" class="rank-del" data-game="number" data-name="${esc(x.username)}" title="删掉这条成绩">✕</button>` : '') +
+      '</li>'
     ).join('');
   },
 
   startNumber() {
     if (this.num && this.num.timer) clearInterval(this.num.timer);
-    const secret = [0, 0, 0].map(() => 1 + Math.floor(Math.random() * 100));
-    const g = { secret: secret, round: 0, guesses: 0, over: false, startAt: Date.now(), timer: null,
+    SECRET.num = [0, 0, 0].map(() => 1 + Math.floor(Math.random() * 100));   // 答案只留在这里
+    const g = { round: 0, guesses: 0, over: false, startAt: Date.now(), timer: null, token: null,
                 lo: 1, hi: 100, history: [], lastHint: '' };
     this.num = g;
+    this.gameToken('number', g);   // 领这一局的凭证
     g.timer = setInterval(() => {
       const el = document.getElementById('numTime');
       if (el && this.num === g && !g.over) el.textContent = this.mmss(Date.now() - g.startAt);
@@ -871,7 +892,7 @@ const App = {
       return;
     }
     g.guesses++;
-    const secret = g.secret[g.round];
+    const secret = SECRET.num[g.round];
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
     set('numGuesses', String(g.guesses));
     let line = '';
@@ -943,6 +964,42 @@ const App = {
     }
   },
 
+  /* 开一局先去服务端领一枚凭证（交卷时校验用）。
+     异步发出去，不 await —— 玩家点「开始」不该等网络。
+     万一系列丢包，交卷前还会再补领一次（见 finishMemory / finishNumber）。 */
+  async gameToken(game, holder) {
+    try {
+      const r = await API.post('/api/games/start', { game: game });
+      const tk = (r && r.token) || null;
+      if (tk && holder) holder.token = tk;
+      return tk;
+    } catch (e) { return null; }
+  },
+
+  // 管理员删掉某个人的成绩（只删这一款游戏，别人的不动）
+  async removeScore(game, name) {
+    this.clearCache();   // 分数变了，短时缓存立刻作废
+    try {
+      const r = await API.del('/api/admin/games/scores?game=' + encodeURIComponent(game) + '&name=' + encodeURIComponent(name));
+      const gone = (r && r.removed) || 0;
+      if (!gone) toast('没找到这条成绩，可能已经刷新过了');
+      else toast('删掉了 ' + gone + ' 条成绩');
+      const t = await API.get('/api/games/scores?game=' + encodeURIComponent(game));
+      const tops = (t && t.tops) || [];
+      if (game === 'number') {
+        this.numTops = tops;
+        const b = document.getElementById('numRanks');
+        if (b) b.innerHTML = this.numRankItems();
+      } else {
+        this.gameTops = tops;
+        const b2 = document.getElementById('gameRanks');
+        if (b2) b2.innerHTML = this.rankItems();
+      }
+    } catch (e) {
+      toast('删除失败：' + (e && e.message ? e.message : '稍后再试'));
+    }
+  },
+
   // 管理员清榜：清完把当前页的榜也刷成空的
   async clearRank(game) {
     this.clearCache();   // 分数变了，短时缓存立刻作废
@@ -974,7 +1031,8 @@ const App = {
     const rs = document.getElementById('numResult');
     if (rs) rs.textContent = '三个全中！共猜 ' + g.guesses + ' 次 · ' + this.mmss(Date.now() - g.startAt) + ' · ' + score + ' 分';
     try {
-      const r = await API.post('/api/games/scores', { game: 'number', score: score });
+      const tk = g.token || await this.gameToken('number', g);
+      const r = await API.post('/api/games/scores', { game: 'number', score: score, token: tk });
       if (r && r.tops && r.tops.length) this.numTops = r.tops;
       else {
         const t = await API.get('/api/games/scores?game=number');
@@ -1110,22 +1168,27 @@ const App = {
     const tops = this.gameTops || [];
     if (!tops.length) return '<li class="rank-empty">还没有人上榜，第一个就是你。</li>';
     const medal = ['👑', '②', '③', '④', '⑤'];
+    const admin = !!(this.state.user && this.state.user.role === 'admin');
     return tops.map((x, i) =>
-      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span></li>`
+      `<li><span class="rank-no">${medal[i]}</span><span class="rank-name">${esc(x.username)}</span><span class="rank-score">${Number(x.score) || 0}</span>` +
+      (admin ? `<button type="button" class="rank-del" data-game="memory" data-name="${esc(x.username)}" title="删掉这条成绩">✕</button>` : '') +
+      '</li>'
     ).join('');
   },
 
   // 开局：8 对牌洗好后铺上去
   startMemory() {
     const faces = ['\u2615', '\u2767', '\u{1F408}', '\u{1F319}', '\u2602', '\u{1F390}', '\u{1F4D6}', '\u26C4'];
-    const deck = faces.concat(faces).map((f, i) => ({ f: f, i: i, up: false, done: false }));
-    for (let i = deck.length - 1; i > 0; i--) {           // 洗牌
+    SECRET.mem = faces.concat(faces);                       // 牌面只留在这里，不进 DOM
+    for (let i = SECRET.mem.length - 1; i > 0; i--) {      // 洗牌
       const j = Math.floor(Math.random() * (i + 1));
-      const t = deck[i]; deck[i] = deck[j]; deck[j] = t;
+      const t = SECRET.mem[i]; SECRET.mem[i] = SECRET.mem[j]; SECRET.mem[j] = t;
     }
     if (this.game && this.game.timer) clearInterval(this.game.timer);
-    const g = { deck: deck, open: [], moves: 0, matched: 0, over: false, startAt: Date.now(), timer: null };
+    const deck = SECRET.mem.map(() => ({ up: false, done: false }));
+    const g = { deck: deck, open: [], moves: 0, matched: 0, over: false, startAt: Date.now(), timer: null, token: null };
     this.game = g;
+    this.gameToken('memory', g);   // 领这一局的凭证（异步，交卷前一定到）
     g.timer = setInterval(() => {
       const el = document.getElementById('gameTime');
       if (el && this.game === g && !g.over) el.textContent = this.mmss(Date.now() - g.startAt);
@@ -1152,7 +1215,7 @@ const App = {
     if (!box || !this.game) return;
     box.innerHTML = this.game.deck.map((c, i) =>
       `<button type="button" class="flip-card${c.up || c.done ? ' is-up' : ''}${c.done ? ' is-done' : ''}" data-i="${i}" style="--i:${i}" aria-label="第 ${i + 1} 张">
-         <span class="fc-inner"><span class="fc-face">?</span><span class="fc-back">${c.f}</span></span>
+         <span class="fc-inner"><span class="fc-face">?</span><span class="fc-back">${c.up || c.done ? (SECRET.mem[i] || '') : ''}</span></span>
        </button>`).join('');
     box.classList.add('is-dealing');                       // 只在这一刻允许播发牌动画
     setTimeout(() => box.classList.remove('is-dealing'), 760);
@@ -1169,6 +1232,11 @@ const App = {
       if (!b) return;
       b.classList.toggle('is-up', !!(c.up || c.done));
       b.classList.toggle('is-done', !!c.done);
+      const back = b.querySelector('.fc-back');
+      if (back) {
+        const want = (c.up || c.done) ? (SECRET.mem[i] || '') : '';
+        if (back.textContent !== want) back.textContent = want;
+      }
     });
   },
 
@@ -1186,7 +1254,7 @@ const App = {
     const mv = document.getElementById('gameMoves');
     if (mv) mv.textContent = String(g.moves);
     const [x, y] = g.open;
-    if (g.deck[x].f === g.deck[y].f) {
+    if (SECRET.mem[x] === SECRET.mem[y]) {
       g.deck[x].done = g.deck[y].done = true;
       g.open = [];
       g.matched++;
@@ -1218,7 +1286,8 @@ const App = {
     const rs = document.getElementById('gameResult');
     if (rs) rs.textContent = '配对完成！' + g.moves + ' 步 · ' + this.mmss(Date.now() - g.startAt) + ' · ' + score + ' 分';
     try {
-      const r = await API.post('/api/games/scores', { game: 'memory', score: score });
+      const tk = g.token || await this.gameToken('memory', g);
+      const r = await API.post('/api/games/scores', { game: 'memory', score: score, token: tk });
       if (r && r.tops) this.gameTops = r.tops;
       else {
         const t = await API.get('/api/games/scores?game=memory');
