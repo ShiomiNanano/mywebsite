@@ -1120,8 +1120,16 @@ function render() {
     if (!c) return '<div class="slot">空</div>';
     if (!mine && !(g.slots.ai && g.slots.ai.length)) return '<div class="slot on">' + backHtml() + '</div>';
     const cold = !c.blank && !isPlayable(c, r);
-    return '<div class="slot on" style="border-color:' + (c.blank ? '#4a5266' : QC[c.q]) + '"><b style="font-size:20px">'
-      + (c.blank ? '·' : c.type) + '</b><span style="font-size:10px">' + c.q + c.pts + '点</span></div>';
+    const face = '<b style="font-size:20px">' + (c.blank ? '·' : c.type) + '</b><span style="font-size:10px">'
+      + c.q + c.pts + '点</span>';
+    // 翻牌阶段：牌背先落桌，再 3D 翻转露出正面（双方同时起步、同一时长，节奏才一致）
+    const qcls = c.blank ? 'q-blank' : (c.q === '普' ? 'q-pu' : c.q === '金' ? 'q-jin' : 'q-cai');
+    if (phase === 'reveal') {
+      return '<div class="slot on face flip ' + qcls + '">'
+        + '<div class="fi" style="animation-delay:0ms">'
+        + '<div class="fb">✦</div><div class="ff">' + face + '</div></div></div>';
+    }
+    return '<div class="slot on face ' + qcls + '">' + face + '</div>';
   };
   const shown = (arr) => (arr && arr.length ? arr : [null, null]);
   $('aiSlots').innerHTML = shown(g.slots.ai).map((c) => slot(c, false)).join('');
@@ -1142,7 +1150,7 @@ function render() {
   const specials = g.me.hand.map((c, i) => [c, i]).filter((p) => !p[0].blank);
   const blanks = g.me.hand.map((c, i) => [c, i]).filter((p) => p[0].blank);
   if (phase === 'ready') {
-    $('meHand').innerHTML = specials.map(() => '<div class="card q-pu" style="background:linear-gradient(150deg,#2a3350,#161c2c);border-color:#3c4767;cursor:default"><b style="font-size:20px;color:#7d88a8">✦</b></div>').join('');
+    $('meHand').innerHTML = specials.map(() => '<div class="card bk-card"><b>✦</b></div>').join('');
     $('meBlank').innerHTML = blanks.map((p) => faceHtml(p[0], r, false)).join('');
   } else {
     $('meHand').innerHTML = specials.map((p) => faceHtml(p[0], r, sel.indexOf(p[1]) >= 0)).join('');
@@ -1183,14 +1191,7 @@ function render() {
   $('banner').innerHTML = '<span class="bulletin-hint">本局播报</span>' + banner
     + (BLOCK_HTML ? '<div class="rb-list">' + BLOCK_HTML + '</div>' : '');
 
-  const btn = $('primary');
-  btn.disabled = true;
-  btn.classList.toggle('danger', phase === 'discard');   // 弃置时按钮变红
-  if (phase === 'ready') { btn.textContent = '开始对局'; btn.disabled = false; }
-  else if (phase === 'select') { btn.textContent = '盖牌并声明准备'; btn.disabled = sel.length !== 2; }
-  else if (phase === 'discard') { const dn = discardNeed(g); btn.textContent = '确认弃置 (' + sel.length + '/' + dn + ')'; btn.disabled = sel.length !== dn; }
-  else if (phase === 'over') { btn.textContent = '再来一局'; btn.disabled = false; }
-  else { btn.textContent = '翻牌中…'; }
+  paintPrimary();
 
   // 战况
   const mineIds = new Set(g.me.hand.map((c) => c.id));
@@ -1226,12 +1227,36 @@ function render() {
   paintSkillPop();
 }
 
+// 主按钮的文案与可用状态（选牌时会单独调用它，避免整页重画）
+function paintPrimary() {
+  const btn = $('primary');
+  btn.disabled = true;
+  btn.classList.toggle('danger', phase === 'discard');   // 弃置时按钮变红
+  if (phase === 'ready') { btn.textContent = '开始对局'; btn.disabled = false; }
+  else if (phase === 'select') { btn.textContent = '盖牌并声明准备'; btn.disabled = sel.length !== 2; }
+  else if (phase === 'discard') { const dn = discardNeed(g); btn.textContent = '确认弃置 (' + sel.length + '/' + dn + ')'; btn.disabled = sel.length !== dn; }
+  else if (phase === 'over') { btn.textContent = '再来一局'; btn.disabled = false; }
+  else { btn.textContent = '翻牌中…'; }
+}
+
+// 选牌时只切 class，不重建 DOM —— 这样 .card 的 transform 过渡才能真正播出来
+function paintSelection() {
+  const picked = new Set(sel.map((i) => (g.me.hand[i] || {}).id));
+  const nodes = document.querySelectorAll('#meHand .card, #meBlank .card');
+  for (const el of nodes) {
+    const on = picked.has(el.getAttribute('data-id'));
+    if (el.classList.contains('pick') !== on) el.classList.toggle('pick', on);
+  }
+  paintPrimary();
+  paintSkillPop();
+}
+
 function onPick(id) {
   if (phase !== 'select' && phase !== 'discard') return;
   const i = g.me.hand.findIndex((c) => c.id === id);
   if (i < 0) return;
   const k = sel.indexOf(i);
-  if (k >= 0) { sel.splice(k, 1); return render(); }
+  if (k >= 0) { sel.splice(k, 1); return paintSelection(); }
   const max = phase === 'discard' ? discardNeed(g) : 2;
   if (sel.length >= max) {
     if (phase !== 'discard') return;
@@ -1242,7 +1267,7 @@ function onPick(id) {
   if (phase === 'discard' && g.me.hand[i].blank) return;
   sel.push(i);
   sfx('pick');
-  render();
+  paintSelection();
 }
 
 function primary() {
@@ -1349,7 +1374,7 @@ function playPair() {
     if (g.over) { phase = 'over'; return render(); }
     phase = 'select';
     render();
-  }, 1000);
+  }, 1500);
 }
 
 $('primary').onclick = primary;

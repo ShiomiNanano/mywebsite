@@ -100,11 +100,20 @@
   @media (min-width:760px){ .lbl{font-size:12.5px} }
 
   .backs{display:flex; flex-wrap:wrap; gap:3px}
-  .bk{width:24px; height:34px; border-radius:5px; display:grid; place-items:center; font-size:11px; color:rgba(232,207,154,.55);
+  .bk{width:24px; height:34px; border-radius:5px; display:grid; place-items:center; font-size:11px; color:#a08a60;
       background:
-        linear-gradient(135deg, rgba(255,236,200,.10), transparent 60%),
-        repeating-linear-gradient(45deg, #3d3120 0 3px, #2c2315 3px 6px);
-      border:1px solid #5b4a2c}
+        linear-gradient(135deg, rgba(255,255,255,.55), transparent 62%),
+        repeating-linear-gradient(45deg, #f4e8cd 0 3px, #e6d7b4 3px 6px);
+      border:1px solid rgba(168,142,96,.55);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+  /* 开局时手牌区的大牌背：跟桌面上的牌背同一套米黄 */
+  .card.bk-card{
+    background:linear-gradient(150deg,#f8efd9,#ecdfc2 58%,#dccdaa) !important;
+    border:1px solid rgba(168,142,96,.55) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8), inset 0 -2px 5px rgba(120,95,50,.16), 0 6px 14px -10px rgba(0,0,0,.9) !important;
+    cursor:default;
+  }
+  .card.bk-card b{ font-size:20px; color:#a08a60; filter:drop-shadow(0 1px 1px rgba(120,95,50,.35)) }
   @media (min-width:760px){ .bk{ width:30px; height:42px; font-size:13px; } }
 
   .slots{display:flex; gap:12px; justify-content:center; margin:10px 0}
@@ -989,6 +998,167 @@
     .dl-tx em{display:none}
   }
 </style>
+<style>
+  /* 桌布中央的咖啡馆 logo：压得很淡，只做质感，不抢牌的视线 */
+  .battle-mid{ position:relative; isolation:isolate }
+  .battle-mid::before{
+    content:"";
+    position:absolute; left:50%; top:47%; z-index:-1;
+    width:min(92%, 520px);
+    aspect-ratio:659 / 387;
+    transform:translate(-50%,-50%);
+    background:url('/media/logo-mark.png') center / contain no-repeat;
+    /* 用 screen 把白色 logo 压成"印在桌布上的暖色浮雕"，只提亮不遮挡 */
+    opacity:.06;
+    mix-blend-mode:screen;
+    filter:sepia(.6) saturate(1.4);
+    -webkit-mask-image:radial-gradient(closest-side, #000 62%, transparent 97%);
+    mask-image:radial-gradient(closest-side, #000 62%, transparent 97%);
+    pointer-events:none;
+  }
+  /* 手机上台面窄，logo 收一点，免得贴着牌位 */
+  @media (max-width:560px){
+    .battle-mid::before{ width:min(96%, 340px); opacity:.07 }
+  }
+</style><style>
+  /* ===================== 手感：选牌跳起 + 翻牌 ===================== */
+  /* 选牌：只对"已选中"这个稳定状态做位移。悬停仍不位移，
+     所以以前那个"抬起→指针落空→落回→再抬起"的抽搐机制依然不成立。 */
+  .hand .card, #meBlank .card{
+    transition:
+      translate .24s cubic-bezier(.34,1.56,.64,1),
+      transform .24s cubic-bezier(.34,1.56,.64,1),
+      box-shadow .18s ease !important;
+  }
+  .hand .card.pick, .hand .card.pick:hover,
+  #meBlank .card.pick, #meBlank .card.pick:hover{
+    translate: 0 -13px !important;
+    transform: scale(1.10) !important;
+  }
+  @media (max-width:560px){
+    .hand .card.pick, .hand .card.pick:hover,
+    #meBlank .card.pick, #meBlank .card.pick:hover{ translate: 0 -10px !important }
+  }
+
+  /* 翻牌：落桌时是牌背，半秒翻到正面（双方同速）；翻完再停留半秒，让人看清出了什么 */
+  .slot.flip{ position:relative; animation:none !important; perspective:620px; background:none !important; border-color:transparent !important; box-shadow:none !important }
+  .slot.flip .fi{
+    position:absolute; inset:0; transform-style:preserve-3d;
+    animation:flipIn .37s cubic-bezier(.3,.05,.28,1) both;
+  }
+  .slot.flip .fb, .slot.flip .ff{
+    position:absolute; inset:0; border-radius:11px;
+    display:grid; place-items:center; gap:1px;
+    backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  }
+  .slot.flip .fb{
+    background:linear-gradient(150deg,#f8efd9,#ecdfc2 58%,#dccdaa);
+    border:1px solid rgba(168,142,96,.55);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8), inset 0 -2px 5px rgba(120,95,50,.16);
+    color:#a08a60; font-size:calc(var(--cw) * .28);
+  }
+  .slot.flip .ff{
+    transform:rotateY(180deg);
+    background:var(--fb); border:1px solid var(--fl);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.85), inset 0 -2px 4px rgba(120,95,50,.14);
+    color:var(--fi);
+  }
+  /* ---- 放到桌上的牌：实心卡面，按品质做最简单的颜色区分 ---- */
+  .slot.face{
+    --fb:linear-gradient(160deg,#fdfaf0 0%,#efe5cd 55%,#dbcba7 100%);
+    --fl:rgba(183,166,132,.9);
+    --fi:#3a3122;
+    background:var(--fb);
+    border:1px solid var(--fl);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.85), 0 6px 14px -10px rgba(0,0,0,.85);
+    color:var(--fi); animation:none !important;
+  }
+  .slot.face.q-jin{   /* 金：比普卡明显更金 */
+    --fb:linear-gradient(160deg,#ffedbf 0%,#f3d383 52%,#dfb257 100%);
+    --fl:rgba(186,140,44,.85);
+    --fi:#402c04;
+  }
+  .slot.face.q-cai{   /* 彩：虹彩明显一点，但仍比手牌安静 */
+    --fb:linear-gradient(150deg,#ffd7f2 0%,#e2d8ff 34%,#cbe9ff 66%,#d3ffe8 100%);
+    --fl:rgba(150,108,214,.85);
+    --fi:#2f1f4d;
+  }
+  .slot.face.q-blank{ /* 空白：半透明，不挡桌布 */
+    --fb:linear-gradient(150deg, rgba(255,250,238,.42), rgba(255,250,238,.14) 55%, rgba(255,250,238,.26) 100%);
+    --fl:rgba(255,246,226,.55);
+    --fi:rgba(255,250,238,.92);
+  }
+  .slot.face b{ filter:drop-shadow(0 1px 1px rgba(0,0,0,.18)) }
+  .slot.face span{ color:var(--fi) !important; opacity:.75 }
+  @keyframes flipIn{
+    0%   { transform:rotateY(0deg) }
+    100% { transform:rotateY(180deg) }
+  }
+
+  /* 结算 / 引导弹层：从下方轻轻推上来 */
+  .overlay.on .ov{ animation:ovIn .26s cubic-bezier(.2,1.16,.4,1) both }
+  @keyframes ovIn{
+    from{ opacity:0; transform:translateY(14px) scale(.985) }
+    to  { opacity:1; transform:none }
+  }
+
+  /* 按钮按下的一点点回弹 */
+  .btns button{ transition:transform .12s ease, filter .12s ease, background .2s ease, color .2s ease, box-shadow .2s ease }
+  .btns button:active:not(:disabled){ transform:translateY(1px) scale(.994) }
+
+  @media (prefers-reduced-motion: reduce){
+    .slot.flip .fi, .overlay.on .ov{ animation-duration:.001s !important }
+    .hand .card, #meBlank .card{ transition-duration:.001s !important }
+  }
+</style><style>
+  /* ---- 手牌入场：只动独立的 scale，不碰 translate/transform（那两个被 !important 锁着）---- */
+  @keyframes cardIn{ from{ scale:.86 } to{ scale:1 } }
+  .hand .card{ animation:cardIn .3s cubic-bezier(.22,.7,.3,1) both }
+  .hand .card:nth-child(2){ animation-delay:.02s }
+  .hand .card:nth-child(3){ animation-delay:.04s }
+  .hand .card:nth-child(4){ animation-delay:.06s }
+  .hand .card:nth-child(5){ animation-delay:.08s }
+  .hand .card:nth-child(6){ animation-delay:.10s }
+  .hand .card:nth-child(7){ animation-delay:.12s }
+  .hand .card:nth-child(8){ animation-delay:.14s }
+  .hand .card:nth-child(9){ animation-delay:.16s }
+  /* 彩卡自带 hueFlow/posFlow 两条动画，入场要接在后面，否则被覆盖 */
+  .hand .card.q-cai{ animation:cardIn .3s cubic-bezier(.22,.7,.3,1) both, hueFlow 4.5s linear infinite, posFlow 6s ease-in-out infinite alternate }
+  /* 播报里刚结算的那一块，从上方轻轻落下来 */
+  @keyframes rbIn{ from{ opacity:0; transform:translateY(-5px) } to{ opacity:1; transform:none } }
+  .rb-list .rb:first-child{ animation:rbIn .3s cubic-bezier(.2,1.06,.42,1) both }
+  /* 回合行换数字时淡一下 */
+  @keyframes midIn{ from{ opacity:.35 } to{ opacity:1 } }
+  .battle-mid .mid, #mid{ animation:midIn .34s ease both }
+  @media (prefers-reduced-motion: reduce){
+    .hand .card, .hand .card.q-cai, .rb-list .rb:first-child, .battle-mid .mid, #mid{ animation-duration:.001s !important; animation-delay:0s !important }
+  }
+</style>
+<style>
+  /* ==== 回合行搬到牌桌左下角（本局播报的下方，不重叠） ==== */
+  .battle > .mid{
+    position:absolute; left:0; bottom:4px; width:190px; margin:0;
+    text-align:left; font-size:11px; line-height:1.5; color:var(--ink3);
+  }
+  .battle > .mid b{ color:var(--gold); font-weight:600 }
+  @media (min-width:1100px){ .battle > .mid{ width:220px; font-size:11.5px } }
+  @media (max-width:760px){
+    .battle > .mid{ position:static; width:100%; bottom:auto; text-align:left; padding-left:2px }
+  }
+  /* 原来放回合行的位置：一条淡淡的分割线 */
+  .battle-mid .mid-divider{
+    width:min(80%, 460px); height:1px; margin:7px auto; border:0;
+    background:linear-gradient(90deg,
+      rgba(232,207,154,0) 0%,
+      rgba(232,207,154,.30) 16%,
+      rgba(232,207,154,.42) 50%,
+      rgba(232,207,154,.30) 84%,
+      rgba(232,207,154,0) 100%);
+  }
+  /* 左栏现在有两块（播报 + 回合行），给容器留够高度 */
+  @media (min-width:761px){ .battle{ min-height:236px } }
+  @media (min-width:1100px){ .battle{ min-height:252px } }
+</style>
 </head>
 <body>
 <div class="back-bar"><button id="backBtn" title="回到上一步" aria-label="回到上一步">←</button></div>
@@ -1017,9 +1187,10 @@
 
 <div class="battle">
   <div class="banner" id="banner"><span class="bulletin-hint">本局播报</span></div>
+  <div class="mid" id="mid"></div>
   <div class="battle-mid">
   <div class="slots" id="aiSlots"></div>
-  <div class="mid" id="mid"></div>
+  <div class="mid-divider" aria-hidden="true"></div>
   <div class="slots" id="meSlots"></div>
   </div>
   <div class="skill-fx" id="skillFx" aria-live="polite"></div>
@@ -1129,6 +1300,6 @@
   </div>
 </div>
 
-<script src="./game.js?v=20261023"></script>
+<script src="./game.js?v=20261024"></script>
 </body>
 </html>
