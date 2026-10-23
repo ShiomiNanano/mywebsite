@@ -213,6 +213,22 @@ svg{display:block; max-width:100%; height:auto}
   body{background:#fff; color:#111} .wrap{max-width:none}
   .drop,.ft,.tt{display:none} .card,.banner{break-inside:avoid; box-shadow:none}
 }
+
+  /* 03 关键回合 */
+  .key-card{padding:4px 0}
+  .key-row{display:flex;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .key-row:last-child{border-bottom:0}
+  .key-r{flex:0 0 44px;font-family:var(--mono);font-size:13px;color:var(--gold);padding-top:2px}
+  .key-body{flex:1 1 auto;min-width:0}
+  .key-h{display:flex;align-items:baseline;gap:10px}
+  .key-h b{font-size:13.5px;color:var(--ink);font-weight:600;letter-spacing:.02em}
+  .key-p{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+  .key-p em{font-style:normal;margin-left:5px}
+  .key-p em.me{color:var(--win)} .key-p em.ai{color:var(--lose)} .key-p em.tie{color:var(--tie)}
+  .key-cards{font-size:12.5px;color:var(--dim);margin-top:4px}
+  .key-vd{margin-left:9px;font-style:normal;font-size:11px;letter-spacing:.02em;padding:1px 6px;border-radius:999px;border:1px solid rgba(216,186,128,.38);color:var(--gold)}
+  .key-vd.lose{border-color:rgba(231,154,154,.34);color:var(--lose)}
+  .key-why{margin:6px 0 0;font-size:12.5px;line-height:1.7;color:var(--faint)}
 </style>
 </head>
 <body>
@@ -298,7 +314,7 @@ svg{display:block; max-width:100%; height:auto}
     '🐋': '本回合对方两张牌的特效全部失效',
     '☀️': '打出即抽 1 张；在手且冷却中时，同族普/金每打出 1 张再抽 1 张',
     '🌙': '令对方弃 1 张；对方若再没有能出的特殊牌，直接判负',
-    '☘️': '另一张不是彩卡时，我方这一手 +1 点',
+    '☘️': '另一张是彩卡时，我方这一手 +1 点',
     '༄': '另一张不是彩卡时，对方这一手 −1 点；同为风则 −2',
     '🌈': '落后时改判为平局，并让我方出牌冷却 −1',
     '☂': '原始点数相同时锁定平局，双方特殊牌清空重抽'
@@ -610,7 +626,8 @@ svg{display:block; max-width:100%; height:auto}
     A.phase = {
       first: seg(R.slice(0, half)),
       second: seg(R.slice(half)),
-      last5: seg(R.slice(Math.max(0, n - 5)))
+      last5: seg(R.slice(Math.max(0, n - 5))),
+      last8: seg(R.slice(Math.max(0, n - 8)))
     };
 
     /* ---- 点数分布 ---- */
@@ -634,22 +651,102 @@ svg{display:block; max-width:100%; height:auto}
     if (m.result.winner === 'ai' && A.lead.max >= 4) tags.push('优势被翻');
     A.tags = tags;
 
-    /* ---- 六维评分 ---- */
-    const overflow = A.disc.timesMe;
-    const dimOff = clamp01(A.avgP / 6) * 100;
+    /* ---- 关键回合 ----
+       只保留真正"扭转局势 / 决定胜负"的手：
+         · 月亮刺杀：直接判胜负
+         · 彩虹改判：本来要输掉这一手，被判成平局
+         · 鲸鱼双封：两手都是彩卡却被封住（等于整手白打）
+         · 雨伞重置：牌桌清空重抽
+         · 决胜一手：不是安全网结束、最后一手确实清空对方的手牌、且整局没有一边倒
+       普通对攻、连续胜负、单次夺牌这些都不算，所以平淡的对局不会出现这一块。 */
+    const keyMap = {};
+    const addKey = (rn, score, tag, why) => {
+      const cur = keyMap[rn] || (keyMap[rn] = { r: rn, score: 0, tags: [], why: '' });
+      if (cur.tags.indexOf(tag) < 0) cur.tags.push(tag);
+      if (score > cur.score) { cur.score = score; cur.why = why; }
+    };
+    const cardsTxt = (cs) => cs.map((c) => c.raw).join(' ＋ ');
+    const net = A.gain.net;
+    R.forEach((r) => {
+      const myCai = cardsOf(r.playMe).filter((c) => !c.blank && c.qual === '彩');
+      const oppCai = cardsOf(r.playAi).filter((c) => !c.blank && c.qual === '彩');
+      const fxMe = r.fx.filter((e) => e.side === 'me');
+      const fxAi = r.fx.filter((e) => e.side === 'ai');
+      const has = (side, t) => r.fx.some((e) => (!side || e.side === side) && skillTypeOf(e.name) === t);
+      const scoreTxt = r.pP + ':' + r.aP;
+
+      /* kill 记的是"谁得手"：'me' = 我的月亮清空对方，'ai' = 对方清空我 */
+      if (r.kill === 'me') {
+        addKey(r.r, 100, '月亮刺杀', r.res === 'ai'
+          ? '这一手你点数落后（' + scoreTxt + '）、出的两张牌也被夺走，但月亮把对方最后一张能出的特殊牌弃掉，直接判胜——牌面上输、规则上赢。'
+          : '月亮把对方最后一张能出的特殊牌弃掉，这一手直接判胜。');
+      }
+      if (r.kill === 'ai') {
+        addKey(r.r, 100, '月亮刺杀', r.res === 'me'
+          ? '这一手你点数领先（' + scoreTxt + '）、还夺了对方的牌，但对方月亮把你最后一张能出的特殊牌弃掉，直接判负。'
+          : '对方月亮把你最后一张能出的特殊牌弃掉，直接判负。');
+      }
+
+      if (r.res === 'tie' && r.rawP !== r.rawA && has(null, '🌈')) {
+        addKey(r.r, 88, '彩虹改判',
+          '原始点数 ' + r.rawP + ':' + r.rawA + '，' + (r.rawP < r.rawA ? '你本来要输掉这一手' : '对方本来要输掉这一手') +
+          '，彩虹把它改成平局：' + (r.rawP < r.rawA ? '保住了手里的牌没被夺走' : '没能拿下这次夺牌') + '。');
+      }
+      if (myCai.length >= 2 && fxMe.length === 0 && has('ai', '🐋')) {
+        addKey(r.r, 76, '被鲸鱼封印', '你两手都是彩卡（' + cardsTxt(myCai) + '），特效被对方鲸鱼全部封住，这一手白打。');
+      }
+      if (oppCai.length >= 2 && fxAi.length === 0 && has('me', '🐋')) {
+        addKey(r.r, 76, '鲸鱼封印命中', '对方两手都是彩卡（' + cardsTxt(oppCai) + '），被你的鲸鱼封住，这一手的特效优势被抹平。');
+      }
+      if (r.umb) addKey(r.r, 72, '雨伞重置', '双方特殊牌清空重抽、牌堆回到 ' + r.deckB + ' 张，之后几回合的牌型全部重来。');
+    });
+
+    /* 决胜一手：非安全网 + 最后一手确实把对方的牌清空 + 整局没有一边倒 */
+    const kLast = R[R.length - 1];
+    if (kLast && !/安全网/.test(String(m.result.reason || '')) && (kLast.loot || []).length && Math.abs(net) <= 6) {
+      addKey(kLast.r, 70, '决胜一手', m.result.winner === 'me'
+        ? '最后一回合拿下，对方的特殊牌在这里被清空，比赛结束。'
+        : '最后一回合失守，你的特殊牌在这里被清空，比赛结束。');
+    }
+
+    const keyList = Object.keys(keyMap).map((k) => keyMap[k]).filter((k) => k.score >= 65);
+    keyList.sort((a, b) => b.score - a.score);
+    A.keys = keyList.slice(0, 3).sort((a, b) => a.r - b.r);
+
+    /* ---- 六维评分 ----
+       口径说明（改动过两次，理由写在 README 与提交信息里）：
+       · 进攻 = 每回合平均点数 / 5（原来除 6，等于把"双彩"当满分线，太吃运气）
+       · 管理 = 手牌可出率：能出的特殊牌 / 手牌特殊牌，按回合平均。
+         原来算「空白回合 + 超限弃置」，但战线一拉长必然要弃牌，长局会被无脑扣分；
+         冷却造成的"手里有牌却出不了"才是真的管理问题，而且跟局长无关。
+       · 残局 = 最后 8 回合胜率（原来 5 回合，样本太少） */
+    const dimOff = clamp01(A.avgP / 5) * 100;
     const dimPress = A.winRate * 100;
     const dimSkill = A.skill.opp.rate == null ? 0 : clamp01(A.skill.opp.rate) * 100;
-    const dimManage = clamp01(1 - A.blank.rate - Math.min(0.3, overflow * 0.04)) * 100;
+    const playRatios = [];
+    R.forEach((r) => {
+      const blanks = r.handMe.filter((c) => String(c) === '空白').length;
+      const specials = r.handMe.length - blanks;
+      if (specials <= 0) return;
+      const cold = Math.min(specials, num(r.coldMe, 0));
+      playRatios.push((specials - cold) / specials);
+    });
+    const playRate = playRatios.length ? avg(playRatios) : 1 - A.blank.rate;
+    /* 再叠一半"有多少比例的回合手里压着冷却牌"：
+       只看平均可出率会偏宽松（手牌多的时候被稀释），这一半衡量"被冷却卡住的时间占比"。 */
+    const coldShare = n ? A.hand.coldTurnsMe / n : 0;
+    const dimManage = clamp01(0.7 * playRate + 0.3 * (1 - coldShare)) * 100;
     const dimRes = clamp01(0.5 + A.gain.net / (2 * Math.max(1, n))) * 100;
-    const last5Rate = A.phase.last5.n ? A.phase.last5.w / A.phase.last5.n : A.winRate;
-    const dimEnd = clamp01(last5Rate) * 100;
+    const last8Rate = A.phase.last8.n ? A.phase.last8.w / A.phase.last8.n : A.winRate;
+    const dimEnd = clamp01(last8Rate) * 100;
+    A.playRate = playRate;
     A.radar = [
-      { label: '进攻', val: dimOff, note: '平均每回合 ' + fix(A.avgP) + ' 点（满值 6）' },
+      { label: '进攻', val: dimOff, note: '平均每回合 ' + fix(A.avgP) + ' 点（满值 5）' },
       { label: '压制', val: dimPress, note: wins + ' 胜 / ' + losses + ' 负 / ' + ties + ' 平' },
       { label: '技巧', val: dimSkill, note: playedCai + ' 张彩卡打出，生效 ' + triggered + ' 次' },
-      { label: '管理', val: dimManage, note: A.blank.count + ' 个空白回合、' + A.disc.timesMe + ' 次超限弃置' },
+      { label: '管理', val: dimManage, note: '手牌可出率 ' + pct(playRate) + ' · ' + pct(coldShare) + ' 的回合手里压着冷却牌' },
       { label: '资源', val: dimRes, note: '夺 ' + A.gain.got + ' 张 / 被夺 ' + A.gain.lost + ' 张' },
-      { label: '残局', val: dimEnd, note: '最后 5 回合 ' + A.phase.last5.w + ' 胜' }
+      { label: '残局', val: dimEnd, note: '最后 ' + A.phase.last8.n + ' 回合 ' + A.phase.last8.w + ' 胜' }
     ];
     A.score = Math.round(avg(A.radar.map((d) => d.val)));
 
@@ -742,13 +839,13 @@ svg{display:block; max-width:100%; height:auto}
     }
 
     /* 9 残局 */
-    if (A.phase.last5.n >= 3) {
-      const r5 = A.phase.last5.w / A.phase.last5.n;
-      if (r5 <= 0.2 && A.phase.first.n && (A.phase.first.w / A.phase.first.n) >= 0.5) {
-        add('warn', '前半段打得不错，最后 5 回合只赢了 ' + A.phase.last5.w + ' 回合',
+    if (A.phase.last8.n >= 3) {
+      const r8 = A.phase.last8.w / A.phase.last8.n;
+      if (r8 <= 0.25 && A.phase.first.n && (A.phase.first.w / A.phase.first.n) >= 0.5) {
+        add('warn', '前半段打得不错，最后 ' + A.phase.last8.n + ' 回合只赢了 ' + A.phase.last8.w + ' 回合',
           '体力（牌）在后半段跟不上了：前期用彩卡太豪爽，后期手牌全是冷却和低点牌。前期赢 1 点也该赢，但别拿彩卡去赢 1 点。');
-      } else if (r5 >= 0.6) {
-        add('good', '最后 5 回合赢了 ' + A.phase.last5.w + ' 回合', '越到后面越稳，残局处理是加分项。');
+      } else if (r8 >= 0.6) {
+        add('good', '最后 ' + A.phase.last8.n + ' 回合赢了 ' + A.phase.last8.w + ' 回合', '越到后面越稳，残局处理是加分项。');
       }
     }
 
@@ -1041,6 +1138,28 @@ svg{display:block; max-width:100%; height:auto}
       '</div></section>';
   }
 
+  function secKey(m, A) {
+    if (!A.keys || !A.keys.length) return '';
+    const rows = A.keys.map((k) => {
+      const r = m.rounds.filter((x) => x.r === k.r)[0] || { playMe: [], playAi: [], pP: 0, aP: 0, res: '' };
+      const resTxt = r.res === 'me' ? '赢' : r.res === 'ai' ? '输' : '平';
+      const resCls = r.res === 'me' ? 'me' : r.res === 'ai' ? 'ai' : 'tie';
+      /* 月亮刺杀时"这一手"和"整局"的胜负相反，补一个小标避免误读 */
+      const verdict = r.kill ? '<i class="key-vd' + (r.kill === 'me' ? ' win' : ' lose') + '">' + (r.kill === 'me' ? '整局判胜' : '整局判负') + '</i>' : '';
+      return '<div class="key-row">' +
+        '<div class="key-r">R' + k.r + '</div>' +
+        '<div class="key-body">' +
+        '<div class="key-h"><b>' + esc(k.tags.join(' · ')) + '</b>' +
+        '<span class="key-p">' + r.pP + ':' + r.aP + '<em class="' + resCls + '">' + resTxt + '</em>' + verdict + '</span></div>' +
+        '<div class="key-cards">你 ' + esc(cardsOf(r.playMe).map((c) => c.raw).join(' ＋ ') || '—') +
+        '　｜　对方 ' + esc(cardsOf(r.playAi).map((c) => c.raw).join(' ＋ ') || '—') + '</div>' +
+        '<p class="key-why">' + esc(k.why) + '</p>' +
+        '</div></div>';
+    }).join('');
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">03</span><h2>关键回合</h2><span class="hint">真正改变了战局的那几手</span></div>' +
+      '<div class="card key-card">' + rows + '</div></section>';
+  }
+
   function secPoints(m, A) {
     const labels = m.rounds.map((r) => 'R' + r.r);
     const chart1 = lineChart({
@@ -1061,7 +1180,7 @@ svg{display:block; max-width:100%; height:auto}
     });
     const ties = m.rounds.filter((r) => r.res === 'tie').map((r) => r.r);
     const modMe = A.mod.me.length, modAi = A.mod.ai.length;
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">03</span><h2>点数走势</h2><span class="hint">修正后的点数（加点/削点已计入）</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">04</span><h2>点数走势</h2><span class="hint">修正后的点数（加点/削点已计入）</span></div>' +
       '<div class="card">' + chart1 +
       '<div class="legend"><span><i style="background:' + C.me + '"></i>我方</span><span><i style="background:' + C.ai + '"></i>对方</span></div>' +
       '</div>' +
@@ -1079,15 +1198,17 @@ svg{display:block; max-width:100%; height:auto}
     })).filter((r) => r.me || r.ai);
     const max = Math.max(1, ...rows.map((r) => Math.max(r.me, r.ai)));
     const op = A.skill.opp;
-    const detail = TYPE_LIST.filter((t) => A.skill.byType[t].me || A.skill.byType[t].ai).map((t) => {
+    /* 八张全列：说明书是拿来查的，不能因为这一局没抽到就查不到 */
+    const detail = TYPE_LIST.map((t) => {
       const b = A.skill.byType[t];
-      return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">' +
+      const seen = !!(b.me || b.ai);
+      return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)' + (seen ? '' : ';opacity:.5') + '">' +
         '<div style="flex:0 0 26px;font-size:17px;line-height:1.3">' + t + '</div>' +
         '<div style="flex:1 1 auto"><div style="font-size:13px;color:var(--ink)">' + esc(SKILL_SHORT[t]) + ' · <span style="color:var(--faint);font-size:12px">' + esc(SKILL[t]) + '</span></div>' +
         '<div style="font-size:12px;color:var(--dim)">' + esc(b.one) + '</div></div>' +
-        '<div style="flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--dim)">我 ' + b.me + ' · 敌 ' + b.ai + '</div></div>';
+        '<div style="flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--dim)">' + (seen ? '我 ' + b.me + ' · 敌 ' + b.ai : '本局未出现') + '</div></div>';
     }).join('');
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">04</span><h2>彩卡特效</h2><span class="hint">只统计真正生效的那一次</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">05</span><h2>彩卡特效</h2><span class="hint">只统计真正生效的那一次</span></div>' +
       '<div class="card">' +
       (rows.length ? hBars({ rows: rows, max: max }) : '<p style="color:var(--dim)">这一局双方都没有彩卡特效生效。</p>') +
       '<div class="legend"><span><i style="background:' + C.me + '"></i>我方触发</span><span><i style="background:' + C.ai + '"></i>对方触发</span></div>' +
@@ -1098,7 +1219,7 @@ svg{display:block; max-width:100%; height:auto}
       '</div>' +
       '<div class="card"><div class="kpi" style="border:0;padding:0;background:none"><div class="k">对方彩卡</div><div class="v">' + sum(TYPE_LIST.map((t) => A.skill.byType[t].ai)) + '<small>次</small></div><div class="n">对方触发总数；被你的鲸鱼封印的回合可能更多</div></div></div>' +
       '</div>' +
-      '<div class="card" style="margin-top:14px"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:4px">八张彩卡说明书（本局出现过的）</div>' + detail + '</div>' +
+      '<div class="card" style="margin-top:14px"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:4px">八张彩卡说明书（本局没出现的会标灰）</div>' + detail + '</div>' +
       '</section>';
   }
 
@@ -1129,7 +1250,7 @@ svg{display:block; max-width:100%; height:auto}
       yTicks: (() => { const mx = Math.max(2, ...dropMe, ...dropAi); return [0, 1, 2, 3, 4].filter((t) => t <= mx); })(),
       series: [{ name: '我方弃置', color: C.me, vals: dropMe }, { name: '对方弃置', color: C.ai, vals: dropAi }]
     });
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">05</span><h2>手牌与牌堆</h2><span class="hint">每回合开始时的张数</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">06</span><h2>手牌与牌堆</h2><span class="hint">每回合开始时的张数</span></div>' +
       '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">手牌张数</div>' + handChart +
       '<div class="legend"><span><i style="background:' + C.me + '"></i>我方</span><span><i style="background:' + C.ai + '"></i>对方</span><span><i style="background:rgba(226,110,96,.55)"></i>手牌上限</span></div></div>' +
       '<div class="card"><div class="k" style="font-size:12px;color:var(--faint);letter-spacing:.1em;margin-bottom:6px">牌堆剩余</div>' + deckChart +
@@ -1141,18 +1262,21 @@ svg{display:block; max-width:100%; height:auto}
   }
 
   function secRadar(m, A) {
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">06</span><h2>六维评估</h2><span class="hint">综合 ' + A.score + ' / 100</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">07</span><h2>六维评估</h2><span class="hint">综合 ' + A.score + ' / 100</span></div>' +
       '<div class="grid g2">' +
       '<div class="card" style="display:grid;place-items:center">' + radar({ axes: A.radar }) + '</div>' +
       '<div class="card">' + A.radar.map((d) => '<div style="padding:9px 0;border-bottom:1px solid var(--line)">' +
         '<div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--ink)">' + esc(d.label) + '</span>' +
         '<span style="font-family:var(--mono);color:' + (d.val >= 60 ? C.win : d.val >= 35 ? C.me : C.lose) + '">' + Math.round(d.val) + '</span></div>' +
         '<div style="font-size:12px;color:var(--dim)">' + esc(d.note) + '</div></div>').join('') + '</div>' +
-      '</div></section>';
+      '</div>' +
+      '<p class="hint" style="margin-top:10px;line-height:1.75">口径：进攻 = 平均点数 ÷ 5；压制 = 回合胜率；技巧 = 彩卡生效率；' +
+      '管理 = 手牌可出率（冷却中的牌越多越低，与局长无关）；资源 = 净牌流；残局 = 最后 8 回合胜率。</p>' +
+      '</section>';
   }
 
   function secAdvice(A) {
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">07</span><h2>可以改的地方</h2><span class="hint">按重要度排序</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">08</span><h2>可以改的地方</h2><span class="hint">按重要度排序</span></div>' +
       '<ul class="adv">' + A.advice.map((a) => '<li class="' + a.level + '"><b>' + esc(a.title) + '</b><span>' + esc(a.text) + '</span></li>').join('') + '</ul>' +
       '</section>';
   }
@@ -1189,7 +1313,7 @@ svg{display:block; max-width:100%; height:auto}
         '<td class="num">' + r.handMe.length + '/' + r.handAi.length + '</td>' +
         '</tr>';
     }).join('');
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">08</span><h2>逐回合</h2><span class="hint">红底行＝彩卡被鲸鱼封印</span></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">09</span><h2>逐回合</h2><span class="hint">红底行＝彩卡被鲸鱼封印</span></div>' +
       '<div class="tblwrap"><table><thead><tr>' +
       ['回合', '我方出牌', '对方出牌', '原始', '修正后', '结果', '牌流', '弃我/敌', '特效', '牌堆', '手牌我/敌']
         .map((h) => '<th>' + h + '</th>').join('') +
@@ -1197,15 +1321,19 @@ svg{display:block; max-width:100%; height:auto}
   }
 
   function secRaw(m) {
-    return '<section class="sec"><div class="sec-h"><span class="sec-no">09</span><h2>原始数据</h2></div>' +
+    return '<section class="sec"><div class="sec-h"><span class="sec-no">10</span><h2>原始数据</h2></div>' +
       '<details><summary>展开这份记录里的结构化 JSON（' + m.rounds.length + ' 回合）</summary><pre>' +
       esc(JSON.stringify(m, null, 1)) + '</pre></details></section>';
   }
 
   function render(m, A, file) {
     const out = $('#out');
-    out.innerHTML = bannerHtml(m, A) + kpiHtml(A) + secTimeline(m, A) + secPoints(m, A) + secSkills(m, A) +
+    let html = bannerHtml(m, A) + kpiHtml(A) + secTimeline(m, A) + secKey(m, A) + secPoints(m, A) + secSkills(m, A) +
       secResource(m, A) + secRadar(m, A) + secAdvice(A) + secTable(m, A) + secRaw(m);
+    /* 段号按实际出现顺序重排：关键回合为空时不会留空缺 */
+    let seq = 0;
+    html = html.replace(/(<span class="sec-no">)(\d+)(<\/span>)/g, (all, a1, a2, a3) => a1 + String(++seq).padStart(2, '0') + a3);
+    out.innerHTML = html;
     out.hidden = false;
     $('#ftVer').textContent = m.ver || 'v1';
     $('#ftFile').textContent = file ? file : '';
