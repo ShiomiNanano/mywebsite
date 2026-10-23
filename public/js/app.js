@@ -2740,6 +2740,14 @@ const card = (x) => {
       }
       if (!me || !me.user) throw new Error('登录状态异常，请再试一次');
       this.state.user = me.user;
+      // 如果是从别处被"请先登录"赶过来的（比如双人对局的邀请链接），登完回原页面
+      let next = null;
+      try { next = sessionStorage.getItem('web-next'); } catch (e) { /* 隐私模式 */ }
+      if (next) {
+        try { sessionStorage.removeItem('web-next'); } catch (e) {}
+        location.href = next;
+        return;
+      }
       location.hash = '#/menu';
     } catch (err) {
       errEl.textContent = err.message;

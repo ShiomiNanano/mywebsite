@@ -77,6 +77,36 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   fails         INTEGER NOT NULL
 );
 
+/* ---------- 幻梦牌 · 双人对局（异步轮流出牌） ---------- */
+-- 房间：只存元信息 + 随机种子。局面不落库，靠 seed + 出牌记录重放出来，
+-- 这样对手的手牌永远不出服务端。
+CREATE TABLE IF NOT EXISTS pvp_rooms (
+  code       TEXT PRIMARY KEY,           -- 6 位房间码（去掉 0/O/1/I）
+  host_id    INTEGER NOT NULL,
+  host_name  TEXT,
+  guest_id   INTEGER,
+  guest_name TEXT,
+  seed       INTEGER NOT NULL,           -- 整局的唯一随机源
+  t0         INTEGER NOT NULL,           -- 开局时间戳（回放时当 newGame 的 second arg）
+  status     TEXT NOT NULL DEFAULT 'waiting',   -- waiting / playing / done
+  winner     TEXT,                       -- host / guest / draw（认输时写）
+  reason     TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- 动作记录：每人每回合每类动作一行（出牌 / 弃牌各一行），两个人同时提交不会冲突。
+-- 房间超过 24 小时没动过就按"不存在"处理（读取时判断，不用定时任务清理）。
+CREATE TABLE IF NOT EXISTS pvp_moves (
+  code     TEXT NOT NULL,
+  round_no INTEGER NOT NULL,
+  side     TEXT NOT NULL,                -- host / guest
+  kind     TEXT NOT NULL DEFAULT 'play', -- play / discard
+  cards    TEXT NOT NULL,                -- JSON 数组，存牌的 id（如 ["☕️|彩|1","🌙|普|2"]）
+  at       TEXT NOT NULL,
+  PRIMARY KEY (code, round_no, side, kind)
+);
+
 /* ---------- 索引 ---------- */
 -- 注意：user 唯一索引要求库里没有重名账号。先跑这条检查，有结果就先清理再建索引：
 --   SELECT username, COUNT(*) c FROM users GROUP BY username HAVING c > 1;
@@ -89,3 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_user    ON comments(user_id);
 
 -- 目录接口的排序
 CREATE INDEX IF NOT EXISTS idx_articles_order   ON articles(category, chapter_no, section_no, sort_order, id);
+
+-- 「我还没打完的房间」列表
+CREATE INDEX IF NOT EXISTS idx_pvp_host  ON pvp_rooms(host_id);
+CREATE INDEX IF NOT EXISTS idx_pvp_guest ON pvp_rooms(guest_id);

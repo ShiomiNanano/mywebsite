@@ -294,6 +294,48 @@ DELETE /api/admin/games/scores?game=…    仅管理员清榜（clear 全部要�
 留言板的接口复用了 `comments` 表，约定 `article_id = 0` 表示留言板
 （真实文章 id 从 1 开始，不会撞；目录接口的 `comment_count` 也只按文章 id 关联）。
 
+## 幻梦牌 · 双人对局（PvP，异步轮流出牌）
+
+和朋友约一局，不用同时在线：谁有空谁出牌，两边都出了才结算。**不计段位、不计分**。
+
+```
+入口    /games/quality/?room=ABCD      （房间码 6 位，去掉 0/O/1/I）
+建房    单机牌桌右下角「和好友开一局」→ 跳到 ?room=CODE，把链接发过去
+对局    每回合双方各交两张；我先出、你三天后再出，结果一样（双方同时亮牌，没有先后手）
+结束    分出胜负 / 认输；没人管的房间不会自动清理，但也不会打扰谁
+```
+
+**为什么不做 WebSocket**：异步对局不需要常连接，轮询一下就够了。真正的难点是
+「谁来算牌」—— 现在整副牌都在浏览器里算，PvP 如果照旧，对手开 F12 就能看到我的手牌。
+所以 PvP 一律**服务端裁决**：
+
+| | 做法 |
+| --- | --- |
+| 存什么 | `pvp_rooms`（房间 + `seed` 随机种子）+ `pvp_moves`（每人每回合每种动作一行） |
+| 不存什么 | **局面不落库**。每次请求都拿 `seed` + 动作记录重放（`engine.pvpReplay`） |
+| 下发什么 | 只发我自己的手牌 + 对手的**张数**；对手的牌要等结算后才公开 |
+| 怎么防冲突 | `pvp_moves` 主键 `(code, round_no, side, kind)`，两个人同时提交各写各的行，不需要锁 |
+| 怎么防作弊 | 出牌/弃牌都要校验：是不是你的回合、牌在不在你手里、是不是冷却中 |
+| 弃牌 | 月亮点名和手牌超上限都要**自己挑**弃哪张（`kind='discard'` 另存一行） |
+| 过期 | 房间 24 小时没人动就按"不存在"处理（读取时判断，不留垃圾数据） |
+
+引擎只有一份 `public/games/quality/engine.js`，服务端用 `functions/api/engine.js`
+（同一份文件的副本，`preflight` 会比对两份是否逐字节一致，不一致就不许推）。
+
+```
+POST /api/pvp/rooms                    建房（需登录）→ { code, url }
+GET  /api/pvp/rooms                    我还没打完的房间
+GET  /api/pvp/rooms/:code              房间局面（只有自己那半边）
+POST /api/pvp/rooms/:code/join         入座（满员 409）
+POST /api/pvp/rooms/:code/play         出牌 { round, cards:[id,id] }
+POST /api/pvp/rooms/:code/discard      弃牌 { round, cards:[id,…] }
+POST /api/pvp/rooms/:code/resign       认输
+```
+
+本地怎么试：`node preview-server.cjs` 后开两个浏览器（或 `?as=2` 切身份），
+一个建房一个加入；验收脚本是 `pvp-browser.mjs`（真页面）和 `pvp-e2e.mjs`（真接口）。
+**还没做的**：对局日志导出、观战、公开房间。
+
 ## 开发与自测
 
 推送即部署（Pages 与仓库 git 连接，约 60–85 秒后生效），所以**推送前必须先自测**。
