@@ -459,6 +459,7 @@ const App = {
     }
     // 壁纸背景：封面页和文章页不用，其余主要页面都铺（配色在 CSS 里统一跟随壁纸）
     this.setWallpaper(this.wallpaperOnRoute(hash));
+    this.setCloth(parts[0] === 'board' || parts[0] === 'games');   // 这两页铺金色桌布
 
     const isOutside = parts.length === 0 || parts[0] === 'login';
     // 游客也能看书，所以底部导航对所有人显示（登录/封面页除外）
@@ -1346,6 +1347,25 @@ const App = {
     }
   },
 
+  /* 黑板正文里如果写了「友情链接：名字+网址」，就把它拆成按钮区，
+     正文里不再显示这一行。想改友链，直接改黑板正文即可，不用动代码。 */
+  boardFriends(note) {
+    const raw = String(note || '');
+    const at = raw.search(/友情链接\s*[：:]/);
+    if (at < 0) return { text: raw, links: [] };
+    const tail = raw.slice(at);
+    const links = [];
+    const re = /([^\s：:，、,；;]+)\s*(https?:\/\/[^\s，、,；;）)】]+)/g;
+    let m;
+    while ((m = re.exec(tail))) {
+      const url = m[2].replace(/[.。,，]+$/, '');
+      if (!url) continue;
+      links.push({ name: m[1].replace(/^[-·・]+/, ''), url });
+      if (links.length >= 4) break;   // 一行两个，最多收四个
+    }
+    if (!links.length) return { text: raw, links: [] };   // 没解析出网址就别动正文
+    return { text: raw.slice(0, at).replace(/\s+$/, ''), links };
+  },
   async renderBoard() {
     this.pageTitle = '留言板 · 白日梦咖啡馆';
     let data = { note: '', items: [], total: 0, has_more: false, next_before: null, can_post: false };
@@ -1357,7 +1377,9 @@ const App = {
     this.board = { items: data.items || [], has_more: !!data.has_more, next_before: data.next_before || null };
     const u = this.state.user;
     const isAdmin = !!(u && u.role === 'admin');
-    const note = String(data.note || '');
+    const rawNote = String(data.note || '');
+    const friends = this.boardFriends(rawNote);
+    const note = friends.text;
     return `
     <div class="page board-page">
       ${this.topbar()}
@@ -1366,7 +1388,7 @@ const App = {
         <p>随便聊聊，或者给店长留句话。</p>
       </div>
 
-      <section class="board-board${isAdmin ? ' is-editable' : ''}" id="boardBoard">
+      <section class="board-board${isAdmin ? ' is-editable' : ''}${friends.links.length ? ' has-links' : ''}" id="boardBoard">
         <div class="bb-head">
           <span class="bb-label">今日推荐</span>
           ${isAdmin ? `<button type="button" class="bb-edit" id="bbEdit">编辑</button>` : ''}
@@ -1374,7 +1396,7 @@ const App = {
         <div class="bb-text" id="bbText">${note ? esc(note).replace(/\n/g, '<br>') : `<span class="bb-empty">${isAdmin ? '点右上角「编辑」，写下今天想说的话' : '店长还没写今天的推荐'}</span>`}</div>
         ${isAdmin ? `
         <div class="bb-editor" id="bbEditor" hidden>
-          <textarea id="bbInput" rows="3" maxlength="500" placeholder="例如：今日推荐 · 榛果拿铁，第二杯半价">${esc(note)}</textarea>
+          <textarea id="bbInput" rows="3" maxlength="500" placeholder="例如：今日推荐 · 榛果拿铁，第二杯半价">${esc(rawNote)}</textarea>
           <div class="bb-actions">
             <button type="button" class="btn btn-small" id="bbSave">保存</button>
             <button type="button" class="btn btn-small btn-ghost" id="bbCancel">取消</button>
@@ -1383,6 +1405,17 @@ const App = {
         </div>` : ''}
       </section>
 
+      ${friends.links.length ? `
+      <section class="board-links" aria-label="友情链接">
+        <span class="bl-label">友情链接</span>
+        <div class="bl-row">
+          ${friends.links.map((l, i) => `<a class="bl-btn" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+            <span class="bl-no" aria-hidden="true">${['①', '②', '③', '④'][i] || '·'}</span>
+            <span class="bl-name">${esc(l.name)}</span>
+            <span class="bl-go" aria-hidden="true">↗</span>
+          </a>`).join('')}
+        </div>
+      </section>` : ''}
       <section class="board-notes">
         ${data.can_post && u ? `
         <div class="note-card note-compose">
@@ -2070,6 +2103,22 @@ const card = (x) => {
     return ['login', 'menu', 'main', 'personal', 'settings', 'profile', 'admin'].indexOf(first) >= 0;
   },
 
+  /* 「金色桌布」主题：留言板 / 游戏页。只切一个 html[data-cloth]，
+     配色全在 CSS 里换，逻辑不用跟着改。 */
+  setCloth(on) {
+    const root = document.documentElement;
+    if (!this._cloth) {
+      const el = document.createElement('div');
+      el.id = 'cloth';
+      el.className = 'cloth';
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = '<span class="cloth-mark"></span>';
+      document.body.appendChild(el);
+      this._cloth = el;
+    }
+    this._cloth.classList.toggle('on', !!on);
+    if (on) root.setAttribute('data-cloth', 'on'); else root.removeAttribute('data-cloth');
+  },
   setWallpaper(on) {
     const root = document.documentElement;
     if (on) { this.ensureWallpaperLayer(); root.setAttribute('data-wallpaper', 'on'); }

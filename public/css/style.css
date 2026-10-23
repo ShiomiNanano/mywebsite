@@ -99,11 +99,11 @@
   --field-bg: #101d27;
   --focus-ring: rgba(124,180,216,.22);
   /* 深色下的金色卡片：压暗成古铜，文字反过来用浅色 */
-  --gold-card-1: #2c2519;
-  --gold-card-2: #3c3323;
-  --gold-card-ink: #f2e6cb;
-  --gold-card-ink-2: #c6ae80;
-  --gold-card-line: rgba(242,230,203,.3);
+  --bl-gold-1: #2c2519;
+  --bl-gold-2: #3c3323;
+  --bl-gold-ink: #f2e6cb;
+  --bl-gold-ink-2: #c6ae80;
+  --bl-gold-line: rgba(242,230,203,.3);
   --gold-card-chip: rgba(255,255,255,.08);
   /* 深色下的提示条反过来：浅底深字 */
   --toast-bg: rgba(231,239,245,.95);
@@ -675,18 +675,18 @@ select { appearance: none; background-image: none; cursor: pointer; }
 
 /* 继续阅读：金色卡片，配色交给主题变量 */
 .menu-continue, .menu-chat {
-  background: linear-gradient(140deg, var(--gold-card-1), var(--gold-card-2));
-  border-color: transparent; color: var(--gold-card-ink);
+  background: linear-gradient(140deg, var(--bl-gold-1), var(--bl-gold-2));
+  border-color: transparent; color: var(--bl-gold-ink);
   box-shadow: 0 16px 36px -24px rgba(var(--shadow),.7);
 }
-.menu-continue .menu-card-content p, .menu-chat .menu-card-content p { color: var(--gold-card-ink-2); }
+.menu-continue .menu-card-content p, .menu-chat .menu-card-content p { color: var(--bl-gold-ink-2); }
 .menu-continue .menu-card-icon, .menu-chat .menu-card-icon { background: var(--gold-card-chip); color: var(--gold); }
 .menu-continue .menu-card-meta, .menu-chat .menu-card-meta {
-  border-color: var(--gold-card-line); color: var(--gold-card-ink-2);
+  border-color: var(--bl-gold-line); color: var(--bl-gold-ink-2);
 }
 .menu-continue .menu-card-arrow, .menu-chat .menu-card-arrow { color: var(--gold); }
 .menu-continue:hover .menu-card-arrow, .menu-chat:hover .menu-card-arrow {
-  color: var(--gold-card-ink); transform: translateX(3px);
+  color: var(--bl-gold-ink); transform: translateX(3px);
 }
 
 /* ---------- 章 / 节列表 ---------- */
@@ -2294,6 +2294,54 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 }
 .bb-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
 
+/* 友情链接：黑板上拆出来的两块小牌子，一行两个 */
+.board-board.has-links { margin-bottom: var(--sp-4); }
+.board-links { max-width: var(--board-max, 640px); margin: 0 auto var(--sp-6); }
+.bl-label {
+  display: block; margin-bottom: var(--sp-2);
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .22em; color: var(--board-chalk-dim, rgba(230, 240, 232, .55));
+}
+.bl-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+.bl-btn {
+  display: flex; align-items: center; gap: 9px; min-width: 0;
+  padding: 11px 13px; border-radius: var(--r-sm); text-decoration: none;
+  font-family: var(--font-serif); font-size: var(--fs-sm); letter-spacing: .05em;
+  /* 跟幻梦牌「金」品质同一套烫金：浅金 → 中金 → 深金 */
+  color: var(--friend-gold-ink, #402c04);
+  background: linear-gradient(160deg,
+    var(--friend-gold-1, #ffedbf) 0%,
+    var(--friend-gold-2, #f3d383) 52%,
+    var(--friend-gold-3, #dfb257) 100%);
+  border: 1px solid var(--friend-gold-line, rgba(186, 140, 44, .85));
+  box-shadow: inset 0 1px 0 rgba(255, 250, 232, .7), 0 8px 18px -14px rgba(0, 0, 0, .55);
+  transition: var(--t);
+}
+.bl-btn:hover {
+  transform: translateY(-1px);
+  color: var(--friend-gold-ink, #402c04);
+  border-color: var(--friend-gold-line-hi, rgba(214, 168, 62, .95));
+  background: linear-gradient(160deg,
+    var(--friend-gold-1-hi, #fff4d6) 0%,
+    var(--friend-gold-2-hi, #f8de9c) 52%,
+    var(--friend-gold-3-hi, #e8c070) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 12px 24px -16px rgba(0, 0, 0, .6), 0 0 0 1px rgba(214, 168, 62, .22);
+}
+.bl-no {
+  flex: 0 0 auto; width: 19px; height: 19px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 10px; line-height: 1;
+  color: var(--friend-gold-ink, #402c04);
+  border: 1px solid var(--friend-gold-line, rgba(186, 140, 44, .85));
+  background: rgba(255, 252, 240, .5);
+}
+.bl-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-go { flex: 0 0 auto; font-size: var(--fs-xs); opacity: .62; color: var(--friend-gold-ink, #402c04); transition: var(--t); }
+.bl-btn:hover .bl-go { opacity: 1; transform: translate(1px, -1px); }
+@media (max-width: 420px) {
+  .bl-row { gap: 8px; }
+  .bl-btn { padding: 10px 10px; font-size: var(--fs-xs); gap: 7px; }
+}
+
 .board-notes {
   max-width: var(--board-max, 640px); margin: 0 auto;
   display: flex; flex-direction: column; gap: var(--sp-4);
@@ -3271,4 +3319,103 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
 }
 @media (prefers-reduced-motion: reduce) {
   .veil-ring { animation-duration: 2.6s; }
+}
+/* ============ 「金色桌布」主题：留言板 / 游戏页 ============
+   跟幻梦牌的桌面同一套：暗金褐底 + 烫金 logo 水印。
+   只换令牌，不改组件；友情链接那两块虹彩按钮不受影响。 */
+html[data-cloth="on"] {
+  --bg: #2b2214;
+  --bg-deep: #1a140b;
+  --bg-glow: rgba(240, 214, 158, .10);
+  --glow-2: rgba(214, 182, 120, .07);
+  --vignette: rgba(0, 0, 0, .52);
+  --surface: #332816;
+  --surface-2: #3a2e1b;
+  --surface-3: #44351f;
+  --surface-sunken: #241c10;
+  --surface-highlight: rgba(255, 240, 210, .07);
+  --ink: #f3e8ce;
+  --ink-2: #cfbc99;
+  --ink-3: #a08f72;
+  --line: #4a3b23;
+  --line-2: #5d4a2c;
+  --frame-line: rgba(230, 201, 138, .30);
+  --accent: #e2c184;
+  --accent-2: #f2dcae;
+  --accent-ink: #241a08;
+  --accent-soft: rgba(226, 193, 132, .16);
+  --gold: #e8cb8c;
+  --gold-2: #f6e5bf;
+  --gold-soft: rgba(232, 203, 140, .16);
+  --topbar-bg: rgba(38, 29, 16, .86);
+  --nav-bg: rgba(46, 36, 20, .92);
+  --field-bg: #241c10;
+  --focus-ring: rgba(226, 193, 132, .24);
+  --gold-card-1: #3a2e1b;
+  --gold-card-2: #4a3b24;
+  --gold-card-ink: #f6ead0;
+  --gold-card-ink-2: #d3bb90;
+  --gold-card-line: rgba(246, 234, 208, .28);
+  /* 黑板：换成暖木色，粉笔字仍用米白 */
+  --board-1: #3b2d18;
+  --board-2: #2a2011;
+  --board-line: rgba(230, 201, 138, .22);
+  --board-chalk: #f5ebd2;
+  --board-chalk-dim: rgba(245, 235, 210, .55);
+  --board-sill: rgba(230, 201, 138, .18);
+  /* 便签：纸的暖调再压一档，免得在棕底上发灰 */
+  --note-1: #f6eeda;
+  --note-2: #e8d8b6;
+  --note-ink: #3b3020;
+  --note-ink-dim: #7d6c4e;
+  --note-line: rgba(59, 48, 32, .18);
+  --tape: rgba(255, 250, 236, .30);
+}
+html[data-cloth="on"] body {
+  background:
+    radial-gradient(120% 62% at 50% -6%, rgba(240, 214, 158, .13), transparent 58%),
+    radial-gradient(72% 56% at 50% 46%,
+      var(--cloth-1, #4d3f26) 0%,
+      var(--cloth-2, #3a2f1a) 58%,
+      var(--cloth-3, #20190c) 100%);
+  background-attachment: fixed;
+}
+/* 桌布主题下壁纸视频让位，两套背景叠在一起会糊 */
+html[data-cloth="on"] .wp-bg { display: none; }
+/* 留言页 / 游戏页原本自带不透明黑板底（.board-page / .game-page），会盖住桌布水印 */
+html[data-cloth="on"] .board-page,
+html[data-cloth="on"] .game-page {
+  background-color: transparent;
+  background-image: none;
+}
+
+.cloth {
+  display: none; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  /* 极细经纬纹，让桌布不像纯渐变 */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 250, 236, .016) 0 2px, rgba(0, 0, 0, .020) 2px 4px),
+    repeating-linear-gradient(90deg, rgba(255, 250, 236, .012) 0 3px, rgba(0, 0, 0, .016) 3px 6px);
+}
+.cloth.on { display: block; }
+.cloth-mark {
+  position: absolute; left: 50%; top: 50%;
+  width: min(86vw, 940px); aspect-ratio: 659 / 387;
+  transform: translate(-50%, -50%);
+  /* 烫金：金色渐变 + logo 蒙版；再叠一层径向蒙版把边缘化开 */
+  background-image: linear-gradient(155deg,
+    var(--cloth-mark-1, #f6e4b8),
+    var(--cloth-mark-2, #d3b47a) 58%,
+    var(--cloth-mark-3, #a1804a));
+  -webkit-mask-image: url("/media/logo-mark.png"), radial-gradient(closest-side, var(--cloth-mask, #000) 40%, transparent 86%);
+  -webkit-mask-size: contain, 100%;
+  -webkit-mask-position: center, center;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-image: url("/media/logo-mark.png"), radial-gradient(closest-side, var(--cloth-mask, #000) 40%, transparent 86%);
+  mask-size: contain, 100%;
+  mask-position: center, center;
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: intersect;
+  opacity: .2;
+  mix-blend-mode: screen;
 }
