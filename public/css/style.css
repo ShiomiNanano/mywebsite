@@ -3189,11 +3189,13 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
   margin-left: auto;
   flex: 0 0 auto;
 }
-/* 主推卡里的段位榜（前三）—— 与 hub-rank 同族，略作差异化 */
+/* 主推卡里的段位榜（前六）—— 电脑两列三行，手机逐行 */
 .hub-rank-tier {
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
 }
 .hub-rank-tier li {
   display: flex;
@@ -3203,6 +3205,10 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
   border-bottom: 1px dashed rgba(255, 255, 255, .08);
 }
 .hub-rank-tier li:last-child { border-bottom: 0; }
+@media (min-width: 761px) {
+  .hub-rank-tier { grid-template-columns: 1fr 1fr; column-gap: 22px; }
+  .hub-rank-tier li:nth-last-child(-n + 2) { border-bottom: 0; }
+}
 
 .hub-rank-tier .hub-medal {
   flex: 0 0 18px;

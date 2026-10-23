@@ -797,7 +797,7 @@ export async function onRequest(context) {
     }
     if (method === 'GET' && path === '/games/rank/tops') {
       const rows = await env.DB.prepare(
-        'SELECT username, rating FROM game_rank WHERE game=? ORDER BY rating DESC, updated_at ASC LIMIT 5'
+        'SELECT username, rating FROM game_rank WHERE game=? ORDER BY rating DESC, updated_at ASC LIMIT 6'
       ).bind(RANK_GAME).all();
       const tops = ((rows && rows.results) || []).map((x) => ({ username: x.username, rating: x.rating, tier: rankTier(x.rating) }));
       return jsonPublic({ game: RANK_GAME, tops }, 10);

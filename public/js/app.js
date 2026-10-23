@@ -1156,11 +1156,11 @@ const App = {
       `<li><span>${medal[i]}</span><span class="hub-rank-name">${esc(x.username)}</span><b>${Number(x.score) || 0}</b></li>`
     ).join('') + '</ol>';
   },
-  // 主推卡里的段位榜（前三，按段位分）
+  // 主推卡里的段位榜（前六，按段位分；电脑两列三行，手机逐行）
   hubRankTier(tops) {
     if (!tops || !tops.length) return '<p class="hub-rank-empty">段位制 · 打完一局涨段位分</p>';
-    const medal = ['👑', '②', '③'];
-    return '<ol class="hub-rank-tier">' + tops.slice(0, 3).map((x, i) =>
+    const medal = ['👑', '②', '③', '④', '⑤', '⑥'];
+    return '<ol class="hub-rank-tier">' + tops.slice(0, 6).map((x, i) =>
       `<li><span class="hub-medal">${medal[i]}</span>`
       + `<span class="hub-who">${esc(x.username || '无名')}</span>`
       + `<span class="hub-tier">${esc(x.tier || '')}</span>`
