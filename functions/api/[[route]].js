@@ -756,6 +756,9 @@ export async function onRequest(context) {
       const result = String(body.result || '').slice(0, 12);
       const rounds = Math.max(0, Math.min(999, Math.floor(Number(body.rounds) || 0)));
       const oppPts = Math.max(0, Math.min(999, Math.floor(Number(body.oppPts) || 0)));
+      // 客户端算好的六维综合分（0~100）：有就用它当基础分，没有就回退到老公式
+      const hasScore = typeof body.composite === 'number' && isFinite(body.composite);
+      const composite = hasScore ? Math.max(0, Math.min(100, Math.round(body.composite))) : 0;
       const cur = await readRank(env, user.id);
       const haunt = body.haunt === true;      // 这一局是不是"被噩梦盯上"的那局
       let rating = cur.rating;
@@ -763,21 +766,24 @@ export async function onRequest(context) {
       let losses = cur.losses;
       let streak = cur.streak;
       let delta = 0;
-      let omenBonus = 0;
+      let omenX2 = false;
       let streakBonus = 0;
       if (result === 'win') {
-        // 速胜多、磨局少：原始值 = 1000 − 回合×8 − 对手剩余点数×3，减基线 400 再除 12，钳 5~50
-        delta = Math.max(5, Math.min(50, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
-        // 连胜彩蛋：本来打不到噩梦的段位（<4200 分 = 梦游咖啡师及以下）打赢被盯上的那局，额外 +30
-        if (haunt && cur.rating < 4200) { omenBonus = 30; delta += omenBonus; }
+        // 基础分 = 客户端算的六维综合分（0~100）；老客户端没带就退回旧公式（钳 5~50）
+        const base = hasScore ? composite : Math.max(5, Math.min(50, Math.round((1000 - rounds * 8 - oppPts * 3 - 400) / 12)));
         // 连胜奖励：到 3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）
         streak = cur.streak + 1;
-        if (streak >= 3) { streakBonus = 3 * streak; delta += streakBonus; }
+        if (streak >= 3) { streakBonus = 3 * streak; }
+        // 连胜彩蛋：本来打不到噩梦的段位（<4200 分 = 梦游咖啡师及以下）打赢被盯上的那局 → 结算分整体 ×2
+        omenX2 = !!(haunt && cur.rating < 4200);
+        delta = (base + streakBonus) * (omenX2 ? 2 : 1);
         rating += delta;
         wins += 1;
       } else if (result === 'loss' || result === 'abandon') {
-        delta = -18;
-        rating = Math.max(0, rating - 18);
+        // 扣分 = (100 − 综合分) / 3，最多扣 34
+        const cut = hasScore ? Math.max(0, Math.min(34, Math.round((100 - composite) / 3))) : 18;
+        delta = -cut;
+        rating = Math.max(0, rating - cut);
         losses += 1;
         streak = 0;                 // 输了 / 中途放弃 = 连胜中断
       } else {
@@ -787,7 +793,7 @@ export async function onRequest(context) {
         'INSERT INTO game_rank (game, user_id, username, rating, wins, losses, streak, updated_at) VALUES (?,?,?,?,?,?,?,?) ' +
         'ON CONFLICT(game, user_id) DO UPDATE SET username=excluded.username, rating=excluded.rating, wins=excluded.wins, losses=excluded.losses, streak=excluded.streak, updated_at=excluded.updated_at'
       ).bind(RANK_GAME, user.id, user.username, rating, wins, losses, streak, nowStr()).run();
-      return json({ ok: true, delta, rating, tier: rankTier(rating), wins, losses, streak, bonus: { omen: omenBonus, streak: streakBonus } });
+      return json({ ok: true, delta, rating, tier: rankTier(rating), wins, losses, streak, bonus: { omen: omenX2 ? 1 : 0, streak: streakBonus, composite: hasScore ? composite : null } });
     }
     if (method === 'GET' && path === '/games/rank/tops') {
       const rows = await env.DB.prepare(

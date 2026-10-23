@@ -788,18 +788,25 @@ if (typeof RANK.omen !== 'number') RANK.omen = 0;
 // 不想打 —— 开牌前刷新页面、或按「重开」，就能把它刷掉；代价是连胜中断。
 // 本来就在打噩梦的段位（清醒造梦官 / 白日梦掌梦人）不触发，机制不变。
 const omenChance = (n) => (n >= 5 ? 0.45 : n === 4 ? 0.30 : n === 3 ? 0.20 : 0);
-const HAUNT_BONUS = 30;      // 低段位打赢被盯上的那局，额外加分
+// 低段位打赢被盯上的那局：结算分（基础分 + 连胜分）整体 ×2，不再加固定分
 
 // 连胜奖励：到 3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）；连胜中断就归零
 const STREAK_FROM = 3;
 const streakBonusOf = (n) => (n >= STREAK_FROM ? 3 * n : 0);
 
-// 结算里那行「（含 …）」：把附加奖励拼出来，没有附加就返回空串
-function bonusTxt(omen, streak) {
+// 结算里那行「（含 …）」：把附加项拼出来，没有附加就返回空串
+function bonusTxt(double, streak, score) {
   const parts = [];
-  if (omen) parts.push('噩梦加成 +' + omen);
+  if (typeof score === 'number' && isFinite(score)) parts.push('综合 ' + score);
   if (streak) parts.push('连胜奖励 +' + streak);
+  if (double) parts.push('噩梦 ×2');
   return parts.length ? '（含 ' + parts.join('、') + '）' : '';
+}
+
+// 输 / 中途放弃的扣分：(100 − 综合分) / 3，四舍五入，最多扣 34（综合分 0 时）
+function lossDeduction(score) {
+  const s = typeof score === 'number' && isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
+  return Math.max(0, Math.min(34, Math.round((100 - s) / 3)));
 }
 
 function paintRank() {
@@ -881,14 +888,14 @@ async function loadRemoteRank() {
 }
 
 // 交一局结果给服务端；进来先把本地算的分显示出来，服务端回来再以服务端为准
-async function pushResult(result, rounds, oppPts, haunt) {
+async function pushResult(result, rounds, oppPts, haunt, composite) {
   // 已经确认是游客（401 过）就不再每局白发一次请求
   if (SYNC.guest) return;
   try {
     const r = await fetch('/api/games/rank', {
       method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ game: 'quality', result: result, rounds: rounds | 0, oppPts: oppPts | 0, haunt: !!haunt })
+      body: JSON.stringify({ game: 'quality', result: result, rounds: rounds | 0, oppPts: oppPts | 0, haunt: !!haunt, composite: typeof composite === 'number' ? composite | 0 : undefined })
     });
     if (r.status === 401) { SYNC.online = false; SYNC.guest = true; paintSync(); return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -903,8 +910,11 @@ async function pushResult(result, rounds, oppPts, haunt) {
     if (box && g && g.over) {
       const b = j.bonus || {};
       const d = typeof j.delta === 'number' ? j.delta : (j.rating | 0) - (RANK.rating | 0);
-      box.textContent = (d >= 0 ? '+' + d : String(d)) + ' 分'
-        + bonusTxt(b.omen | 0, b.streak | 0) + ' · ' + tierOf(RANK.rating).name;
+      const sc = typeof b.composite === 'number' ? b.composite : g.matchScore;
+      const detail2 = (d < 0 && typeof sc === 'number')
+        ? '（综合 ' + sc + ' → (100 − ' + sc + ') ÷ 3 = ' + Math.abs(d) + '）'
+        : bonusTxt(b.omen | 0, b.streak | 0, sc);
+      box.textContent = (d >= 0 ? '+' + d : String(d)) + ' 分' + detail2 + ' · ' + tierOf(RANK.rating).name;
     }
   } catch (e) {
     SYNC.online = false; SYNC.note = '云端没连上 · 先记本机'; paintSync();
@@ -915,7 +925,7 @@ async function pushResult(result, rounds, oppPts, haunt) {
 function pushAbandon() {
   if (!g || SYNC.guest) return;
   const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
-  const body = JSON.stringify({ game: 'quality', result: 'abandon', rounds: g.round | 0, oppPts: oppPts | 0 });
+  const body = JSON.stringify({ game: 'quality', result: 'abandon', rounds: g.round | 0, oppPts: oppPts | 0, composite: matchScore(g) });
   try {
     if (navigator.sendBeacon) {
       navigator.sendBeacon('/api/games/rank', new Blob([body], { type: 'application/json' }));
@@ -925,33 +935,87 @@ function pushAbandon() {
   pushResult('abandon', g.round, oppPts);
 }
 
-// 段位变化：赢 = 钳 5~50 的 (1000 − 回合×8 − 对手剩余点数×3 − 400) / 12；输 = −18；下限 0
+// 六维综合分（0~100）：与「对局分析工具」里那张雷达图同一套算法。
+// 注意：这里是 base 分，只用于赢局加分；改公式要两边一起改。
+function matchScore(g) {
+  const H = (g && g.hist) || [];
+  const n = H.length;
+  if (!n) return 0;
+  const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+
+  // 进攻：平均每回合点数 ÷ 5
+  const dimOff = clamp01(avg(H.map((r) => num(r.pP))) / 5) * 100;
+  // 压制：回合胜率
+  const dimPress = (H.filter((r) => r.res === 'me').length / n) * 100;
+  // 技巧：打出的彩卡里真正生效的比例
+  let cai = 0, trig = 0;
+  H.forEach((r) => {
+    (r.playMe || []).forEach((c) => { if (/彩$/.test(String(c))) cai++; });
+    (r.fx || []).forEach((e) => { if (e.side === 'me') trig++; });
+  });
+  const dimSkill = cai ? clamp01(trig / cai) * 100 : 0;
+  // 管理：手牌可出率（0.7）+ 没被冷却卡住的时间占比（0.3）
+  const ratios = [];
+  let coldTurns = 0;
+  H.forEach((r) => {
+    const hand = r.handMe || [];
+    const blanks = hand.filter((c) => String(c) === '空白').length;
+    const specials = hand.length - blanks;
+    if (specials > 0) {
+      const cold = Math.min(specials, num(r.coldMe));
+      ratios.push((specials - cold) / specials);
+    }
+    if (num(r.coldMe) > 0) coldTurns++;
+  });
+  const dimManage = clamp01(0.7 * avg(ratios) + 0.3 * (1 - coldTurns / n)) * 100;
+  // 资源：净牌流
+  let got = 0, lost = 0;
+  H.forEach((r) => {
+    const k = (r.loot || []).length;
+    if (!k) return;
+    if (r.res === 'me') got += k; else if (r.res === 'ai') lost += k;
+  });
+  const dimRes = clamp01(0.5 + (got - lost) / (2 * n)) * 100;
+  // 残局：最后 8 回合胜率
+  const tail = H.slice(Math.max(0, n - 8));
+  const dimEnd = clamp01(tail.filter((r) => r.res === 'me').length / tail.length) * 100;
+
+  return Math.round(avg([dimOff, dimPress, dimSkill, dimManage, dimRes, dimEnd]));
+}
+
+// 段位变化：赢 = 六维综合分（0~100）当基础分，再加连胜 / 噩梦加成；输或放弃 = −18；下限 0
 function applyRank(result) {
   const before = RANK.rating;
   const beforeTier = tierOf(before).name;
   const lowTier = tierOf(before).ai !== 'nightmare';   // 本来就不打噩梦的段位
   let delta = 0;
-  let omenBonus = 0;
+  let doubleOmen = false;
   let streakBonus = 0;
+  let cut = 0;                 // 输局扣了多少（弹层文案要用）
   if (result === 'me') {
     const oppPts = specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0);
-    // 原始值 = 1000 − 回合×8 − 对手剩余点数×3；减去基线 400 再除 12，钳 5~50
-    const raw = 1000 - g.round * 8 - oppPts * 3;
-    delta = Math.max(5, Math.min(50, Math.round((raw - 400) / 12)));
-    // 彩蛋：低段位打赢被噩梦盯上的那局 → 额外加分
-    if (g.haunt && lowTier) { omenBonus = HAUNT_BONUS; delta += omenBonus; }
+    // 基础分 = 这一局的六维综合分（0~100）
+    g.matchScore = matchScore(g);
+    const base = Math.max(0, Math.min(100, g.matchScore));
     RANK.streak = (RANK.streak || 0) + 1;
     // 连胜奖励：3 连胜起，每赢一局额外 +3×连胜数（3 连胜 +9、4 连胜 +12…）
     streakBonus = streakBonusOf(RANK.streak);
-    delta += streakBonus;
+    // 彩蛋：低段位打赢被噩梦盯上的那局 → 结算分（基础分 + 连胜分）翻倍
+    doubleOmen = !!(g.haunt && lowTier);
+    delta = (base + streakBonus) * (doubleOmen ? 2 : 1);
     RANK.rating += delta; RANK.wins++;
     // 连胜够了就摇一次：这一局赢完之后，下一局会不会被盯上
     if (lowTier && document.getElementById('diff').value === 'auto' && Math.random() < omenChance(RANK.streak)) {
       RANK.omen = 1;
     }
   } else if (result === 'ai') {
-    delta = -18;
-    RANK.rating = Math.max(0, RANK.rating - 18); RANK.losses++;
+    // 扣分 = (100 − 综合分) / 3
+    if (typeof g.matchScore !== 'number') g.matchScore = matchScore(g);
+    cut = lossDeduction(g.matchScore);
+    delta = -cut;
+    RANK.rating = Math.max(0, RANK.rating - cut); RANK.losses++;
     RANK.streak = 0;
   } else {
     RANK.streak = 0;     // 平局也算连胜中断
@@ -962,12 +1026,15 @@ function applyRank(result) {
   const afterTier = tierOf(RANK.rating).name;
   const upTxt = afterTier !== beforeTier ? '　→ ' + afterTier + ' · 对手变强了' : '';
   const box = document.getElementById('ovRank');
-  box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分' + bonusTxt(omenBonus, streakBonus) + upTxt;
+  const detail = result === 'ai'
+    ? (typeof g.matchScore === 'number' ? '（综合 ' + g.matchScore + ' → (100 − ' + g.matchScore + ') ÷ 3 = ' + cut + '）' : '')
+    : bonusTxt(doubleOmen, streakBonus, g.matchScore);
+  box.textContent = (delta >= 0 ? '+' + delta : String(delta)) + ' 分' + detail + upTxt;
   // 本地先算（弹层立刻有数），再把这局交给服务端；服务端回来的绝对值会覆盖上面的显示
   if (result === 'me') {
-    pushResult('win', g.round, specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0), !!g.haunt && lowTier);
+    pushResult('win', g.round, specOf(g.ai.hand).reduce((s, c) => s + c.pts, 0), !!g.haunt && lowTier, g.matchScore);
   } else if (result === 'ai') {
-    pushResult('loss', g.round, 0);
+    pushResult('loss', g.round, 0, false, g.matchScore);
   }
 }
 
@@ -1193,13 +1260,6 @@ function render() {
 
   paintPrimary();
 
-  // 战况
-  const mineIds = new Set(g.me.hand.map((c) => c.id));
-  const unseen = g.master.filter((c) => !c.seen && !mineIds.has(c.id));
-  const inAi = unseen.filter((c) => g.ai.hand.some((h) => h.id === c.id)).length;
-  $('pool').innerHTML = '<span class="tag">未现身 ' + unseen.length + ' 张：牌堆 ' + (unseen.length - inAi) + ' · 对手手上 ' + inAi + '</span>';
-  $('log').innerHTML = g.logs.slice(0, 12).map((t) => '<div>' + t + '</div>').join('');
-
   // ★ 结算弹层：赢/输/平必须一眼看到（之前那句被 msg 覆盖了，等于没显示）
   const ov = $('ov');
   if (phase === 'over') {
@@ -1383,9 +1443,10 @@ function doRestart() {
   if (RANK.omen) { RANK.omen = 0; RANK.streak = 0; saveRank(RANK); paintRank(); }
   // 已经打完（over）或还没开始（ready）→ 不扣分
   if (STARTED && !g.over) {
-    const ok = window.confirm('这局还没打完，放弃会扣 18 分。确定要重开吗？');
+    const cut = lossDeduction(matchScore(g));
+  const ok = window.confirm('这局还没打完，放弃会扣 ' + cut + ' 分（(100 − 本局综合分) ÷ 3）。确定要重开吗？');
     if (!ok) return;
-    RANK.rating = Math.max(0, RANK.rating - 18);
+    RANK.rating = Math.max(0, RANK.rating - cut);
     RANK.losses++;
     saveRank(RANK); paintRank();
     pushAbandon();
@@ -1662,7 +1723,7 @@ loadRemoteRank();
   window.addEventListener('pagehide', () => {
     if (typeof STARTED !== 'undefined' && STARTED && g && !g.over) {
       try {
-        RANK.rating = Math.max(0, RANK.rating - 18);
+        RANK.rating = Math.max(0, RANK.rating - lossDeduction(matchScore(g)));
         RANK.losses++;
         saveRank(RANK);
         pushAbandon();

@@ -825,7 +825,7 @@ svg{display:block; max-width:100%; height:auto}
 
     /* 7 点数与胜率不匹配 */
     if (A.diffAvg > 1 && A.winRate < 0.45 && n >= 6) {
-      add('warn', '平均点数比对方高 ' + fix(A.diffAvg) + '，却只赢了 ' + wins + ' / ' + n + ' 回合',
+      add('warn', '平均点数比对方高 ' + fix(A.diffAvg) + '，却只赢了 ' + A.wins + ' / ' + n + ' 回合',
         '点数没有换成胜局，说明赢的小、输的大。看「点数走势」里两条线的交叉点——赢 1~2 分的回合其实不值得用掉彩卡，把彩卡留到能一次夺 2 张的位置。');
     } else if (A.diffAvg < -1 && A.winRate > 0.5 && n >= 6) {
       add('good', '以巧取胜：平均点数落后 ' + fix(Math.abs(A.diffAvg)) + '，胜率却有 ' + pct(A.winRate),

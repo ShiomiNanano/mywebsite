@@ -276,8 +276,6 @@
 
   details{border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:0 12px; margin-top:8px; background:rgba(0,0,0,.18)}
   summary{padding:10px 0; font-size:12px; color:var(--ink2); cursor:pointer}
-  .log{max-height:170px; overflow:auto; font-size:11.5px; color:var(--ink3); padding-bottom:8px}
-  .log div{padding:3px 0; border-bottom:1px dashed rgba(255,255,255,.07)}
   .tags{display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 10px}
   .tag{font-size:11px; padding:1px 6px; border-radius:5px; background:rgba(255,255,255,.07);
     border:1px solid rgba(255,255,255,.14); color:var(--ink2)}
@@ -1249,12 +1247,6 @@
   </div>
 
 
-  <details>
-    <summary>战况 · 未现身的牌 · 日志</summary>
-    <div class="tags" id="pool"></div>
-    <div class="log" id="log"></div>
-  </details>
-
 
   <details>
     <summary>规则速查</summary>
@@ -1269,14 +1261,14 @@
       · 补牌只在前 13 回合（☂ 会把窗口再推后 5 回合）；连续 3 次平局双方各弃本回合最大牌；满 100 回合按手牌点数判定。
       <div class="codex">
         <div class="codex-t">八张彩卡的特效（按结算顺序生效）</div>
-        <div class="codex-i"><span class="cb">🐋</span><b>塔尔塔洛斯的瞥视</b>（封印）　取消对手本回合两张牌的全部特效；自身冷却随搭档：彩 4 / 金 3 / 普或空白 1 回合。</div>
-        <div class="codex-i"><span class="cb">☂</span><b>无染之泉</b>（重置）　双方原始点数相同时锁定平局（不计连平），双方特殊牌全部重抽、新牌无冷却，补牌窗口再推后 5 回合。</div>
-        <div class="codex-i"><span class="cb">☘️</span><b>最新爆点！！</b>（加持）　与彩卡搭档时本回合 +1 点，自身冷却延长至 3 回合。</div>
-        <div class="codex-i"><span class="cb">༄</span><b>微风中的小憩</b>（削弱）　搭档非彩卡时对手 −1 点；搭档同为风则 −2 点（点数可为负）。</div>
-        <div class="codex-i"><span class="cb">🌈</span><b>牵起晴空的手</b>（改判）　本回合点数落后时改判为平局，且己方本回合出牌冷却 −1。</div>
-        <div class="codex-i"><span class="cb">☕️</span><b>白日梦特调</b>（回手）　本卡与非彩卡搭档时，落败也不被夺走，直接回手。</div>
-        <div class="codex-i"><span class="cb">☀️</span><b>我仍会向前</b>（抽牌）　打出即抽 1 张；本彩太阳在冷却中时，每打出 1 张同类普/金再额外抽 1 张（余晖，不受封印影响）。</div>
-        <div class="codex-i"><span class="cb">🌙</span><b>༺弦月镰†终末断罪༺</b>（弃置）　令对手弃置 1 张特殊牌；若因此对手再没有能出的特殊牌，直接判负（刺杀）。</div>
+        <div class="codex-i"><span class="cb">🐋</span><b>塔尔塔洛斯的瞥视</b>（封印）　使用本卡时，使对方的卡牌特殊效果失效；与彩卡一起使用时，本🐋卡的冷却时间额外+2；与金卡一起使用时，本🐋卡的冷却时间额外+1；与普卡或空白卡一起使用时，本🐋卡的冷却时间-1。</div>
+        <div class="codex-i"><span class="cb">☂</span><b>无染之泉</b>（重置）　使用本卡时，若在结算时对方的点数与自己的相同，则双方同时弃置所有手牌，然后从牌堆里随机重抽相当于弃置手牌数的牌；并额外开启5回合的补牌。</div>
+        <div class="codex-i"><span class="cb">☘️</span><b>最新爆点！！</b>（加持）　使用本卡时，若使用的另外一张卡也是彩卡，则我方在结算时的总点数+1，且本☘️卡的冷却时间额外+1。</div>
+        <div class="codex-i"><span class="cb">༄</span><b>微风中的小憩</b>（削弱）　使用本卡时，若使用的另外一种卡不是彩卡，则在结算时使对方的总点数-1，若使用的另一张卡不是彩卡的同时且是同类型的 ༄ 卡，则在结算时使对方的总点数-2。</div>
+        <div class="codex-i"><span class="cb">🌈</span><b>牵起晴空的手</b>（改判）　使用本卡时，在结算时若对方的点数超过自己，则判定本轮结果为平局，双方本轮出示的卡牌都回到各自的手牌上且我方本轮出示卡牌的冷却时间-1。</div>
+        <div class="codex-i"><span class="cb">☕️</span><b>白日梦特调</b>（回手）　使用本卡时，若使用的另外一种卡不是彩卡，则在结算时无论对局结果如何，本卡都会回到我方手牌中。</div>
+        <div class="codex-i"><span class="cb">☀️</span><b>我仍会向前</b>（抽牌）　使用本卡时，在结算时从牌堆里获得1张卡。当手牌里持有本卡且本卡处于冷却状态时，使用同类型的☀️卡时，也会触发使用本卡时的特效，特效效果可叠加。</div>
+        <div class="codex-i"><span class="cb">🌙</span><b>༺弦月镰†终末断罪༺</b>（弃置）　使用本卡时，在结算时令对方弃置一张手牌，若本卡弃置生效使对方无牌可出，则判定对方失败。</div>
       </div>
     </div>
   </details>
@@ -1331,6 +1323,6 @@
   </div>
 </div>
 
-<script src="./game.js?v=20261025"></script>
+<script src="./game.js?v=20261027"></script>
 </body>
 </html>
