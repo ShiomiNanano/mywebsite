@@ -165,6 +165,10 @@ const App = {
        黑板编辑只对管理员可见，后端 PUT /api/admin/board 也会再校验一次权限。 */
     /* 游戏页的点击：翻牌与重开。单独一个委派，不去动留言板那一个。 */
     document.addEventListener('click', (e) => {
+      /* 点「幻梦牌」这类整页跳转的入口：浏览器要重新加载一整个页面，
+         期间旧页面会一直停在原地 —— 先把遮罩盖上，别让人以为没点到。 */
+      const jump = e.target.closest && e.target.closest('a.hub-card[href^="/games/"]');
+      if (jump) { this.veilShow(true); return; }
       const card = e.target.closest && e.target.closest('.flip-card');
       if (card) { this.flipCard(Number(card.getAttribute('data-i'))); return; }
       if (e.target.closest && e.target.closest('#gameRestart')) { this.startMemory(); }
@@ -378,8 +382,45 @@ const App = {
   cancelCoverTimer() {
     if (this._coverTimer) { clearTimeout(this._coverTimer); this._coverTimer = null; }
   },
+
+  /* ---------- 加载遮罩 ----------
+     目的只有一个：慢的时候让用户知道「点到了，正在来」。
+     · 90ms 内画完就不出现 —— 快页面不该闪一下；
+     · 一旦出现就至少留 220ms —— 否则刚亮就灭，比不亮更像卡住。 */
+  veilShow(now) {
+    if (!this._veil) this._veil = document.getElementById('pageVeil');
+    const el = this._veil;
+    if (!el) return;
+    clearTimeout(this._veilShowT);
+    clearTimeout(this._veilHideT);
+    if (now) {
+      el.classList.add('on');
+      if (!this._veilAt) this._veilAt = Date.now();
+      return;
+    }
+    this._veilAt = 0;
+    this._veilShowT = setTimeout(() => {
+      el.classList.add('on');
+      this._veilAt = Date.now();
+    }, 90);
+  },
+  veilHide() {
+    if (!this._veil) this._veil = document.getElementById('pageVeil');
+    const el = this._veil;
+    if (!el) return;
+    clearTimeout(this._veilShowT);
+    const shown = el.classList.contains('on');
+    const waited = shown && this._veilAt ? Date.now() - this._veilAt : 0;
+    clearTimeout(this._veilHideT);
+    this._veilHideT = setTimeout(() => {
+      el.classList.remove('on');
+      this._veilAt = 0;
+    }, shown ? Math.max(0, 220 - waited) : 0);
+  },
+
   async route() {
     this.cancelCoverTimer();   // 换了页面，封面那个延时跳转立刻作废（否则会顶掉登录页）
+    this.veilShow();           // 90ms 内画完就不出现，慢才亮
     const hash = location.hash.replace(/^#/, '') || '/';
     const parts = hash.split('/').filter(Boolean);
     // 需要加载数据的页面，先显示骨架屏
@@ -403,7 +444,7 @@ const App = {
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
-      else if (parts[0] === 'chat') { location.hash = '#/menu'; return ''; }
+      else if (parts[0] === 'chat') { this.veilHide(); location.hash = '#/menu'; return ''; }
       else if (parts[0] === 'profile') view = await this.renderProfile();
       else if (parts[0] === 'admin') {
         const sub = parts[1];
@@ -435,6 +476,10 @@ const App = {
     document.title = this.pageTitle || DEFAULT_TITLE;
     window.scrollTo(0, 0);
     this.afterRender();
+    // 等这一帧真的画出来再收遮罩，否则会出现「遮罩没了但页面还是白的」
+    // 直接收（内部用 setTimeout 排程，天然在绘制之后）。
+    // 别放 rAF：遮罩是不透明的静态层，没有重绘需求时 rAF 会被饿死，遮罩就一直挂着。
+    this.veilHide();
   },
 
   loadingSkeleton(kind) {

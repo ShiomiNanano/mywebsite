@@ -1158,9 +1158,40 @@
   /* 左栏现在有两块（播报 + 回合行），给容器留够高度 */
   @media (min-width:761px){ .battle{ min-height:236px } }
   @media (min-width:1100px){ .battle{ min-height:252px } }
+
+  /* ---- 加载遮罩：整页加载时先给个交代，game.js 画完第一屏再收 ---- */
+  .page-veil{
+    position:fixed; inset:0; z-index:9000;
+    display:grid; place-items:center; align-content:center; gap:18px;
+    background:#211a0f;
+    opacity:0; visibility:hidden;
+    transition:opacity .2s ease, visibility .2s ease;
+    animation:veilFailsafe .45s ease 8s forwards;
+  }
+  .page-veil.on{ opacity:1; visibility:visible; transition:opacity .16s ease, visibility 0s }
+  .veil-mark{
+    width:132px; height:78px;
+    background-image:linear-gradient(155deg,#efdcb6,#d6b678 62%,#b08a4e);
+    -webkit-mask:url("/media/logo-mark.png") center / contain no-repeat;
+    mask:url("/media/logo-mark.png") center / contain no-repeat;
+    filter:drop-shadow(0 0 18px rgba(232,207,154,.16));
+  }
+  .veil-ring{
+    width:26px; height:26px; border-radius:50%;
+    border:2px solid rgba(232,207,154,.16); border-top-color:#d6b678;
+    animation:veilSpin .85s linear infinite;
+  }
+  @keyframes veilSpin{ to{ transform:rotate(360deg) } }
+  @keyframes veilFailsafe{ to{ opacity:0; visibility:hidden } }
+  @media (max-width:480px){ .veil-mark{ width:104px; height:62px } .veil-ring{ width:22px; height:22px } }
+  @media (prefers-reduced-motion:reduce){ .veil-ring{ animation-duration:2.6s } }
 </style>
 </head>
 <body>
+<div id="pageVeil" class="page-veil on" aria-hidden="true">
+  <span class="veil-mark"></span>
+  <span class="veil-ring"></span>
+</div>
 <div class="back-bar"><button id="backBtn" title="回到上一步" aria-label="回到上一步">←</button></div>
 <div class="wrap">
   <div class="top">
@@ -1300,6 +1331,6 @@
   </div>
 </div>
 
-<script src="./game.js?v=20261024"></script>
+<script src="./game.js?v=20261025"></script>
 </body>
 </html>

@@ -3229,3 +3229,46 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
 .setting-group[data-group="其它"] .set-group-title {
   color: var(--tint-purple, #b79ae8);
 }
+
+/* =================================================== 页面加载遮罩
+   只在「真的慢」的时候出现：app.js 里 90ms 还没画完才亮，亮了至少留 220ms。
+   纯 CSS 兜底：8 秒还没人收掉就自己淡出，避免脚本挂掉时整页被盖死。 */
+.page-veil {
+  position: fixed; inset: 0; z-index: 9000;
+  display: grid; place-items: center; align-content: center; gap: 20px;
+  /* 暗金底：中间一团暖光，四周压深，比纯黑柔和，也不跟内容抢眼 */
+  background:
+    radial-gradient(115% 85% at 50% 34%,
+      var(--veil-lit, #443317) 0%,
+      var(--veil-mid, #2c2110) 46%,
+      var(--veil-deep, #1a1309) 78%,
+      var(--veil-edge, #120d06) 100%);
+  opacity: 0; visibility: hidden;
+  transition: opacity .2s ease, visibility .2s ease;
+  animation: veilFailsafe .45s ease 8s forwards;
+}
+.page-veil.on { opacity: 1; visibility: visible; transition: opacity .16s ease, visibility 0s; }
+.veil-mark {
+  width: 132px; height: 78px;
+  background-image: linear-gradient(155deg, var(--wp-accent-2, #efdcb6), var(--wp-accent, #d6b678) 62%, var(--wp-accent-deep, #b08a4e));
+  -webkit-mask: url("/media/logo-mark.png") center / contain no-repeat;
+  mask: url("/media/logo-mark.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 22px rgba(232, 207, 154, .28));
+}
+.veil-ring {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2.5px solid rgba(232, 207, 154, .14);
+  border-top-color: var(--wp-accent-2, #efdcb6);
+  border-right-color: rgba(240, 217, 168, .62);
+  box-shadow: 0 0 12px -4px rgba(232, 207, 154, .45);
+  animation: veilSpin .85s linear infinite;
+}
+@keyframes veilSpin { to { transform: rotate(360deg); } }
+@keyframes veilFailsafe { to { opacity: 0; visibility: hidden; } }
+@media (max-width: 480px) {
+  .veil-mark { width: 104px; height: 62px; }
+  .veil-ring { width: 22px; height: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .veil-ring { animation-duration: 2.6s; }
+}

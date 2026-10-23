@@ -1675,3 +1675,10 @@ loadRemoteRank();
 if (/^(localhost|127.0.0.1|::1)$/.test(location.hostname || '')) {
   document.documentElement.classList.add('dev-mode');
 }
+
+/* 首屏已经画完，收掉加载遮罩。
+   直接摘 class：走 rAF 会被饿死（遮罩是静态不透明层，不触发重绘），遮罩就一直挂着。 */
+(function () {
+  var veil = document.getElementById('pageVeil');
+  if (veil) veil.classList.remove('on');
+})();
