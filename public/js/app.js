@@ -358,6 +358,50 @@ const App = {
   rememberRead(a) {
     try { localStorage.setItem('daydream-last-read', JSON.stringify({ id: a.id, ts: Date.now() })); } catch (e) {}
   },
+
+  /* ---------- 书架上那条「继续阅读」 ---------- */
+  // 多久以前：不显示具体时间，只给一个粗略的相对时间（读者不需要知道秒）
+  timeAgo(ts) {
+    const t = Number(ts) || 0;
+    if (!t) return '';
+    const d = Date.now() - t;
+    if (d < 0) return '';
+    const mi = Math.floor(d / 60000);
+    if (mi < 1) return '刚刚';
+    if (mi < 60) return mi + ' 分钟前';
+    const h = Math.floor(mi / 60);
+    if (h < 24) return h + ' 小时前';
+    const dd = Math.floor(h / 24);
+    if (dd < 30) return dd + ' 天前';
+    const dt = new Date(t);
+    return (dt.getMonth() + 1) + ' 月 ' + dt.getDate() + ' 日';
+  },
+  // 这篇东西在目录里叫什么：主线给「第几章 · 第几节」，个人章/设定直接给标题
+  resumeLabel(a) {
+    if (!a) return '';
+    if (a.category === 'main') {
+      return this.chapterLabel(a.chapter_no, a.chapter_title)
+        + ' · 第 ' + a.section_no + ' 节「' + esc(a.section_title || '') + '」';
+    }
+    if (a.category === 'personal') return '个人章「' + esc(a.title || '') + '」';
+    return '设定「' + esc(a.title || '') + '」';
+  },
+  // 一条细长的横幅，不占版面；没读过、那篇被删了、或者那篇是锁着的设定，就什么都不显示
+  resumeBar() {
+    const lr = this.lastRead();
+    if (!lr || !lr.id) return '';
+    const a = this.findArticle(lr.id);
+    if (!a || Number(a.locked)) return '';
+    return `
+      <div class="resume-wrap">
+        <a class="resume-bar" href="#/read/${a.id}">
+          <span class="resume-chip">继续阅读</span>
+          <span class="resume-title">${this.resumeLabel(a)}</span>
+          <span class="resume-time">${esc(this.timeAgo(lr.ts))}</span>
+          <span class="resume-arrow" aria-hidden="true">→</span>
+        </a>
+      </div>`;
+  },
   // 在已缓存的目录里按 id 找一篇文章
   findArticle(id) {
     const m = this.state.menu;
@@ -716,6 +760,7 @@ const App = {
         <p class="menu-greet"><span class="greet-logo" role="img" aria-label="白日梦咖啡馆"></span>${this.greet(u)}</p>
         <p class="menu-quote" id="menuQuote">“今日海风正好，书已为你翻开。”<span class="quote-author">—— 白日梦咖啡馆</span></p>
       </div>
+      ${this.resumeBar()}
       <div class="menu-cards">
         <a class="menu-card menu-main" href="#/main">
           <div class="menu-card-badge">主 线</div>
@@ -2434,11 +2479,56 @@ const card = (x) => {
     }
   },
 
-  initTilt() {
+  /* ---------- 封面那本书：跟着鼠标轻微歪一下 ----------
+     只有"精确指针 + 允许动效"才启用，触摸设备完全跳过。
+     每帧只写 4 个自定义属性（两个角度、两个光斑坐标），
+     实际合成全部交给 CSS 的 transform —— 不碰布局，也不重绘背景。 */
+  initCoverTilt() {
+    const book = document.getElementById('bookCover');
+    if (!book) return;
     let fine = false;
     try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
     if (!fine || this.reduceMotion()) return;
 
+    // 变量写在 .cover-scene 上：封面和它下面那叠纸都继承，才会一起歪
+    // （老浏览器 / 简化过的测试 DOM 里 closest 可能没有，兜底就用封面自己）
+    const holder = (typeof book.closest === 'function' && book.closest('.cover-scene')) || book;
+    const MAX = 6;                      // 最多歪 6°，再多就不像书、像纸片了
+    let raf = 0, lastX = 0, lastY = 0, armed = false;
+
+    const paint = () => {
+      raf = 0;
+      const r = book.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const px = Math.min(1, Math.max(0, (lastX - r.left) / r.width));
+      const py = Math.min(1, Math.max(0, (lastY - r.top) / r.height));
+      holder.style.setProperty('--bry', ((px - .5) * MAX * 2).toFixed(2) + 'deg');
+      holder.style.setProperty('--brx', ((.5 - py) * MAX * 2).toFixed(2) + 'deg');
+      holder.style.setProperty('--bmx', Math.round(px * r.width) + 'px');
+      holder.style.setProperty('--bmy', Math.round(py * r.height) + 'px');
+    };
+    const onMove = (e) => {
+      lastX = e.clientX; lastY = e.clientY;
+      if (!armed) { armed = true; holder.classList.add('tilting'); }
+      if (raf) return;                  // rAF 节流：一次移动只算一帧
+      raf = requestAnimationFrame(paint);
+    };
+    book.addEventListener('pointerenter', onMove, { passive: true });
+    book.addEventListener('pointermove', onMove, { passive: true });
+    book.addEventListener('pointerleave', () => {
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      armed = false;
+      holder.classList.remove('tilting');  // 去掉这个类，回正就走 .55s 缓动
+      ['--brx', '--bry', '--bmx', '--bmy'].forEach((k) => {
+        try { holder.style.removeProperty(k); } catch (e) {}
+      });
+    });
+  },
+
+  initTilt() {
+    let fine = false;
+    try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
+    if (!fine || this.reduceMotion()) return;
     const cards = document.querySelectorAll('.menu-card, .article-card, .chapter-card, .section-card');
     if (!cards.length) return;
     const MAX = 7;                       // 最大倾斜角度（度）
@@ -2488,11 +2578,14 @@ const card = (x) => {
     const book = document.getElementById('bookCover');
     if (book) {
       const stack = document.getElementById('bookStack');
+      // 有的环境（老浏览器、简化过的测试 DOM）没有 closest，别让整页崩在绑事件上
+      const scene = (typeof book.closest === 'function' && book.closest('.cover-scene')) || null;
       const openBook = () => {
         if (book.classList.contains('turning')) return;        // 连点不要触发两次
         this.chime();                                          // 风铃（点书就在手势里，不会被拦）
         book.classList.add('turning');
         if (stack) stack.classList.add('turning');
+        if (scene) scene.classList.add('opening');             // 书口透出的那道光
         /* 等书页翻完再进书架。这个定时器【必须可取消】——
            以前它是不取消的：在封面上点一下书、随即去点「登录」，
            登录页刚要显示就被它强行改成 #/menu 顶掉了，
@@ -2506,6 +2599,7 @@ const card = (x) => {
           openBook();
         }
       };
+      this.initCoverTilt();
     }
 
     // 书架页的「今日一句」：从正文里随机取一句填进去。

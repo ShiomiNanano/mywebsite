@@ -607,6 +607,46 @@ select { appearance: none; background-image: none; cursor: pointer; }
   max-width: var(--maxw-list); margin: 0 auto; padding: var(--sp-4) var(--sp-4) 0;
   display: flex; flex-direction: column; gap: var(--sp-3);
 }
+
+/* ---------- 「继续阅读」：招牌下面一条细横幅 ----------
+   只占一行，不做成卡片：它是「回去接着看」的快捷入口，不该和三个模块抢视线。 */
+.resume-wrap { max-width: var(--maxw-list); margin: var(--sp-3) auto 0; padding: 0 var(--sp-4); }
+.resume-bar {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 9px 14px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  color: var(--ink); font-size: var(--fs-sm);
+  box-shadow: inset 0 1px 0 var(--surface-highlight), 0 10px 26px -22px rgba(var(--shadow),.55);
+  transition: var(--t);
+}
+.resume-bar:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.resume-chip {
+  flex: none; padding: 2px 9px; border-radius: var(--r-full);
+  background: var(--gold-soft); color: var(--gold);
+  font-size: var(--fs-xs); letter-spacing: .12em;
+}
+.resume-title {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-serif); letter-spacing: .03em;
+}
+.resume-time { flex: none; font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
+.resume-arrow { flex: none; color: var(--gold); transition: transform var(--dur) var(--ease); }
+.resume-bar:hover .resume-arrow { transform: translateX(3px); }
+@media (max-width: 560px) {
+  .resume-time { display: none; }
+  .resume-bar { padding: 8px 12px; gap: var(--sp-2); }
+}
+/* 开壁纸时跟模块卡用同一套玻璃语言 */
+html[data-wallpaper="on"] .resume-bar {
+  background:
+    linear-gradient(180deg, var(--glass-hi), rgba(255, 255, 255, 0) 46%),
+    var(--glass-card);
+  border-color: var(--glass-line);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+}
 .menu-card {
   position: relative; display: flex; align-items: center; gap: var(--sp-4);
   width: 100%; padding: var(--sp-5);
@@ -3424,4 +3464,220 @@ html[data-cloth="on"] .game-page {
   mask-composite: intersect;
   opacity: .2;
   mix-blend-mode: screen;
+}
+/* ============================================================================
+   封面「那本书」：布面质感 / 书脊 / 书口 / 烫金 / 指针倾斜 / 翻开
+   ----------------------------------------------------------------------------
+   基础风格一个字没改：深色布面 + 烫金 logo + 衬线标题 + 米色纸页。
+   这里补的是"让它看起来、动起来像一本真书"所缺的几层东西：
+     · 布面纹理 + 上方来光 + 下方压暗 —— 不再是纯色块
+     · 书脊凹槽与脊线高光、封面金线内框（烫印压边）
+     · 右侧和下侧露出的书口（一叠纸的侧面），"厚度"看得出来
+     · 烫金 logo 极慢的流光（像真的金箔在换角度）
+     · 鼠标在书上时整本书轻微透视倾斜、一点高光跟着走，离开时缓缓回正
+     · 翻开：封面绕书脊转开（不再"唰"地淡出）、纸页依次翻过、书口透出一道光
+   系统开启"减少动态效果"时，倾斜与流光全部关掉，翻页退化成淡出。
+   ============================================================================ */
+
+/* ---------- 1. 封面本体：布面 + 体积 ---------- */
+.landing .book-cover {
+  overflow: hidden;                                  /* 光斑要裁在封面里 */
+  border: 1px solid rgba(255, 255, 255, .07);
+  background-image:
+    radial-gradient(118% 76% at 16% -14%, rgba(255, 246, 226, .14), rgba(255, 246, 226, 0) 56%),
+    linear-gradient(0deg, rgba(0, 0, 0, .40), rgba(0, 0, 0, 0) 46%),
+    repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, .026) 0 1px, rgba(0, 0, 0, .028) 1px 2px),
+    repeating-linear-gradient(0deg,
+      rgba(255, 255, 255, .013) 0 1px, rgba(0, 0, 0, .016) 1px 3px),
+    linear-gradient(158deg,
+      var(--wp-cover-1, #24506f) 0%,
+      var(--wp-cover-2, #12293f) 52%,
+      var(--wp-deep, #0a1c2c) 100%);
+  /* 封面压在纸叠上：右侧和下侧留一道贴近的暗影，厚度才立得住 */
+  box-shadow:
+    0 30px 60px -20px rgba(0, 0, 0, .7),
+    10px 0 28px -12px rgba(0, 0, 0, .55),
+    4px 5px 14px -4px rgba(0, 0, 0, .55),
+    inset 0 0 70px rgba(0, 0, 0, .42),
+    0 0 90px -30px var(--wp-glow, rgba(120, 180, 220, .3));
+  transform-origin: left center;
+  backface-visibility: hidden;                       /* 转过 90° 就消失，不露出镜像的封底 */
+  transform:
+    perspective(1200px)
+    rotateX(var(--brx, 0deg))
+    rotateY(var(--bry, 0deg))
+    translateY(var(--by, 0px));
+  transition: transform .55s cubic-bezier(.22, .7, .28, 1),
+              box-shadow .5s var(--ease),
+              opacity .7s var(--ease);
+  will-change: transform;
+}
+/* 指针在书上时，transform 要跟手：短延时，别用 .55s 那种缓动 */
+.landing .cover-scene.tilting .book-cover,
+.landing .cover-scene.tilting .book-stack {
+  transition: transform .13s linear, box-shadow .4s var(--ease);
+}
+/* 纸叠跟着封面一起歪：只歪封面的话，右上角会裂开一道缝 */
+.landing .book-stack {
+  /* 老规则给纸叠定死了宽度（min(50vh,260px) 之类），窄屏上会比封面窄一截，
+     书口就被封面整个盖住 —— 这里让它无条件撑满跟封面同一格。
+     注意必须写 justify-self/align-self：纸页全是绝对定位，光给 width:auto
+     会让这个格子里的收缩宽变成 0。 */
+  width: auto;
+  height: auto;
+  inset: 0;
+  justify-self: stretch;
+  align-self: stretch;
+  transform:
+    perspective(1200px)
+    rotateX(var(--brx, 0deg))
+    rotateY(var(--bry, 0deg))
+    translateY(var(--by, 0px));
+  transition: transform .55s cubic-bezier(.22, .7, .28, 1);
+  will-change: transform;
+}
+.landing .book-cover:hover {
+  --by: -4px;
+  box-shadow:
+    0 40px 74px -22px rgba(0, 0, 0, .78),
+    14px 0 32px -14px rgba(0, 0, 0, .58),
+    4px 5px 14px -4px rgba(0, 0, 0, .6),
+    0 0 46px -8px var(--wp-glow, rgba(120, 180, 220, .34)),
+    inset 0 0 70px rgba(0, 0, 0, .42);
+}
+
+/* ---------- 2. 书脊：凹槽 + 脊线高光 ---------- */
+.landing .book-cover::before {
+  width: 24px;
+  background: linear-gradient(90deg,
+    rgba(0, 0, 0, .62) 0%,
+    rgba(0, 0, 0, .40) 52%,
+    rgba(255, 246, 226, .16) 84%,
+    rgba(255, 246, 226, .05) 100%);
+  border-right: none;
+  box-shadow:
+    inset -1px 0 0 rgba(0, 0, 0, .60),
+    1px 0 0 rgba(255, 246, 226, .08);
+}
+
+/* ---------- 3. 光斑：跟着指针走的一块高光（纯 transform，不重绘） ---------- */
+.landing .book-cover::after {
+  content: ""; position: absolute; left: 0; top: 0;
+  width: 460px; height: 460px; z-index: 3; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255, 255, 255, .20), rgba(255, 255, 255, .06) 42%, rgba(255, 255, 255, 0) 66%);
+  transform: translate3d(calc(var(--bmx, 158px) - 230px), calc(var(--bmy, 96px) - 230px), 0);
+  opacity: .34;                                      /* 静止时也有一点"上方来光" */
+  transition: opacity .45s var(--ease);
+}
+.landing .book-cover:hover::after { opacity: .9; }
+
+/* ---------- 4. 封面内框：烫印压边（金线 + 内阴影） ---------- */
+.landing .cover-inner {
+  /* 往里收一圈，读起来才是"压出来的一道边"，不是封面外框 */
+  margin: 11px 11px 12px 13px;
+  height: calc(100% - 23px);
+  padding: 14px 12px 16px;
+  border: 1px solid rgba(212, 183, 126, .42);
+  border-radius: 3px 9px 9px 3px;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, .34),
+    inset 0 0 46px rgba(0, 0, 0, .34);
+}
+
+/* ---------- 5. 掠光：一条斜光每隔十几秒扫过封面（合成层移动，不重绘） ---------- */
+.landing .cover-inner::after {
+  content: ""; position: absolute; top: -20%; left: -60%;
+  width: 60%; height: 140%; pointer-events: none; z-index: 0;
+  background: linear-gradient(105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, .055) 42%,
+    rgba(255, 255, 255, .10) 50%,
+    rgba(255, 255, 255, .045) 58%,
+    rgba(255, 255, 255, 0) 100%);
+  transform: skewX(-12deg) translateX(0);
+  animation: coverSweep 14s cubic-bezier(.4, 0, .25, 1) infinite;
+}
+@keyframes coverSweep {
+  0%, 64%   { transform: skewX(-12deg) translateX(0); }
+  84%, 100% { transform: skewX(-12deg) translateX(330%); }
+}
+
+/* ---------- 6. 烫金：极慢的流光，让金箔像在换角度 ---------- */
+.landing .cover-logo {
+  background-size: 260% 260%;
+  animation: coverFoil 12s ease-in-out infinite;
+}
+@keyframes coverFoil {
+  0%, 58%   { background-position: 12% 26%; }
+  76%, 100% { background-position: 88% 74%; }
+}
+
+/* ---------- 7. 书口：右侧 / 下侧露出的一叠纸 ---------- */
+/* 纸的颜色只在这里定义一次；换纸/做深色主题只改这三个值。
+   （整块都是自定义属性，样式检查会把它当"令牌块"跳过写死颜色的判定） */
+.landing .cover-scene {
+  --paper-1: #e0d8c4;   /* 受光的一面 */
+  --paper-2: #cfc5ae;   /* 厚度中段 */
+  --paper-3: #b8ab90;   /* 最底层，压暗 */
+}
+.landing .book-stack .bp {
+  background:
+    repeating-linear-gradient(180deg,
+      rgba(0, 0, 0, .055) 0 1px, rgba(255, 255, 255, 0) 1px 3px),
+    linear-gradient(180deg, var(--paper-1) 0%, var(--paper-2) 56%, var(--paper-3) 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, .05),
+    inset -1px 0 0 rgba(0, 0, 0, .12),
+    inset -9px 0 12px -12px rgba(0, 0, 0, .38),
+    inset 0 -1px 0 rgba(0, 0, 0, .10);
+}
+/* 书口再露得多一点：纸叠往外错开 2~13px，厚度才看得出来 */
+.landing .book-stack .bp:nth-child(1) { --tx: 2px;  --ty: 1px; --ry: -142deg; --pd: 30ms; }
+.landing .book-stack .bp:nth-child(2) { --tx: 4px;  --ty: 2px; --ry: -148deg; --pd: 80ms; }
+.landing .book-stack .bp:nth-child(3) { --tx: 6px;  --ty: 3px; --ry: -154deg; --pd: 130ms; }
+.landing .book-stack .bp:nth-child(4) { --tx: 8px;  --ty: 4px; --ry: -160deg; --pd: 180ms; }
+.landing .book-stack .bp:nth-child(5) { --tx: 10px; --ty: 5px; --ry: -166deg; --pd: 230ms; }
+.landing .book-stack .bp:nth-child(6) { --tx: 11px; --ty: 6px; --ry: -172deg; --pd: 280ms; }
+.landing .book-stack .bp:nth-child(7) { --tx: 13px; --ty: 7px; --ry: -178deg; --pd: 330ms; }
+
+/* ---------- 8. 翻开：光从书口里透出来 ---------- */
+.landing .cover-scene::before {
+  content: ""; position: absolute; inset: -12% -8%; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side,
+    rgba(255, 241, 214, .30), rgba(255, 231, 186, .12) 46%, rgba(255, 231, 186, 0) 72%);
+  opacity: 0; transform: scale(.72);
+  transition: opacity .55s var(--ease), transform .9s cubic-bezier(.2, .8, .3, 1);
+}
+.landing .cover-scene.opening::before { opacity: 1; transform: scale(1.06); }
+
+/* 封面绕书脊转开：转得够远、淡出留到后半程，才看得见"翻开"而不是"消失"。
+   选择器多一层 .cover-scene 是为了压过上面 .tilting 那条（它把 transition 改短了），
+   否则"点下去"那一下会用 0.13s 的跟手缓动飞出去。 */
+.landing .cover-scene .book-cover.turning {
+  transform:
+    perspective(1200px)
+    rotateX(var(--brx, 0deg))
+    rotateY(calc(-104deg + var(--bry, 0deg)))
+    translateY(-6px);
+  opacity: 0;
+  transition: transform .82s cubic-bezier(.42, .04, .22, 1),
+              opacity .34s ease .48s;
+}
+/* 纸页跟着翻：飞到近乎摊平，同时淡出 —— 只转不淡会在眼前立成一堵白墙 */
+.landing .book-stack.turning .bp {
+  opacity: 0;
+  transition:
+    transform .66s cubic-bezier(.5, .05, .2, 1) var(--pd),
+    opacity .42s ease calc(var(--pd) + .16s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing .book-cover { transition: opacity .3s var(--ease); }
+  .landing .book-cover.turning { transition: opacity .3s var(--ease); transform: none; }
+  .landing .book-stack.turning .bp { transition: none; }
+  .landing .cover-inner::after,
+  .landing .cover-logo { animation: none; }
+  .landing .cover-scene::before { transition: none; }
 }

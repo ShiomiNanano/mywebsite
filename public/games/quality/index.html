@@ -161,11 +161,38 @@
     font-weight:700; font-size:8px; letter-spacing:.08em; color:#fff; opacity:.9;
     text-shadow:0 1px 3px rgba(0,0,0,.85); pointer-events:none}
   @media (min-width:760px){ .card .sk{ font-size:10px; bottom:4px } }
-  .codex{margin-top:8px; border-top:1px dashed rgba(255,255,255,.16); padding-top:8px}
-  .codex-t{color:var(--gold); font-size:12px; letter-spacing:.08em; margin-bottom:5px}
-  .codex-i{font-size:12px; line-height:1.7; opacity:.92}
-  .codex-i .cb{margin-right:4px}
-  .codex-i b{color:var(--gold); font-weight:700}
+  /* ---- 规则速查：引导入口做成按钮 ---- */
+  .rule-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:10px 0 12px}
+  .rule-btn{display:inline-flex; flex:0 0 auto; width:auto; align-items:center; gap:8px; padding:8px 15px 8px 13px;
+    font:inherit; font-size:12.5px; letter-spacing:.06em; color:var(--gold); cursor:pointer;
+    background:linear-gradient(180deg, rgba(232,195,106,.16), rgba(232,195,106,.05));
+    border:1px solid rgba(232,195,106,.45); border-radius:9px;
+    box-shadow:0 6px 16px -12px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.07);
+    transition:transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease}
+  .rule-btn .ri{font-size:9px; opacity:.8}
+  .rule-btn:hover{transform:translateY(-1px); border-color:rgba(232,195,106,.72);
+    background:linear-gradient(180deg, rgba(232,195,106,.26), rgba(232,195,106,.1));
+    box-shadow:0 10px 22px -14px rgba(232,195,106,.55), inset 0 1px 0 rgba(255,255,255,.1)}
+  .rule-btn:active{transform:translateY(0)}
+  .rule-btn:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+  .rule-reset{color:var(--ink3); font-size:12px; text-decoration:underline dotted; cursor:pointer}
+
+  /* ---- 规则速查：八张彩卡图鉴（技能名与说明共用一个左边界） ---- */
+  .codex{margin-top:10px; border-top:1px dashed rgba(255,255,255,.16); padding-top:10px}
+  .codex-t{color:var(--gold); font-size:12px; letter-spacing:.08em; margin-bottom:7px}
+  .codex-t i{font-style:normal; color:var(--ink3); letter-spacing:.04em; margin-left:5px}
+  .codex-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-width:920px}
+  .codex-i{display:grid; grid-template-columns:22px minmax(0,1fr) auto;
+    grid-template-areas:"cb name tag" "cb tx tx";
+    column-gap:9px; row-gap:2px; align-items:center;
+    padding:8px 11px 9px; border-radius:10px;
+    background:rgba(255,255,255,.028); border:1px solid rgba(255,255,255,.06)}
+  .codex-i .cb{grid-area:cb; font-size:15px; line-height:1; text-align:center; align-self:start; padding-top:2px}
+  .codex-name{grid-area:name; color:var(--gold); font-weight:700; font-size:12.5px; letter-spacing:.02em}
+  .codex-tag{grid-area:tag; justify-self:end; font-size:10.5px; letter-spacing:.1em; color:var(--ink3);
+    padding:1px 8px; border-radius:99px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.13)}
+  .codex-tx{grid-area:tx; font-size:12px; line-height:1.75; color:var(--ink2)}
+  .codex-tx b{color:var(--gold); font-weight:700}
   .card u{position:absolute; top:4px; left:6px; text-decoration:none; font-style:normal; font-weight:700}
   .card u.c{color:#ffd08a; font-size:12px; text-shadow:0 0 7px rgba(255,150,40,.9), 0 1px 2px #000}
   @media (min-width:760px){ .card u.c{ font-size:15px } }
@@ -1340,8 +1367,10 @@
   <details>
     <summary>规则速查</summary>
     <div class="rule">
-    <div style="margin-top:10px"><a role="button" tabindex="0" id="viewGuide" style="color:var(--gold);font-size:12px">再看一次新手引导 →</a></div>
-    <div style="margin-top:6px"><a role="button" tabindex="0" id="resetRank" style="display:none;color:var(--ink3);font-size:12px">（实验室）重置段位与难度 →</a></div>
+      <div class="rule-top">
+        <button type="button" class="rule-btn" id="viewGuide"><span class="ri" aria-hidden="true">▷</span>再看一次新手引导</button>
+        <a role="button" tabindex="0" id="resetRank" class="rule-reset" style="display:none">（实验室）重置段位与难度 →</a>
+      </div>
       · 32 张特殊牌 = 8 类 ×（2 普 + 1 金 + 1 彩）；双方各 1 张空白（0 点、不占上限、永不被夺）。<br>
       · 每回合双方各出 2 张，点数相加比大小；<b>赢家夺走对手的特殊牌</b>（空白不夺）。<br>
       · <b>冷却</b>：本回合出过和赢下的特殊牌 —— 普 0 / 金锁 1 回合 / 彩锁 2 回合（彩卡技能会改写它）。<br>
@@ -1349,15 +1378,8 @@
       · 输：<b>轮到你的回合却只剩空白能出</b>，特殊牌被夺光，或被月亮刺杀。<br>
       · 补牌只在前 13 回合（☂ 会把窗口再推后 5 回合）；连续 3 次平局双方各弃本回合最大牌；满 100 回合按手牌点数判定。
       <div class="codex">
-        <div class="codex-t">八张彩卡的特效（按结算顺序生效）</div>
-        <div class="codex-i"><span class="cb">🐋</span><b>塔尔塔洛斯的瞥视</b>（封印）　使用本卡时，使对方的卡牌特殊效果失效；与彩卡一起使用时，本🐋卡的冷却时间额外+2；与金卡一起使用时，本🐋卡的冷却时间额外+1；与普卡或空白卡一起使用时，本🐋卡的冷却时间-1。</div>
-        <div class="codex-i"><span class="cb">☂</span><b>无染之泉</b>（重置）　使用本卡时，若在结算时对方的点数与自己的相同，则双方同时弃置所有手牌，然后从牌堆里随机重抽相当于弃置手牌数的牌；并额外开启5回合的补牌。</div>
-        <div class="codex-i"><span class="cb">☘️</span><b>最新爆点！！</b>（加持）　使用本卡时，若使用的另外一张卡也是彩卡，则我方在结算时的总点数+1，且本☘️卡的冷却时间额外+1。</div>
-        <div class="codex-i"><span class="cb">༄</span><b>微风中的小憩</b>（削弱）　使用本卡时，若使用的另外一种卡不是彩卡，则在结算时使对方的总点数-1，若使用的另一张卡不是彩卡的同时且是同类型的 ༄ 卡，则在结算时使对方的总点数-2。</div>
-        <div class="codex-i"><span class="cb">🌈</span><b>牵起晴空的手</b>（改判）　使用本卡时，在结算时若对方的点数超过自己，则判定本轮结果为平局，双方本轮出示的卡牌都回到各自的手牌上且我方本轮出示卡牌的冷却时间-1。</div>
-        <div class="codex-i"><span class="cb">☕️</span><b>白日梦特调</b>（回手）　使用本卡时，若使用的另外一种卡不是彩卡，则在结算时无论对局结果如何，本卡都会回到我方手牌中。</div>
-        <div class="codex-i"><span class="cb">☀️</span><b>我仍会向前</b>（抽牌）　使用本卡时，在结算时从牌堆里获得1张卡。当手牌里持有本卡且本卡处于冷却状态时，使用同类型的☀️卡时，也会触发使用本卡时的特效，特效效果可叠加。</div>
-        <div class="codex-i"><span class="cb">🌙</span><b>༺弦月镰†终末断罪༺</b>（弃置）　使用本卡时，在结算时令对方弃置一张手牌，若本卡弃置生效使对方无牌可出，则判定对方失败。</div>
+        <div class="codex-t">八张彩卡的特效<i>按结算顺序生效</i></div>
+        <ul class="codex-list" id="codexList"></ul>
       </div>
     </div>
   </details>
@@ -1424,7 +1446,7 @@
 </div>
 
 <script src="./engine.js?v=20261030"></script>
-<script src="./game.js?v=20261031"></script>
+<script src="./game.js?v=20261032"></script>
 <script src="./pvp.js?v=20261031"></script>
 </body>
 </html>

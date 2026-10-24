@@ -642,6 +642,9 @@ const gdBlank = () => gdCard('', '', 0, { blank: true });
 const gdBack = () => '<div class="card bk-card"><b>✦</b></div>';
 const gdCards = (html) => '<div class="gd-cards">' + html + '</div>';
 
+// 八张彩卡的展示顺序（按结算顺序）——规则速查的图鉴和引导最后一页的徽章共用这一份
+const CODEX_ORDER = ['🐋', '☂', '☘️', '༄', '🌈', '☕️', '☀️', '🌙'];
+
 const GUIDE_STEPS = [
   {
     t: '把对方的特殊牌夺光，让他只剩一张空白',
@@ -733,8 +736,7 @@ const GUIDE_STEPS = [
       + '<div><span>③</span><span>被 🌙 弃到没有能出的特殊牌 → <b>直接判定失败</b></span></div>'
       + '<div style="margin-top:8px;color:var(--gold);font-size:10.5px;letter-spacing:.1em">八张彩卡各带一个技能（牌底小字）</div>'
       + '<div class="gd-chips">'
-      + ['🐋 封印', '☂ 重置', '☘️ 加持', '༄ 削弱', '🌈 改判', '☕️ 回手', '☀️ 抽牌', '🌙 弃置']
-        .map((s) => '<span class="gd-chip">' + s + '</span>').join('')
+      + CODEX_ORDER.map((t) => '<span class="gd-chip">' + t + ' ' + (SKILL_SHORT[t] || '') + '</span>').join('')
       + '</div>'
       + '<div style="color:var(--ink3);font-size:10.5px;margin-top:2px">完整说明在页面下方「规则速查」里</div></div>',
     b: '输的方式只有三种（见左）。<b>第 ① 种最常见</b>：牌被抢空，只能拿空白硬撑。'
@@ -743,6 +745,25 @@ const GUIDE_STEPS = [
   }
 ];
 let guideStep = 0;
+
+/* ===== 规则速查里的彩卡图鉴 =====
+   名字/短名/说明都取自引擎的 SKILL / SKILL_SHORT / SKILL_DESC（牌面角标、技能弹层用的同一份），
+   这里只负责排版：技能名一行、说明一行，两行共用同一个左边界。 */
+function paintCodex() {
+  const box = document.getElementById('codexList');
+  if (!box) return;
+  const name = (typeof SKILL !== 'undefined' && SKILL) || {};
+  const short = (typeof SKILL_SHORT !== 'undefined' && SKILL_SHORT) || {};
+  const desc = (typeof SKILL_DESC !== 'undefined' && SKILL_DESC) || {};
+  // 说明里的数字提出来加粗，扫一眼就能看到关键量
+  const glow = (s) => String(s || '').replace(/([+＋−-])?(\d+)/g, (m, sign, d) => '<b>' + (sign || '') + d + '</b>');
+  box.innerHTML = CODEX_ORDER.map((t) => (name[t] ? '<li class="codex-i">'
+    + '<span class="cb" aria-hidden="true">' + t + '</span>'
+    + '<span class="codex-name">' + name[t] + '</span>'
+    + '<span class="codex-tag">' + (short[t] || '') + '</span>'
+    + '<span class="codex-tx">' + glow(desc[t]) + '</span>'
+    + '</li>' : '')).join('');
+}
 
 function openGuide() {
   guideStep = 0;
@@ -1392,6 +1413,7 @@ const logSaveBtn = $('logSave');
 if (logSaveBtn) logSaveBtn.onclick = downloadLog;
 
 // ===== 引导与实验室入口的绑定 ====
+paintCodex();
 document.getElementById('gNext').addEventListener('click', guideNext);
 document.getElementById('gPrev').addEventListener('click', guidePrev);
 document.getElementById('gSkip').addEventListener('click', closeGuide);
