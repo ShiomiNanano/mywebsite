@@ -305,6 +305,15 @@
   .mid{text-align:center; font-size:12px; color:var(--ink3); margin:4px 0 2px}
   .mid b{color:var(--gold); font-variant-numeric:tabular-nums}
   @media (min-width:760px){ .mid{ font-size:13.5px } }
+  /* 补牌倒计时单独一颗胶囊：数字快用完时提前给信号（收尾阶段全靠它） */
+  .mid .deal{ display:inline-flex; align-items:center; gap:5px; padding:3px 11px 2px; border-radius:999px;
+    font-size:1.06em; background:rgba(232,207,154,.10); border:1px solid rgba(232,207,154,.24); color:#e6d6b0;
+    letter-spacing:.02em; white-space:nowrap; transition:color .3s ease, background .3s ease, border-color .3s ease }
+  .mid .deal b{ font-size:1.18em; font-weight:700 }
+  .mid .deal.low{ color:#ffe2da; background:rgba(226,99,79,.18); border-color:rgba(226,99,79,.52) }
+  .mid .deal.low b{ color:#ff7a5e; text-shadow:0 0 10px rgba(255,96,64,.6); animation:dealPulse 1.8s ease-in-out infinite }
+  .mid .deal.off{ opacity:.62; border-style:dashed; background:transparent }
+  @keyframes dealPulse{ 0%,100%{ opacity:1 } 50%{ opacity:.58 } }
 
   /* ================= 手牌：单行 + 重叠（斗地主式）================= */
   .hand{
@@ -316,6 +325,17 @@
   /* 除第一张外，每张向左收进 overlap；--n/--i 只用于拱形（仅 #meHand） */
   .hand .card{ margin-left:var(--overlap); flex:0 0 auto; }
   .hand .card:first-child{ margin-left:0; }
+
+  /* 窄屏 + 手牌变多：一行挤到每张只剩三十来 px 就没法看了，改成两排网格，牌整张露出来
+     （--cols 由 game.js 按 ceil(张数/2) 写进 #meHand，排得平均，不会出现 5+2 那种歪排） */
+  @media (max-width:759px){
+    .hand[data-many]{ display:grid; grid-template-columns:repeat(var(--cols, 5), auto);
+      gap:6px; justify-content:center; align-content:end;
+      min-height:0; padding:12px 4px 6px }
+    #meHand[data-many]{ overflow:visible; padding-bottom:6px }
+    .hand[data-many] .card{ margin-left:0; justify-self:center; align-self:end; height:var(--ch) }
+    .mine{ padding-bottom:46px }   /* 给右下角那颗「双人对局」让开位置，别压住最后一张牌 */
+  }
 
   /* 拱形已取消：卡片按"堆叠"排列，只靠 margin-left 收进，不做旋转与下沉 */
   #meHand .card{ transform:none; }
@@ -1672,7 +1692,7 @@
 </div>
 
 <script src="./engine.js?v=20261030"></script>
-<script src="./game.js?v=20261033"></script>
+<script src="./game.js?v=20261034"></script>
 <script src="./pvp.js?v=20261031"></script>
 </body>
 </html>

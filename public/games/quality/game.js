@@ -1032,8 +1032,13 @@ function render() {
     ? '<div class="slot on back">✦</div><div class="slot on back">✦</div>'
     : shown(g.slots.me).map((c) => slot(c, true)).join(''));
 
-  setHTML('mid', '第 <b>' + r + '</b> 回合 · 牌堆 <b>' + g.deck.length + '</b> 张 · 补牌还剩 <b>'
-    + Math.max(0, g.dealUntil - r + 1) + '</b> 回合'
+  // 补牌提示：还剩几回合单独做成一颗胶囊，剩 5 回合以内数字转红（要收尾了，得看得见）
+  const dealLeft = Math.max(0, g.dealUntil - r + 1);
+  const dealLow = dealLeft > 0 && dealLeft <= 5;
+  setHTML('mid', '第 <b>' + r + '</b> 回合 · 牌堆 <b>' + g.deck.length + '</b> 张 '/* 胶囊自带边框，这里只留一个空格，换行时不会留下孤零零的「·」 */
+    + (dealLeft > 0
+      ? '<span class="deal' + (dealLow ? ' low' : '') + '">补牌还剩 <b>' + dealLeft + '</b> 回合</span>'
+      : '<span class="deal off">本局不再补牌</span>')
     + (() => {
       if (!document.documentElement.classList.contains('dev-mode')) return '';
       const v = $('diff').value;
@@ -1061,14 +1066,36 @@ function render() {
   handCards.forEach((el, k) => { el.style.setProperty('--i', String(k)); el.style.setProperty('--n', String(handCards.length)); });
   // 动态收窄：牌越多叠得越紧，保证 9 张也能全在一行内、不被容器裁掉
   const n = handCards.length;
-  const cvw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cw')) || 62;
-  const rowW = (document.getElementById('meHand').clientWidth || 340) - 8;
+  const handEl = document.getElementById('meHand');
+  // 窄屏 + 牌变多：一行再怎么挤也只能给每张 30 来 px（18px 的窄条根本看不清），
+  // 所以这里换成两排网格，牌整张露出来；顺带把行数平均分，别出现 5+2 那种歪排
+  const many = window.innerWidth < 760 && n >= 7;
+  if (many) {
+    // 排两排：列数取一半张数（7→4+3、8→4+4、9→5+4、10→5+5）。
+    // 屏太窄放不下这么多列时，先把牌按比例缩一点，而不是硬塞出第三排。
+    const cols = Math.ceil(n / 2);
+    const rowW0 = (handEl.clientWidth || 340) - 8;
+    const baseCw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cw')) || 62;
+    const fitCw = Math.floor((rowW0 - (cols - 1) * 6) / cols);
+    const cw = Math.max(46, Math.min(baseCw, fitCw));
+    handEl.dataset.many = '1';
+    handEl.style.setProperty('--cols', String(cols));
+    handEl.style.setProperty('--cw', cw + 'px');
+    handEl.style.setProperty('--ch', Math.round(cw * 1.39) + 'px');
+  } else {
+    delete handEl.dataset.many;
+    handEl.style.removeProperty('--cols');
+    handEl.style.removeProperty('--cw');
+    handEl.style.removeProperty('--ch');
+  }
+  const cvw = parseFloat(getComputedStyle(handEl).getPropertyValue('--cw')) || 62;
+  const rowW = (handEl.clientWidth || 340) - 8;
   const need = n > 0 ? (rowW - cvw) / Math.max(1, n - 1) : 0;   // 每张允许占的宽度
   const MIN_VISIBLE = 18;                                  // 每张至少露出的宽度（够手指点）
   const wantOverlap = n > 1 ? Math.round(need - cvw) : 0;         // 理想：刚好塞满
   const maxOverlap = -(cvw - MIN_VISIBLE);                        // 底线：每张至少露 18px
   const overlap = n > 1 ? Math.min(-4, Math.max(maxOverlap, wantOverlap)) : 0;
-  document.getElementById('meHand').style.setProperty('--overlap', overlap + 'px');
+  handEl.style.setProperty('--overlap', many ? '0px' : overlap + 'px');
   document.querySelectorAll('#meHand .card, #meBlank .card').forEach((el) => {
     el.onclick = () => onPick(el.dataset.id);
   });
