@@ -632,30 +632,114 @@ function applyRank(result) {
 }
 
 // ===== 新手引导（只教规则，不教策略）=====
+// 每一页 = 一张示意图（用真卡面渲染）+ 一段短说明。图在左，字在右（窄屏上下）。
+let gdSeq = 0;
+function gdCard(type, q, pts, opt) {
+  const c = Object.assign({ id: 'gd' + (++gdSeq), type: type, q: q, pts: pts }, opt || {});
+  return faceHtml(c, 1, false);
+}
+const gdBlank = () => gdCard('', '', 0, { blank: true });
+const gdBack = () => '<div class="card bk-card"><b>✦</b></div>';
+const gdCards = (html) => '<div class="gd-cards">' + html + '</div>';
+
 const GUIDE_STEPS = [
   {
-    t: '你的牌：8 类 × 3 种品质',
-    b: '特殊牌共 32 张 = 8 种符号，每种有 2 张「普」1 张「金」1 张「彩」。<br><br>点数：<b>普 1 点 · 金 2 点 · 彩 3 点</b>。<br>另外双方各有 1 张「空白」（0 点），永远是你的，夺不走。'
+    t: '把对方的特殊牌夺光，让他只剩一张空白',
+    v: '<div class="gd-col" style="gap:10px"><span class="gd-lab">对方的手牌</span>'
+      + gdCards(gdCard('🐋', '彩', 3) + gdCard('☘️', '金', 2) + gdCard('☀️', '普', 1))
+      + '<span class="gd-arrow">↓ 被你一手一手夺走</span>' + gdCards(gdBlank())
+      + '<span class="gd-lab">只剩空白 → <b class="gd-win">对方输了</b></span></div>',
+    b: '目标只有一个：<b>把对方的 32 张特殊牌一张张赢到自己手里</b>。'
+      + '<br><br>当轮到他出牌、手里却只剩那张 <em>0 点空白</em> 时，<b class="gd-win">他就输了</b>。'
+      + '<br><br>反过来，你自己的特殊牌被夺光也一样。所以每一手都在「抢牌」和「保牌」。'
   },
   {
-    t: '每回合：各出 2 张，比点数之和',
-    b: '点选两张自己的牌 → 盖牌 → 声明准备。<br><br>双方同时翻开，<b>两张点数相加比大小</b>。<br>例：金+金 = 4，大于 彩+空白 = 3。'
+    t: '你的牌：8 种符号 × 4 张，点数看品质',
+    v: '<div class="gd-col" style="gap:12px">'
+      + gdCards(gdCard('🐋', '普', 1) + gdCard('🐋', '金', 2) + gdCard('🐋', '彩', 3) + gdBlank())
+      + '<div class="gd-row" style="gap:14px"><span class="gd-lab"><b>普</b> 1 点</span>'
+      + '<span class="gd-lab"><b>金</b> 2 点</span><span class="gd-lab"><b>彩</b> 3 点</span>'
+      + '<span class="gd-lab">空 0 点</span></div></div>',
+    b: '特殊牌共 <b>32 张</b>：8 种符号（🐋 ☂ ☘️ ༄ 🌈 ☕️ ☀️ 🌙），每种有 <em>2 张普 + 1 张金 + 1 张彩</em>。'
+      + '<br><br>点数只看品质：<b>普 1 点 · 金 2 点 · 彩 3 点</b>。'
+      + '<br><br>另外双方各有 1 张「空白」：<em>0 点、不占手牌上限、永远不会被夺走</em>。它是你最后的退路。'
   },
   {
-    t: '赢了会夺走对方的牌',
-    b: '点数高的一方，<b>夺走对方本回合打出的特殊牌</b>（空白不夺，各回各家）。<br>平局则各自收回。'
+    t: '一回合只做三件事',
+    v: '<div class="gd-steps"><div class="gd-step"><i>1</i>点选自己手里的两张牌</div>'
+      + '<div class="gd-step"><i>2</i>点「盖牌并声明准备」</div>'
+      + '<div class="gd-step"><i>3</i>双方同时翻开，比点数</div></div>'
+      + '<div class="gd-slots" style="margin-top:14px">'
+      + '<div class="gd-slot filled">你</div><div class="gd-slot filled">你</div></div>'
+      + '<div class="gd-slots" style="margin-top:6px">'
+      + '<div class="gd-slot">对方</div><div class="gd-slot">对方</div></div>',
+    b: '每回合双方<b>各出 2 张</b>，同时翻开，<b>两张的点数相加</b>比大小。'
+      + '<br><br>你看到的对手手牌永远是<em>牌背</em>，只能靠他出过的牌推测。'
+      + '<br><br>在冷却中的牌会带一个 <b>❄ 数字</b>，写着还要等几回合，这种牌点不动。'
+  },
+  {
+    t: '点数就是两张相加',
+    v: '<div class="gd-eqs">'
+      + '<div class="gd-eqrow"><span class="gd-side">你</span>' + gdCards(gdCard('☘️', '金', 2) + gdCard('☀️', '金', 2)) + '<span class="gd-eq">=<b>4</b></span></div>'
+      + '<div class="gd-eqrow"><span class="gd-side">对方</span>' + gdCards(gdCard('🐋', '彩', 3) + gdBlank()) + '<span class="gd-eq">=<b>3</b></span></div>'
+      + '<div class="gd-eqrow" style="margin-top:4px"><span class="gd-lab" style="font-size:11.5px">4 ＞ 3，<b class="gd-win">你赢下这一手</b></span></div>'
+      + '</div>',
+    b: '没有什么特殊算法，就是<b>两张牌的点数加起来</b>。'
+      + '<br><br>例：金 + 金 = <b>4</b>，赢过 彩 + 空白 = <b>3</b>；彩 + 彩 = <b>6</b> 基本能拿下任意一手（但两张彩卡都会进长冷却）。'
+      + '<br><br><em>平局</em>时双方各自收回本回合的牌，再各补一张。'
+  },
+  {
+    t: '赢的人把对方的牌抢走',
+    v: '<div class="gd-eqs">'
+      + '<div class="gd-eqrow"><span class="gd-side">你</span>' + gdCards(gdCard('☘️', '金', 2) + gdCard('☀️', '金', 2)) + '<span class="gd-eq">=<b>4</b></span></div>'
+      + '<div class="gd-eqrow"><span class="gd-side">对方</span>' + gdCards(gdCard('🐋', '彩', 3) + gdBlank()) + '<span class="gd-eq">=<b>3</b></span></div>'
+      + '<div class="gd-eqrow" style="margin-top:6px"><span class="gd-lab" style="color:var(--gold)">↓ 对方的彩卡归你，空白各回各家</span></div>'
+      + '<div class="gd-eqrow">' + gdCards(gdCard('☘️', '金', 2) + gdCard('☀️', '金', 2) + gdCard('🐋', '彩', 3)) + '</div>'
+      + '</div>',
+    b: '点数高的一方，<b>夺走对方这一回合打出的特殊牌</b>，放进自己手里。'
+      + '<br><br>「空白」<em>不参与抢夺</em>，各回各家。'
+      + '<br><br>所以赢一手直接是 <b>+2 张牌差</b>：你多两张，他少两张。这也是为什么会一边倒。'
   },
   {
     t: '但强牌要进冷却 ❄',
-    b: '本回合出过、以及你赢下的特殊牌，都按品质<b>进冷却</b>：<br>普 0 回合 · <b>金锁 1 回合</b> · <b>彩锁 2 回合</b>。<br><br>所以<br>「赢了这一手，下两回合反而能出的牌更少」。'
+    v: '<div class="gd-col" style="gap:0">'
+      + '<div class="gd-cards" style="margin-bottom:18px">'
+      + '<div class="gd-badge">' + gdCard('☀️', '普', 1) + '<span class="gd-tag">不用等</span></div>'
+      + '<div class="gd-badge">' + gdCard('☘️', '金', 2, { cdUntil: 1 }) + '<span class="gd-tag gold">锁 1 回合</span></div>'
+      + '<div class="gd-badge">' + gdCard('🐋', '彩', 3, { cdUntil: 2 }) + '<span class="gd-tag gold">锁 2 回合</span></div>'
+      + '</div>'
+      + '<span class="gd-lab">出过的、还有你赢下来的特殊牌，都要冷却</span></div>',
+    b: '<b>普 不锁 · 金锁 1 回合 · 彩锁 2 回合</b>，从出牌那一回合算起。'
+      + '<br><br>注意：<em>你赢下来的牌，也是锁着的</em>。抢来一张彩卡，得等两回合才能用。'
+      + '<br><br>这就是本作最狠的一层：<b>赢下强牌的那一手，往往让接下来两回合你手里能出的牌更少</b>。'
   },
   {
-    t: '八张彩卡各有绝招',
-    b: '彩卡不只是 3 点 —— 每张还带一个特效，<b>牌底写着技能名</b>（下方「规则速查」里有完整图鉴）：<br><br>🐋 封印 · ☂ 重置 · ☘️ 加持 · ༄ 削弱 · 🌈 改判 · ☕️ 回手 · ☀️ 抽牌 · 🌙 弃置<br><br>特效按固定顺序结算，<b>播报栏会逐条写明</b>这一回合到底发生了什么。'
+    t: '手牌上限 9 张，前 13 回合每回合补 1 张',
+    cls: 'gd-small',
+    v: '<div class="gd-col" style="gap:10px">' + gdCards(
+      gdCard('☀️', '普', 1) + gdCard('☀️', '普', 1) + gdCard('☘️', '金', 2)
+      + gdCard('☘️', '金', 2) + gdCard('🐋', '彩', 3) + gdCard('🐋', '彩', 3)
+      + gdCard('🌈', '彩', 3) + gdCard('༄', '金', 2) + gdCard('☂', '普', 1))
+      + '<span class="gd-lab">超出的必须<b>弃置</b>，弃掉的牌回到牌堆</span></div>',
+    b: '手牌最多 <b>9 张</b>（空白不算），超了要自己选牌弃回牌堆。'
+      + '<br><br>前 <b>13 回合</b>每回合双方各补 1 张，之后牌堆不再补。'
+      + '<br><br>弃掉的牌<em>可能再被抽到</em>，所以有时弃哪张也有讲究。'
   },
   {
-    t: '怎么赢',
-    b: '① <b>轮到你的回合，你却只剩空白能出</b> → 你输（这是最主要的败因）。<br>② 你的特殊牌被全部夺走 → 你输。<br>③ 被 🌙 弃到没有能出的特殊牌 → 直接被刺杀。<br><br>手牌上限 9 张，超出要弃置（弃掉的牌会回到牌堆，可能再被抽到）。<br>前 13 回合每回合补 1 张，满 100 回合按手牌点数判定。'
+    t: '怎么输 · 以及八张彩卡的绝招',
+    v: '<div class="gd-lose">'
+      + '<div><span>①</span><span>轮到你出牌，却<b>只剩空白</b>能出</span></div>'
+      + '<div><span>②</span><span>你的特殊牌<b>被全部夺走</b></span></div>'
+      + '<div><span>③</span><span>被 🌙 弃到没有能出的特殊牌 → <b>直接判定失败</b></span></div>'
+      + '<div style="margin-top:8px;color:var(--gold);font-size:10.5px;letter-spacing:.1em">八张彩卡各带一个技能（牌底小字）</div>'
+      + '<div class="gd-chips">'
+      + ['🐋 封印', '☂ 重置', '☘️ 加持', '༄ 削弱', '🌈 改判', '☕️ 回手', '☀️ 抽牌', '🌙 弃置']
+        .map((s) => '<span class="gd-chip">' + s + '</span>').join('')
+      + '</div>'
+      + '<div style="color:var(--ink3);font-size:10.5px;margin-top:2px">完整说明在页面下方「规则速查」里</div></div>',
+    b: '输的方式只有三种（见左）。<b>第 ① 种最常见</b>：牌被抢空，只能拿空白硬撑。'
+      + '<br><br>八张<b>彩卡</b>除了 3 点，各带一个特效，按固定顺序结算；'
+      + '<br><br>每回合的<b>播报栏</b>会逐条写明发生了什么，看不懂就回头看播报栏——它就是这个游戏的说明书。'
   }
 ];
 let guideStep = 0;
@@ -664,6 +748,7 @@ function openGuide() {
   guideStep = 0;
   paintGuide();
   document.getElementById('guide').classList.add('on');
+  document.getElementById('gNext').focus();
 }
 function closeGuide() {
   document.getElementById('guide').classList.remove('on');
@@ -673,7 +758,26 @@ function paintGuide() {
   const s = GUIDE_STEPS[guideStep];
   document.getElementById('gTitle').textContent = s.t;
   document.getElementById('gBody').innerHTML = s.b;
-  document.getElementById('gNext').textContent = guideStep >= GUIDE_STEPS.length - 1 ? '开始打牌' : '下一步 (' + (guideStep + 1) + '/' + GUIDE_STEPS.length + ')';
+  const vis = document.getElementById('gVis');
+  vis.className = 'gd-vis' + (s.cls ? ' ' + s.cls : '');
+  vis.innerHTML = s.v;
+  document.getElementById('gCount').textContent = (guideStep + 1) + ' / ' + GUIDE_STEPS.length;
+  document.getElementById('gPrev').disabled = guideStep === 0;
+  document.getElementById('gNext').textContent = guideStep >= GUIDE_STEPS.length - 1 ? '开始打牌' : '下一步';
+  document.getElementById('gDots').innerHTML = GUIDE_STEPS.map((_, i) =>
+    '<span class="gd-dot' + (i === guideStep ? ' on' : i < guideStep ? ' done' : '') + '"></span>').join('');
+  const page = document.getElementById('gPage');
+  page.style.animation = 'none';
+  void page.offsetWidth;
+  page.style.animation = 'gdIn .26s ease both';
+}
+function guideNext() {
+  if (guideStep >= GUIDE_STEPS.length - 1) { closeGuide(); return; }
+  guideStep++; paintGuide();
+}
+function guidePrev() {
+  if (guideStep <= 0) return;
+  guideStep--; paintGuide();
 }
 function aiLevel() {
   if (g && g.haunt) return 'nightmare';       // 彩蛋：这一局被噩梦盯上了
@@ -1288,11 +1392,15 @@ const logSaveBtn = $('logSave');
 if (logSaveBtn) logSaveBtn.onclick = downloadLog;
 
 // ===== 引导与实验室入口的绑定 ====
-document.getElementById('gNext').addEventListener('click', () => {
-  if (guideStep >= GUIDE_STEPS.length - 1) { closeGuide(); return; }
-  guideStep++; paintGuide();
-});
+document.getElementById('gNext').addEventListener('click', guideNext);
+document.getElementById('gPrev').addEventListener('click', guidePrev);
 document.getElementById('gSkip').addEventListener('click', closeGuide);
+document.addEventListener('keydown', (e) => {
+  if (!document.getElementById('guide').classList.contains('on')) return;
+  if (e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); guideNext(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); guidePrev(); }
+  else if (e.key === 'Escape') { closeGuide(); }
+});
 document.getElementById('viewGuide').addEventListener('click', openGuide);
 document.getElementById('resetRank').addEventListener('click', () => {
   RANK = { rating: 0, wins: 0, losses: 0 };

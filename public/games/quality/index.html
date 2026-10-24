@@ -299,6 +299,88 @@
   .ov p{margin:0 0 16px; font-size:12.5px; color:var(--ink3); line-height:1.85}
   @media (min-width:760px){ .ov p{ font-size:14px } }
   .ov button{width:100%}
+
+  /* ===== 新手引导（图文分页）===== */
+  .ov.gd{ max-width:1000px; width:100%; padding:0; text-align:left; overflow:hidden;
+    display:flex; flex-direction:column; max-height:calc(100vh - 28px) }
+  @media (min-width:760px){ .ov.gd{ padding:0 } }
+  .gd-top{ display:flex; align-items:center; justify-content:space-between; flex:0 0 auto;
+    padding:14px 20px 12px; border-bottom:1px solid rgba(255,255,255,.08);
+    background:linear-gradient(180deg,rgba(255,255,255,.05),transparent) }
+  .gd-kicker{ font-family:var(--serif); font-size:13px; letter-spacing:.34em; color:var(--gold); opacity:.92 }
+  .gd-count{ font-size:11.5px; letter-spacing:.14em; color:var(--ink3); font-variant-numeric:tabular-nums }
+  .gd-page{ display:flex; flex-direction:column; gap:14px; padding:18px 20px 6px;
+    flex:1 1 auto; min-height:0; overflow-y:auto }
+  @media (min-width:860px){ .gd-page{ flex-direction:row; gap:26px; padding:22px 26px 8px; align-items:flex-start } }
+  .gd-vis{ flex:0 0 auto; min-height:150px; display:flex; flex-direction:column; gap:10px;
+    align-items:center; justify-content:center;
+    border-radius:14px; padding:14px 12px; overflow:hidden;
+    background:radial-gradient(circle at 50% 45%, rgba(232,207,154,.09), rgba(0,0,0,.22) 72%);
+    border:1px solid rgba(255,255,255,.07) }
+  @media (min-width:860px){ .gd-vis{ width:340px; min-height:214px } }
+  .gd-txt{ flex:1 1 auto; min-width:0 }
+  .gd-txt h2{ margin:0 0 10px; font-family:var(--serif); font-size:19px; letter-spacing:.08em; color:var(--ink) }
+  @media (min-width:860px){ .gd-txt h2{ font-size:22px } }
+  .gd-txt p{ margin:0; font-size:13px; color:var(--ink3); line-height:1.95 }
+  @media (min-width:860px){ .gd-txt p{ font-size:13.5px } }
+  .gd-txt b{ color:var(--gold); font-weight:600 }
+  .gd-txt em{ font-style:normal; color:var(--ink); }
+  .gd-dots{ display:flex; gap:7px; justify-content:center; padding:14px 0 2px; flex:0 0 auto }
+  .gd-dot{ width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.18); transition:.18s }
+  .gd-dot.on{ background:var(--gold); box-shadow:0 0 10px rgba(232,207,154,.65); transform:scale(1.25) }
+  .gd-dot.done{ background:rgba(232,207,154,.45) }
+  .gd-btns{ display:flex; gap:8px; padding:12px 20px 18px; flex:0 0 auto }
+  @media (min-width:860px){ .gd-btns{ padding:14px 26px 20px } }
+  .gd-btns button{ width:auto; flex:0 0 auto }
+  .gd-btns #gSkip{ margin-right:auto }
+  .gd-btns #gPrev{ min-width:88px }
+  .gd-btns #gNext{ min-width:132px }
+  .gd-btns button:disabled{ opacity:.35 }
+
+  /* 引导里的示意图零件 */
+  .gd-vis{ --cw:46px; --ch:64px }
+  @media (min-width:860px){ .gd-vis{ --cw:52px; --ch:72px } }
+  .gd-cards{ display:flex; gap:6px; align-items:center; justify-content:center; flex:0 0 auto }
+  .gd-cards .card{ margin:0; flex:0 0 auto }
+  .gd-row{ display:flex; align-items:center; gap:8px; justify-content:center; width:100% }
+  .gd-side{ flex:0 0 34px; text-align:right; font-size:10.5px; letter-spacing:.08em;
+    color:var(--ink3); white-space:nowrap }
+  .gd-lab{ font-size:10.5px; letter-spacing:.1em; color:var(--ink3); white-space:nowrap }
+  .gd-lab b{ color:var(--gold) }
+  .gd-col{ display:flex; flex-direction:column; align-items:center; gap:5px }
+  .gd-arrow{ font-size:15px; color:var(--gold); opacity:.85; flex:0 0 auto }
+  .gd-eq{ font-family:var(--serif); font-size:13px; color:var(--ink2); padding:0 2px;
+    font-variant-numeric:tabular-nums; white-space:nowrap }
+  .gd-eq b{ color:var(--gold); font-size:16px; margin-left:3px }
+  .gd-eqs{ display:flex; flex-direction:column; gap:9px; width:100% }
+  .gd-eqrow{ display:flex; align-items:center; gap:6px; justify-content:center; width:100%; flex-wrap:nowrap }
+  .gd-steps{ display:flex; flex-direction:column; gap:9px; width:100%; padding:0 2px }
+  .gd-step{ display:flex; align-items:center; gap:9px; font-size:12px; color:var(--ink3) }
+  .gd-step i{ flex:0 0 20px; height:20px; border-radius:50%; display:grid; place-items:center;
+    font-style:normal; font-size:11px; color:#2a2313; background:var(--gold); font-weight:700 }
+  .gd-slots{ display:flex; gap:8px; justify-content:center }
+  .gd-slot{ width:calc(var(--cw) * 1.05); height:calc(var(--ch) * 1.05); border-radius:10px;
+    border:1px dashed rgba(255,255,255,.22); display:grid; place-items:center;
+    font-size:10px; color:var(--ink3); letter-spacing:.1em }
+  .gd-slot.filled{ border-style:solid; border-color:rgba(232,207,154,.5); background:rgba(232,207,154,.09); color:var(--gold) }
+  .gd-badge{ position:relative }
+  .gd-badge .gd-tag{ position:absolute; left:50%; transform:translateX(-50%); bottom:-15px;
+    font-size:10px; letter-spacing:.06em; color:var(--ink3); white-space:nowrap }
+  .gd-tag.gold{ color:var(--gold) }
+  .gd-lose{ display:flex; flex-direction:column; gap:7px; width:100%; align-self:stretch }
+  .gd-lose div{ font-size:11.5px; color:var(--ink3); display:flex; gap:7px; align-items:flex-start }
+  .gd-lose span:first-child{ color:#e08f8f; flex:0 0 auto }
+  .gd-win{ color:var(--gold) }
+  .gd-lose .gd-chips{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:4px; width:100% }
+  .gd-lose .gd-chips .gd-chip{ display:block; font-size:10px; padding:4px 2px; border-radius:6px; text-align:center; letter-spacing:0; white-space:nowrap;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); color:var(--ink2) }
+  .gd-chip b{ color:var(--gold); font-weight:500 }
+  /* 9 张手牌那一页：把牌缩小，一行放得下 */
+  .gd-vis.gd-small{ --cw:30px; --ch:42px }
+  .gd-vis.gd-small .card i{ font-size:7px }
+  .gd-vis.gd-small .card .sk{ display:none }
+  .gd-vis.gd-small .card b{ font-size:12px }
+  @keyframes gdIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none} }
 </style>
 <style>
   /* ===== 空白牌与特殊牌并列 ===== */
@@ -460,6 +542,8 @@
 
   .battle .banner{
     position:absolute; left:0; top:0;
+    z-index:2;                          /* 必须压在 .battle-mid 之上：后者 position:relative 且在 DOM 后面，
+                                           会整块盖住播报栏 → 滚轮/拖滚动条全被它吃掉（点了没反应） */
     width:190px; height:280px;          /* 固定尺寸 → 必定可滚 */
     overflow-y:scroll; overflow-x:hidden;
     font-size:12px; line-height:1.6; padding:10px;
@@ -1291,12 +1375,23 @@
   </footer>
 </div>
 
-<div class="overlay" id="guide">
-  <div class="ov">
-    <h2 id="gTitle" style="font-size:17px;letter-spacing:.1em">新手引导</h2>
-    <p id="gBody" style="min-height:120px;text-align:left"></p>
-    <div style="display:flex;gap:8px">
-      <button class="ghost" id="gSkip" style="flex:0 0 84px">跳过</button>
+<div class="overlay" id="guide" role="dialog" aria-modal="true" aria-labelledby="gTitle">
+  <div class="ov gd">
+    <div class="gd-top">
+      <span class="gd-kicker">新手引导</span>
+      <span class="gd-count" id="gCount">1 / 8</span>
+    </div>
+    <div class="gd-page" id="gPage">
+      <div class="gd-vis" id="gVis"></div>
+      <div class="gd-txt">
+        <h2 id="gTitle">—</h2>
+        <p id="gBody"></p>
+      </div>
+    </div>
+    <div class="gd-dots" id="gDots"></div>
+    <div class="gd-btns">
+      <button class="ghost" id="gSkip">跳过</button>
+      <button class="ghost" id="gPrev">上一步</button>
       <button id="gNext">下一步</button>
     </div>
   </div>
@@ -1329,7 +1424,7 @@
 </div>
 
 <script src="./engine.js?v=20261030"></script>
-<script src="./game.js?v=20261024"></script>
-<script src="./pvp.js?v=20261024"></script>
+<script src="./game.js?v=20261031"></script>
+<script src="./pvp.js?v=20261031"></script>
 </body>
 </html>

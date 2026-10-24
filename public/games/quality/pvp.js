@@ -21,7 +21,7 @@
     const launch = function () {
       const style = document.createElement('style');
       style.textContent = [
-        '#pvpNew{position:fixed;right:14px;bottom:18px;z-index:70;display:flex;align-items:center;gap:7px;',
+        '#pvpNew{position:fixed;right:14px;bottom:18px;z-index:45;display:flex;align-items:center;gap:7px;',
         'font:inherit;font-size:13px;padding:10px 16px;border-radius:999px;cursor:pointer;color:#2a1f10;',
         'background:linear-gradient(160deg,#f0dcae,#d3b37e);border:1px solid rgba(120,92,44,.5);',
         'box-shadow:0 10px 24px -12px #000}',
