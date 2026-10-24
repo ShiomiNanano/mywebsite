@@ -149,6 +149,9 @@
     on: true, code, view: null, busy: false, timer: null,
     animating: false, animTimer: null,
   };
+  /* 等对方时按钮上写什么：乐观提交时先写「已出牌」/「弃置中」，
+     服务端局面回来（apply）就交回 statusText，别让玩家看到过时的说法 */
+  let waitLabel = '';
 
   // 本地预览的身份开关：URL 上带 ?as=2 就是"另一个人"。必须跟着每个接口请求走，
   // 不能靠 cookie —— 同一个浏览器两个标签页会共用 cookie，两边就变成同一个人了。
@@ -180,6 +183,9 @@
     'background:linear-gradient(135deg,rgba(255,255,255,.55),transparent 62%),',
     'repeating-linear-gradient(45deg,#f4e8cd 0 3px,#e6d7b4 3px 6px);',
     'box-shadow:inset 0 1px 0 rgba(255,255,255,.8),0 6px 14px -10px rgba(0,0,0,.85)}',
+    /* 结算窗里多一行 PvP 提示（对方想再来一局 / 对方已经离开房间） */
+    '#ovPvp{color:#e9d6a8;font-size:13px;letter-spacing:.08em;min-height:20px;margin:2px 0 10px}',
+    '#ovLeave{flex:0 0 auto;width:auto;padding:0 14px;font-size:13px}',
     /* 本地预览的调试条（挂在顶部房间条里，不挡牌桌） */
     '#pvpDev{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:10px;margin-left:2px;',
     'border-left:1px dashed rgba(211,179,126,.45);color:#d8c7a4;font-size:11px}',
@@ -265,14 +271,8 @@
   }
 
   /* 我方先出、对方还没响应：两张牌背朝上盖在牌桌上，等对方出了再一起翻。
-     牌背直接铺满整个卡槽（.slot 的尺寸），否则会比牌桌上的翻牌小一圈。 */
-  function paintMyBacks() {
-    const box = document.getElementById('meSlots');
-    if (!box) return;
-    box.innerHTML = '<div class="slot on back">✦</div><div class="slot on back">✦</div>';
-  }
-
-  /* 对手那一栏补上名字和段位（render 里只写了"对手 · 手牌 N 张"） */
+     现在由 render() 按 g._myBacks 直接画，不再单独写一次 DOM —— 轮询回来时节
+     点一个都不动，牌桌也就不会闪。 */
   function paintOppLabel(v) {
     const opp = v.seat === 'host' ? v.guest : v.host;
     const el = document.getElementById('oppLbl');
@@ -282,17 +282,87 @@
       + ' · 手牌 ' + v.oppCount + ' 张';
   }
 
+  /* ---------- 结算窗（PvP 版）----------
+     单机那套「再来一局」在这里会把客户端重开成单机局，所以整块换掉：
+       · 再来一局：两边都点了才在同一间房里真开新局（服务端换 seed + 清记录）
+       · 退出本局：房间结束，对方会看到「对方已经离开房间」
+     「导出本场对局」只对单机有意义（PvP 的真局面在服务端，导出来是空壳），这里藏掉。 */
+  let ovAgainBtn = null, ovLeaveBtn = null, ovTipEl = null;
+  function initOv() {
+    ovAgainBtn = document.getElementById('ovAgain');
+    const exp = document.getElementById('ovExport');
+    if (exp) exp.style.display = 'none';           // PvP 里没用
+    const box = document.querySelector('#ov .ov-btns');
+    const rs = document.getElementById('ovReason');
+    if (rs && rs.parentNode && !document.getElementById('ovPvp')) {
+      ovTipEl = document.createElement('p');
+      ovTipEl.id = 'ovPvp';
+      rs.parentNode.insertBefore(ovTipEl, rs.nextSibling);
+    } else {
+      ovTipEl = document.getElementById('ovPvp');
+    }
+    if (box && !document.getElementById('ovLeave')) {
+      ovLeaveBtn = document.createElement('button');
+      ovLeaveBtn.id = 'ovLeave';
+      ovLeaveBtn.type = 'button';
+      ovLeaveBtn.className = 'ghost';
+      ovLeaveBtn.textContent = '退出本局';
+      ovLeaveBtn.onclick = function () { leaveRoom(); };
+      box.appendChild(ovLeaveBtn);
+    } else {
+      ovLeaveBtn = document.getElementById('ovLeave');
+    }
+    if (ovAgainBtn) ovAgainBtn.onclick = function () { requestRematch(); };
+  }
+
+  function paintPvpOver(v) {
+    if (!v || !v.over) return;
+    if (!ovLeaveBtn) initOv();
+    let hint = '';
+    if (v.leftBy === 'opp') hint = '对方已经离开房间';
+    else if (v.leftBy === 'you') hint = '你已离开房间';
+    else if (v.rematchOpp) hint = '对方想再来一局';
+    else if (v.rematchMine) hint = '已经告诉对方了，等它点一下…';
+    if (ovTipEl) ovTipEl.textContent = hint;
+
+    if (v.leftBy) {                                 // 房间已经散了：只剩"走人"
+      if (ovAgainBtn) ovAgainBtn.style.display = 'none';
+      if (ovLeaveBtn) ovLeaveBtn.textContent = v.leftBy === 'you' ? '返回游戏页' : '离开房间';
+      return;
+    }
+    if (ovAgainBtn) {
+      ovAgainBtn.style.display = '';
+      ovAgainBtn.textContent = v.rematchOpp ? '接受 · 再来一局' : (v.rematchMine ? '等对方回应…' : '再来一局');
+      ovAgainBtn.disabled = !!v.rematchMine;
+    }
+    if (ovLeaveBtn) ovLeaveBtn.textContent = '退出本局';
+  }
+
   /* ---------- 应用一次服务端局面 ----------
      reveal 有值时先播一遍「出牌 / 翻牌 / 技能横幅」，1.5 秒后再落定，和单机同节奏。
      注意：g / sel / phase / STARTED 是 game.js 里的顶层 let 绑定（挂在全局词法环境，
      不是 window 上的属性），所以这里必须直接赋值，不能写 window.g = … */
+  /* 一份局面的"选牌指纹"：同一回合、同一手牌、同一阶段，
+     轮询回来的画面就不该把你已经点好的两张牌清掉。 */
+  function selSig(v) {
+    if (!v) return '';
+    return [v.round, v.stage || '', v.myPlayed ? 1 : 0,
+      (v.hand || []).map((c) => c.id).join(',')].join('|');
+  }
+
   function apply(v, reveal) {
+    const keepSel = !reveal && !!PVP.view && selSig(PVP.view) === selSig(v);
     PVP.view = v;
+    waitLabel = '';
     g = shell(v);
-    sel = [];
     STARTED = false;                 // 不参与单机那套"中途离开扣分"
     phase = phaseOf(v);
-    if (phase === 'discard') { try { sel = autoLowest(g); } catch (e) { sel = []; } }
+    // 我先出、对方没出 → 桌上留两张牌背（交给 render 画，保证轮询时不重绘）
+    g._myBacks = !reveal && v.status === 'playing' && v.myPlayed && !v.oppPlayed && !v.over;
+    if (!keepSel) {
+      sel = [];
+      if (phase === 'discard') { try { sel = autoLowest(g); } catch (e) { sel = []; } }
+    }
     if (reveal) {
       g.slots = { me: (reveal.mine || []).map(toSlotCard), ai: (reveal.theirs || []).map(toSlotCard) };
       phase = 'reveal';
@@ -307,14 +377,14 @@
       // PvP 不显示胜负原因（"谁被夺光"这类文案在两边视角下容易反），只留回合数
       const rs = document.getElementById('ovReason');
       if (rs) rs.textContent = '共 ' + v.round + ' 回合';
+      try { paintPvpOver(v); } catch (e) {}
     }
 
-    // 已经出过牌、但对方还没出：把牌背留在桌上（不播翻牌），等对方出完再一起翻
-    if (!reveal && v.status === 'playing' && v.myPlayed && !v.oppPlayed && !v.over) {
-      try { paintMyBacks(); } catch (e) {}
-    }
+    // 已经出过牌、但对方还没出：牌背由上面的 g._myBacks 让 render() 画出来
 
     if (reveal) {
+      // 翻牌阶段桌上已经有牌，别让牌背盖上去
+      g._myBacks = false;
       PVP.animating = true;
       try { sfx('deal'); } catch (e) {}
       setTimeout(function () { try { sfx('reveal'); } catch (e) {} }, 700);
@@ -333,6 +403,7 @@
         if (v.over) {
           const rs = document.getElementById('ovReason');
           if (rs) rs.textContent = '共 ' + v.round + ' 回合';
+          try { paintPvpOver(v); } catch (e) {}
         }
       }, 1500);
     }
@@ -351,10 +422,32 @@
     return data;
   }
 
+  /* 同一时刻只认最新一个请求：
+     1) 新请求会把还没回来的同类旧请求掐掉；
+     2) 万一手快点了三下刷新，晚到的老响应会被丢掉，不会把新画面盖回旧画面。
+     以前没有这层，就是"点了好几次刷新才终于看到结果"的来源之一。
+     读（GET）和写（POST）各走一条线：轮询不许把正在提交的出牌请求掐掉。 */
+  const reqLine = { get: { seq: 0, ctl: null }, post: { seq: 0, ctl: null } };
+  async function askServer(path, opts) {
+    const kind = ((opts && opts.method) || 'GET').toUpperCase() === 'GET' ? 'get' : 'post';
+    const line = reqLine[kind];
+    if (line.ctl) { try { line.ctl.abort(); } catch (e) {} }
+    line.ctl = new AbortController();
+    const my = ++line.seq;
+    try {
+      const data = await api(path, Object.assign({ signal: line.ctl.signal }, opts || {}));
+      return my === line.seq ? data : null;      // 过期响应：直接丢
+    } catch (e) {
+      if (e && (e.name === 'AbortError' || e.code === 20)) return null;
+      throw e;
+    }
+  }
+
   async function load(silent) {
     if (PVP.animating) return null;      // 正在播翻牌，别把桌面刷掉
     try {
-      const v = await api('/api/pvp/rooms/' + encodeURIComponent(code));
+      const v = await askServer('/api/pvp/rooms/' + encodeURIComponent(code));
+      if (!v) return null;               // 过期或被新请求取代：什么都不做
       const prev = PVP.view;
       // 轮询/刷新时发现"对方把这一回合补齐了" → 也播一遍翻牌，别让结果干巴巴地跳出来
       const fresh = !!(prev && v.last && v.history.length > prev.history.length);
@@ -375,6 +468,24 @@
     }
   }
 
+  /* 点下去立刻改画面，不等网络往返 —— 这就是"明面要流畅"的那一半。
+     服务端返回后 apply() 会用同一份数据重画，HTML 一模一样，DOM 一个节点都不动，
+     所以看起来是"一按就盖上"，而不是"一按、等半秒、闪一下"。 */
+  function optimisticCommit(ids, text, tableBacks) {
+    try {
+      const drop = new Set(ids);
+      g.me.hand = g.me.hand.filter((c) => !drop.has(c.id));
+      sel = [];
+      waitLabel = text.replace(/…$/, '');
+      g.slots = { me: [], ai: (g.slots && g.slots.ai) || [] };
+      g._myBacks = !!tableBacks;
+      phase = tableBacks ? 'wait' : (discardNeed(g) > 0 ? 'discard' : 'wait');
+      msg = text;
+      note(text + '　·　第 ' + g.round + ' 回合');
+      render();
+    } catch (e) { console.warn('[pvp] 乐观渲染失败', e); }
+  }
+
   async function submit() {
     if (PVP.busy || PVP.animating) return;
     const picked = sel.map((i) => g.me.hand[i]);
@@ -382,13 +493,14 @@
     const ids = picked.map((c) => c.id);
     const prevHist = PVP.view ? PVP.view.history.length : 0;
     PVP.busy = true;
-    note('出牌中…');
+    optimisticCommit(ids, '已出牌，等对方…', true);
     try {
-      const r = await api('/api/pvp/rooms/' + encodeURIComponent(code) + '/play', {
+      const r = await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/play', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ round: g.round, cards: ids }),
       });
+      if (!r) return;
       const v = r.room;
       const last = v.last;
       if (last && v.history.length > prevHist) {
@@ -412,13 +524,14 @@
     const ids = sel.map((i) => g.me.hand[i].id);
     if (!need || ids.length !== need) return;
     PVP.busy = true;
-    note('弃置中…');
+    optimisticCommit(ids, '弃置中…', false);
     try {
-      const r = await api('/api/pvp/rooms/' + encodeURIComponent(code) + '/discard', {
+      const r = await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/discard', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ round: g.round, cards: ids }),
       });
+      if (!r) return;
       apply(r.room);          // 弃完可能直接进下一回合，也可能继续等对方
     } catch (e) {
       note(e.message || '弃置失败');
@@ -430,8 +543,8 @@
 
   async function joinRoom() {
     try {
-      const r = await api('/api/pvp/rooms/' + encodeURIComponent(code) + '/join', { method: 'POST' });
-      apply(r.room);
+      const r = await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/join', { method: 'POST' });
+      if (r) apply(r.room);
       return true;
     } catch (e) {
       note(e.message || '加入失败');
@@ -443,9 +556,47 @@
   async function resign() {
     if (!window.confirm('确定认输吗？这局会直接结束。')) return;
     try {
-      const r = await api('/api/pvp/rooms/' + encodeURIComponent(code) + '/resign', { method: 'POST' });
-      apply(r.room);
+      const r = await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/resign', { method: 'POST' });
+      if (r) apply(r.room);
     } catch (e) { note(e.message || '操作失败'); }
+  }
+
+  /* 回单机页：离开 PvP 模式（房间码从地址栏去掉，否则刷新又进来） */
+  function goHome() {
+    try { if (PVP.timer) PVP.timer.cancel(); } catch (e) {}
+    try { location.href = '/games/quality/'; } catch (e) {}
+  }
+
+  /* 结算窗「再来一局」：只是举手，两边都举了服务端才真开新局 */
+  async function requestRematch() {
+    if (!code || PVP.busy) return;
+    PVP.busy = true;
+    try {
+      const r = await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/rematch', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      if (!r || !r.room) return;
+      const v = r.room;
+      note(v.over ? '已告诉对方：想再来一局' : '新的一局开始了 · 第 1 回合');
+      apply(v);
+    } catch (e) {
+      note(e.message || '再来一局失败');
+    } finally { PVP.busy = false; }
+  }
+
+  /* 结算窗「退出本局」：房间判给对方、对方会看到提示；自己回单机页 */
+  async function leaveRoom() {
+    if (!code) return;
+    const already = PVP.view && PVP.view.leftBy;
+    if (!already && !window.confirm('退出本局？房间会结束，对方会看到你已经离开。')) return;
+    PVP.busy = true;
+    try {
+      await askServer('/api/pvp/rooms/' + encodeURIComponent(code) + '/leave', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+    } catch (e) { /* 房间已经不在了也无所谓，反正要走 */ }
+    PVP.busy = false;
+    goHome();
   }
 
   /* ---------- 接管按钮 ---------- */
@@ -455,7 +606,10 @@
   if (btn) {
     btn.onclick = function () {
       if (!PVP.on) return oldClick && oldClick.call(this);
-      if (phase === 'over') { location.href = '/#/games'; return; }
+      if (phase === 'over') {
+        if (PVP.view && PVP.view.leftBy) return goHome();
+        return leaveRoom();
+      }
       if (phase === 'select' && sel.length === 2) return submit();
       if (phase === 'discard' && sel.length === discardNeed(g)) return submitDiscard();
       if (phase === 'wait') { load(); return; }
@@ -474,8 +628,17 @@
       b.disabled = sel.length !== n;
       b.classList.add('danger');
     }
-    else if (phase === 'wait') { b.textContent = '已出牌 · 点这里刷新'; b.disabled = false; }
-    else if (phase === 'over') { b.textContent = '返回游戏页'; b.disabled = false; }
+    // 等对方时按钮只报状态：轮询每 2.5 秒自己会拉，用不着玩家点刷新
+    else if (phase === 'wait') {
+      const v = PVP.view;
+      b.textContent = (waitLabel || (v && v.stage !== 'discard' ? statusText(v) : '等对方')) + '…';
+      b.disabled = true;
+    }
+    else if (phase === 'over') {
+      const v = PVP.view;
+      b.textContent = (v && v.leftBy) ? '返回游戏页' : '退出本局';
+      b.disabled = false;
+    }
     else { b.textContent = '…'; }
   };
 
@@ -547,6 +710,7 @@
   STARTED = false;
   sel = [];
   try { if (typeof closeGuide === 'function') closeGuide(); } catch (e) {}
+  try { initOv(); } catch (e) {}
   if (isDev) buildDev();
 
   (async function boot() {
@@ -566,11 +730,37 @@
     }
   })();
 
-  // 等对方出牌 / 等对方加入时每 10 秒拉一次
-  PVP.timer = setInterval(function () {
-    if (document.hidden || PVP.animating) return;
+  /* ---------- 轮询：等对方时快一点，其余时候慢一点 ----------
+     用户看不见"我在等网络"这件事，但能看见"对方出了没"——
+     所以把等待压进暗面：轮到自己/等对方时 2.5 秒一拉，其余 6 秒。
+     翻牌动画期间（PVP.animating）和提交中（PVP.busy）不拉，免得打断画面。 */
+  let pollTimer = 0;
+  function schedulePoll(ms) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(tick, ms);
+  }
+  async function tick() {
+    if (document.hidden) { schedulePoll(2500); return; }
+    if (PVP.animating || PVP.busy) { schedulePoll(1200); return; }
     const v = PVP.view;
-    if (!v || v.over) return;
-    if (v.status === 'waiting' || phase === 'wait' || v.myPlayed) load(true);
-  }, 10000);
+    if (!v) { schedulePoll(3000); return; }
+    // 打完也继续拉：对方可能点「再来一局」（两边都点了要立刻换成新局）或者「退出本局」。
+    // 注意这里必须真的去 load —— 只排下一次定时器的话，对方点头了我们这边永远停在结算窗。
+    if (v.over) {
+      await load(true);
+      schedulePoll(PVP.view && PVP.view.over ? 3000 : 1200);
+      return;
+    }
+    const waitingForOpp = v.status === 'waiting' || v.myPlayed
+      || (v.stage === 'discard' && v.myDiscard <= 0);
+    await load(true);
+    schedulePoll(waitingForOpp ? 2500 : 6000);
+  }
+  PVP.timer = { cancel: function () { clearTimeout(pollTimer); } };
+  PVP.tickNow = tick;          // 调试条/测试可以手动催一次
+  schedulePoll(2500);
+  // 切回标签页立刻拉一次，不用等下一个节拍
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) schedulePoll(200);
+  });
 })();

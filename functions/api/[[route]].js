@@ -486,7 +486,7 @@ async function readBody(request) { try { return await request.json(); } catch (e
    所以对手手牌永远不出服务端；两个客户端也不可能算出不同结果。 */
 const PVP_ALPHA = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';   // 去掉 0/O/1/I，念的时候不混
 const PVP_ROOMS_PER_USER = 20;                          // 一个人最多同时挂着几个未结束的房间
-const PVP_TTL_MS = 24 * 3600 * 1000;                    // 24 小时没人动就自动作废
+const PVP_TTL_MS = 3 * 3600 * 1000;                     // 3 小时没人动就自动作废（并顺手清掉）
 
 function pvpNewCode() {
   const buf = new Uint8Array(6);
@@ -523,14 +523,20 @@ function pvpCard(c, round) {
 async function pvpLoad(env, code) {
   const room = await env.DB.prepare('SELECT * FROM pvp_rooms WHERE code=?').bind(code).first();
   if (!room) return null;
-  // 过期房间当作不存在：一天没人动就作废，不用定时任务清理
+  // 过期房间当作不存在：3 小时没人动就作废，不用定时任务清理
   const ts = Date.parse(String(room.updated_at || '').replace(' ', 'T') + 'Z');
   if (Number.isFinite(ts) && Date.now() - ts > PVP_TTL_MS) return null;
   const rows = await env.DB.prepare(
     'SELECT round_no, side, kind, cards FROM pvp_moves WHERE code=? ORDER BY round_no ASC'
   ).bind(code).all();
   const map = new Map();
+  const rematch = { host: false, guest: false };   // 结算后点了「再来一局」的一方
   for (const m of ((rows && rows.results) || [])) {
+    // round_no=0 的那几行不是出牌记录，是「想再来一局」的旗标
+    if (m.kind === 'rematch') {
+      if (m.side === 'host' || m.side === 'guest') rematch[m.side] = true;
+      continue;
+    }
     const n = Number(m.round_no);
     let cur = map.get(n);
     if (!cur) { cur = { round: n }; map.set(n, cur); }
@@ -539,7 +545,7 @@ async function pvpLoad(env, code) {
     if (m.kind === 'discard') cur[m.side + 'Drop'] = arr;
     else cur[m.side] = arr;
   }
-  return { room, rounds: [...map.values()].sort((a, b) => a.round - b.round) };
+  return { room, rounds: [...map.values()].sort((a, b) => a.round - b.round), rematch };
 }
 // 已结算回合的明细（按"你 / 对方"重新翻译一遍，engine 里 host 恒为 me）
 function pvpHistory(resolved, mineIsHost) {
@@ -585,17 +591,24 @@ async function pvpViewFull(env, loaded, user) {
 function pvpView(loaded, user, ranks) {
   const E = globalThis.QCEngine;
   const { room, rounds } = loaded;
+  const want = loaded.rematch || {};      // { host:true, guest:true }
   const rank = ranks || {};
   const isHost = !!(user && user.id === room.host_id);
   const isGuest = !!(user && room.guest_id && user.id === room.guest_id);
   const replay = E.pvpReplay(room.seed, room.t0, rounds);
   const { g, resolved } = replay;
   const done = g.over || room.status === 'done';
-  const myHand = isHost ? g.me.hand : (isGuest ? g.ai.hand : []);
-  const oppCount = isHost ? g.ai.hand.length : (isGuest ? g.me.hand.length : 0);
   const cur = rounds.find((r) => r.round === g.round) || {};
   const mySide = isHost ? 'host' : 'guest';
   const oppSide = isHost ? 'guest' : 'host';
+  // 已经盖在桌上的牌不再留在手里：否则同一张牌会在「手牌」和「牌桌」各出现一次，
+  // 客户端乐观出牌后也会因为服务端又把它塞回手里而闪一下。
+  const minusCommitted = (list, ids) => {
+    const s = new Set((ids || []).map(String));
+    return s.size ? list.filter((c) => !s.has(String(c.id))) : list;
+  };
+  const myHand = minusCommitted(isHost ? g.me.hand : (isGuest ? g.ai.hand : []), cur[mySide]);
+  const oppCount = minusCommitted(isHost ? g.ai.hand : (isGuest ? g.me.hand : []), cur[oppSide]).length;
   const myDiscard = done ? 0 : (isHost ? replay.need : replay.needAi);
   const oppDiscard = done ? 0 : (isHost ? replay.needAi : replay.need);
 
@@ -606,10 +619,13 @@ function pvpView(loaded, user, ranks) {
       : (g.winner === 'me' ? 'host' : g.winner === 'ai' ? 'guest' : 'draw');
     winner = w === 'draw' ? 'draw' : (w === mySide ? 'you' : 'opp');
   }
+  // 有人点了「退出本局」：房间判给留下的一方，reason 记成 left（认输是另一条路）
+  const left = done && room.reason === 'left';
+  const leftSide = left ? (room.winner === 'host' ? 'guest' : 'host') : null;
   return {
     ok: true,
     code: room.code,
-    status: done ? 'done' : (room.guest_id ? 'playing' : 'waiting'),
+    status: left ? 'left' : (done ? 'done' : (room.guest_id ? 'playing' : 'waiting')),
     seat: isHost ? 'host' : (isGuest ? 'guest' : null),
     round: g.round,
     host: { name: room.host_name || '房主', tier: (rank.host && rank.host.tier) || '', rating: (rank.host && rank.host.rating) || 0 },
@@ -631,7 +647,11 @@ function pvpView(loaded, user, ranks) {
     last: pvpLast(resolved, isHost),          // 最近结算的一回合（前端拿它播翻牌和横幅）
     over: done,
     winner,
-    reason: room.status === 'done' && room.reason ? room.reason : (done ? g.reason : ''),
+    reason: room.status === 'done' && room.reason && room.reason !== 'left' ? room.reason : (done ? g.reason : ''),
+    // 结算窗：谁点了「再来一局」 / 谁退出了房间
+    rematchMine: !!want[mySide],
+    rematchOpp: !!want[oppSide],
+    leftBy: leftSide ? (leftSide === mySide ? 'you' : 'opp') : '',
   };
 }
 
@@ -992,6 +1012,14 @@ export async function onRequest(context) {
 
     if (method === 'GET' && path === '/pvp/rooms') {
       if (!user) return json({ error: '登录后才能查看' }, 401);
+      // 顺手把超过 3 小时没动过的房间真删掉（没有定时任务，就借列表请求做清理）
+      try {
+        const cutoff = new Date(Date.now() - PVP_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
+        await env.DB.prepare(
+          'DELETE FROM pvp_moves WHERE code IN (SELECT code FROM pvp_rooms WHERE updated_at < ?)'
+        ).bind(cutoff).run();
+        await env.DB.prepare('DELETE FROM pvp_rooms WHERE updated_at < ?').bind(cutoff).run();
+      } catch (e) { /* 清理失败不影响列表 */ }
       const rows = await env.DB.prepare(
         "SELECT * FROM pvp_rooms WHERE (host_id=? OR guest_id=?) AND status<>'done' ORDER BY updated_at DESC LIMIT ?"
       ).bind(user.id, user.id, PVP_ROOMS_PER_USER).all();
@@ -1014,7 +1042,7 @@ export async function onRequest(context) {
     if (method === 'GET' && m) {
       if (!user) return json({ error: '登录后才能查看房间' }, 401);
       const loaded = await pvpLoad(env, m[1]);
-      if (!loaded) return json({ error: '房间不存在或已过期（超过 24 小时没动过）' }, 404);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
       const room = loaded.room;
       if (room.host_id !== user.id && room.guest_id !== user.id) {
         return json({ error: '你不在这个房间里' }, 403);
@@ -1026,7 +1054,7 @@ export async function onRequest(context) {
     if (method === 'POST' && m) {
       if (!user) return json({ error: '登录后才能加入' }, 401);
       const loaded = await pvpLoad(env, m[1]);
-      if (!loaded) return json({ error: '房间不存在或已过期（超过 24 小时没动过）' }, 404);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
       const room = loaded.room;
       if (room.host_id === user.id) return json({ error: '这是你自己开的房间' }, 400);
       if (room.status === 'done') return json({ error: '这局已经结束了' }, 409);
@@ -1047,7 +1075,7 @@ export async function onRequest(context) {
     if (method === 'POST' && m) {
       if (!user) return json({ error: '登录后才能出牌' }, 401);
       const loaded = await pvpLoad(env, m[1]);
-      if (!loaded) return json({ error: '房间不存在或已过期（超过 24 小时没动过）' }, 404);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
       const room = loaded.room;
       const isHost = room.host_id === user.id;
       if (!isHost && room.guest_id !== user.id) return json({ error: '你不在这个房间里' }, 403);
@@ -1121,7 +1149,7 @@ export async function onRequest(context) {
     if (method === 'POST' && m) {
       if (!user) return json({ error: '登录后才能操作' }, 401);
       const loaded = await pvpLoad(env, m[1]);
-      if (!loaded) return json({ error: '房间不存在或已过期（超过 24 小时没动过）' }, 404);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
       const room = loaded.room;
       const isHost = room.host_id === user.id;
       if (!isHost && room.guest_id !== user.id) return json({ error: '你不在这个房间里' }, 403);
@@ -1129,6 +1157,60 @@ export async function onRequest(context) {
       const winner = isHost ? 'guest' : 'host';
       await env.DB.prepare("UPDATE pvp_rooms SET status='done', winner=?, reason=?, updated_at=? WHERE code=?")
         .bind(winner, '认输', nowStr(), room.code).run();
+      const again = await pvpLoad(env, room.code);
+      return json({ ok: true, room: await pvpViewFull(env, again, user) });
+    }
+
+    /* 结算窗的「再来一局」：两个人都点了才真开新局（房间码不变，链接还能用）。
+       谁点了就写一行 round_no=0 / kind='rematch' 的旗标，两边都齐了就换副新牌重开。 */
+    m = path.match(/^\/pvp\/rooms\/([A-Z0-9]{4,8})\/rematch$/);
+    if (method === 'POST' && m) {
+      if (!user) return json({ error: '登录后才能操作' }, 401);
+      const loaded = await pvpLoad(env, m[1]);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
+      const room = loaded.room;
+      const isHost = room.host_id === user.id;
+      if (!isHost && room.guest_id !== user.id) return json({ error: '你不在这个房间里' }, 403);
+      if (room.reason === 'left') return json({ error: '对方已经离开房间' }, 409);
+      if (!room.guest_id) return json({ error: '这个房间还没有对手' }, 409);
+      const E = globalThis.QCEngine;
+      const replay = E.pvpReplay(room.seed, room.t0, loaded.rounds);
+      if (!(replay.g.over || room.status === 'done')) return json({ error: '这局还没打完' }, 409);
+
+      const side = isHost ? 'host' : 'guest';
+      await env.DB.prepare(
+        "INSERT INTO pvp_moves (code, round_no, side, kind, cards, at) VALUES (?,0,?,'rematch','[]',?) ON CONFLICT(code, round_no, side, kind) DO NOTHING"
+      ).bind(room.code, side, nowStr()).run();
+      const marks = await env.DB.prepare(
+        "SELECT side FROM pvp_moves WHERE code=? AND round_no=0 AND kind='rematch'"
+      ).bind(room.code).all();
+      const sides = new Set(((marks && marks.results) || []).map((r) => r.side));
+      if (sides.has('host') && sides.has('guest')) {
+        const seed = ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0) || 1;
+        await env.DB.prepare(
+          "UPDATE pvp_rooms SET seed=?, t0=?, status='playing', winner=NULL, reason=NULL, updated_at=? WHERE code=?"
+        ).bind(seed, Date.now(), nowStr(), room.code).run();
+        await env.DB.prepare('DELETE FROM pvp_moves WHERE code=?').bind(room.code).run();
+      } else {
+        await env.DB.prepare('UPDATE pvp_rooms SET updated_at=? WHERE code=?').bind(nowStr(), room.code).run();
+      }
+      const again = await pvpLoad(env, room.code);
+      return json({ ok: true, room: await pvpViewFull(env, again, user) });
+    }
+
+    /* 退出本局：对方会看到「对方已经离开房间」，房间也就此结束（不再出现在对局列表里） */
+    m = path.match(/^\/pvp\/rooms\/([A-Z0-9]{4,8})\/leave$/);
+    if (method === 'POST' && m) {
+      if (!user) return json({ error: '登录后才能操作' }, 401);
+      const loaded = await pvpLoad(env, m[1]);
+      if (!loaded) return json({ error: '房间不存在或已过期（超过 3 小时没动过）' }, 404);
+      const room = loaded.room;
+      const isHost = room.host_id === user.id;
+      if (!isHost && room.guest_id !== user.id) return json({ error: '你不在这个房间里' }, 403);
+      if (room.status === 'done') return json(await pvpViewFull(env, loaded, user));
+      const winner = room.guest_id ? (isHost ? 'guest' : 'host') : null;
+      await env.DB.prepare("UPDATE pvp_rooms SET status='done', winner=?, reason='left', updated_at=? WHERE code=?")
+        .bind(winner, nowStr(), room.code).run();
       const again = await pvpLoad(env, room.code);
       return json({ ok: true, room: await pvpViewFull(env, again, user) });
     }

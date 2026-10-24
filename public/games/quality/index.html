@@ -1123,6 +1123,10 @@
   .hand .card:nth-child(9){ animation-delay:.16s }
   /* 彩卡自带 hueFlow/posFlow 两条动画，入场要接在后面，否则被覆盖 */
   .hand .card.q-cai{ animation:cardIn .3s cubic-bezier(.22,.7,.3,1) both, hueFlow 4.5s linear infinite, posFlow 6s ease-in-out infinite alternate }
+  /* 已经亮过相的牌不再重播入场动画：只掐掉 cardIn，彩卡的流光照旧。
+     没有这条的话，每次轮询/刷新重写手牌都会整排闪一下。 */
+  .hand .card.nofx{ animation:none !important }
+  .hand .card.nofx.q-cai{ animation:hueFlow 4.5s linear infinite, posFlow 6s ease-in-out infinite alternate !important }
   /* 播报里刚结算的那一块，从上方轻轻落下来 */
   @keyframes rbIn{ from{ opacity:0; transform:translateY(-5px) } to{ opacity:1; transform:none } }
   .rb-list .rb:first-child{ animation:rbIn .3s cubic-bezier(.2,1.06,.42,1) both }
@@ -1325,7 +1329,7 @@
 </div>
 
 <script src="./engine.js?v=20261030"></script>
-<script src="./game.js?v=20261030"></script>
-<script src="./pvp.js?v=20261030"></script>
+<script src="./game.js?v=20261024"></script>
+<script src="./pvp.js?v=20261024"></script>
 </body>
 </html>

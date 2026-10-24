@@ -760,6 +760,32 @@ function paintSkillPop() {
   }
 }
 
+/* ---- 不闪的两条渲染规则 ------------------------------------------------
+   setHTML：内容没变就不碰 DOM。轮询一秒钟回来一次也好，只要 HTML 一样，
+   DOM 一个节点都不动，CSS 动画也就不会重播（播报、牌桌格、回合行都靠它）。
+   setHand：手牌专用。内容变了才重写；重写时给"原先就在手里的牌"挂 .nofx，
+   掐掉 cardIn 入场动画——只有这一手新补进来的牌才播放入场。
+   以前每次重画整手牌都在重播入场动画，看起来就是整排闪一下。 */
+function setHTML(id, html) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el._html === html) return;
+  el._html = html;
+  el.innerHTML = html;
+}
+function setHand(id, html) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el._html === html) return;
+  const prev = new Set();
+  el.querySelectorAll('.card[data-id]').forEach((c) => prev.add(c.getAttribute('data-id')));
+  el._html = html;
+  el.innerHTML = html;
+  el.querySelectorAll('.card[data-id]').forEach((c) => {
+    if (prev.has(c.getAttribute('data-id'))) c.classList.add('nofx');   // 老牌：不播入场
+  });
+}
+
 function render() {
   const r = g.round;
   // 噩梦局把牌桌描红边（暗指危险）；换难度 / 换局都会重算
@@ -769,11 +795,11 @@ function render() {
   const aiCold = aiSpec.filter((c) => !isPlayable(c, r)).length;
   $('oppLbl').textContent = '对手 · 手牌 ' + g.ai.hand.length + ' 张' + (aiCold ? '（其中 ' + aiCold + ' 张冷却中）' : '')
     + (g.haunt ? '　·　？？？' : '');
-  $('oppBacks').innerHTML = g.ai.hand.map(backHtml).join('');
+  setHTML('oppBacks', g.ai.hand.map(backHtml).join(''));
   const known = aiSpec.filter((c) => c.seen);
-  $('oppKnown').innerHTML = known.length
+  setHTML('oppKnown', known.length
     ? known.map((c) => '<span class="tag" style="--var-qc:' + QC[c.q] + '">' + c.type + c.q + '</span>').join('')
-    : '<span class="tag">还没有已知的牌</span>';
+    : '<span class="tag">还没有已知的牌</span>');
 
   // 放牌格
   const slot = (c, mine) => {
@@ -792,10 +818,14 @@ function render() {
     return '<div class="slot on face ' + qcls + '">' + face + '</div>';
   };
   const shown = (arr) => (arr && arr.length ? arr : [null, null]);
-  $('aiSlots').innerHTML = shown(g.slots.ai).map((c) => slot(c, false)).join('');
-  $('meSlots').innerHTML = shown(g.slots.me).map((c) => slot(c, true)).join('');
+  setHTML('aiSlots', shown(g.slots.ai).map((c) => slot(c, false)).join(''));
+  // 我方已经盖牌、对方还没出：直接画成牌背（放在 render 里，
+  // 轮询回来时 HTML 与上一次一致 → 一个节点都不动，牌桌不会闪）
+  setHTML('meSlots', (g._myBacks && !(g.slots.me || []).length)
+    ? '<div class="slot on back">✦</div><div class="slot on back">✦</div>'
+    : shown(g.slots.me).map((c) => slot(c, true)).join(''));
 
-  $('mid').innerHTML = '第 <b>' + r + '</b> 回合 · 牌堆 <b>' + g.deck.length + '</b> 张 · 补牌还剩 <b>'
+  setHTML('mid', '第 <b>' + r + '</b> 回合 · 牌堆 <b>' + g.deck.length + '</b> 张 · 补牌还剩 <b>'
     + Math.max(0, g.dealUntil - r + 1) + '</b> 回合'
     + (() => {
       if (!document.documentElement.classList.contains('dev-mode')) return '';
@@ -803,18 +833,20 @@ function render() {
       if (v === 'auto') return '';
       const NAME = { easy: '简单', normal: '普通', hard: '困难', nightmare: '噩梦' };
       return '　·　对手：<b>' + (NAME[v] || v) + '</b>';
-    })();
+    })());
 
   // 手牌
   // 特殊牌与空白牌分两处渲染：空白常驻、占位用，不占上限、不可弃置
   const specials = g.me.hand.map((c, i) => [c, i]).filter((p) => !p[0].blank);
   const blanks = g.me.hand.map((c, i) => [c, i]).filter((p) => p[0].blank);
   if (phase === 'ready') {
-    $('meHand').innerHTML = specials.map(() => '<div class="card bk-card"><b>✦</b></div>').join('');
-    $('meBlank').innerHTML = blanks.map((p) => faceHtml(p[0], r, false)).join('');
+    const bkHtml = specials.map(() => '<div class="card bk-card"><b>✦</b></div>').join('');
+    const handEl = $('meHand');
+    if (handEl._html !== bkHtml) { handEl.innerHTML = bkHtml; handEl._html = bkHtml; }
+    setHand('meBlank', blanks.map((p) => faceHtml(p[0], r, false)).join(''));
   } else {
-    $('meHand').innerHTML = specials.map((p) => faceHtml(p[0], r, sel.indexOf(p[1]) >= 0)).join('');
-    $('meBlank').innerHTML = blanks.map((p) => faceHtml(p[0], r, sel.indexOf(p[1]) >= 0)).join('');
+    setHand('meHand', specials.map((p) => faceHtml(p[0], r, sel.indexOf(p[1]) >= 0)).join(''));
+    setHand('meBlank', blanks.map((p) => faceHtml(p[0], r, sel.indexOf(p[1]) >= 0)).join(''));
   }
   // 拱形：给每张牌标出它在手牌里的位置（--i / --n），CSS 据此旋转与下沉
   // 拱形只作用于特殊手牌（#meHand）；空白牌单列，不参与旋转
@@ -848,8 +880,9 @@ function render() {
     else banner = '点选两张可出的牌 → 盖牌 → 声明准备。❄ = 冷却中，出不了。';
   }
   const BLOCK_HTML = (g.blocks || []).map(roundBlockHtml).join('');
-  $('banner').innerHTML = '<span class="bulletin-hint">本局播报</span>' + banner
-    + (BLOCK_HTML ? '<div class="rb-list">' + BLOCK_HTML + '</div>' : '');
+  // 播报只在内容真的变了时才重写：否则最新一条会每次轮询都重播下落动画
+  setHTML('banner', '<span class="bulletin-hint">本局播报</span>' + banner
+    + (BLOCK_HTML ? '<div class="rb-list">' + BLOCK_HTML + '</div>' : ''));
 
   paintPrimary();
 
