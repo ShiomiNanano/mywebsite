@@ -345,6 +345,13 @@ function sfx(name) {
   } else if (name === 'skill') {
     sfxTone(c, 659.25, 0.5, 'sine', 0.11, t);
     sfxTone(c, 987.77, 0.38, 'sine', 0.045, t + 0.04);
+  } else if (name === 'heavy') {
+    // S 级技法的落地感：一声低频下坠 + 金属泛音
+    sfxTone(c, 148, 0.55, 'sine', 0.16, t, 62);
+    sfxTone(c, 92, 0.8, 'triangle', 0.10, t + 0.02, 48);
+    sfxNoiseHit(c, 0.22, 0.14, 900, 0.8, t);
+    sfxTone(c, 1567.98, 0.42, 'sine', 0.035, t + 0.05);
+    sfxTone(c, 2349.32, 0.3, 'sine', 0.02, t + 0.09);
   } else if (name === 'win') {
     [523.25, 659.25, 783.99].forEach((f, i) => sfxTone(c, f, 0.7, 'triangle', 0.12, t + i * 0.11));
   } else if (name === 'lose') {
@@ -432,6 +439,72 @@ function roundBlockHtml(b) {
     + '</div>';
 }
 
+// ===== 彩卡特效的"排面"分级 =====
+// S 级：直接改写这一回合的结果（封印 / 重置 / 改判 / 弃牌），值得占满屏幕演一下
+// A 级：改点数（加点 / 削点），中间浮一个符号就够
+// B 级：只动资源（回手 / 抽牌），右上角横幅足够，多了反而吵
+const FX_TIER = { '🐋': 's', '☂': 's', '🌈': 's', '🌙': 's', '☘️': 'a', '༄': 'a', '☕️': 'b', '☀️': 'b' };
+const FX_RANK = { s: 0, a: 1, b: 2 };
+function fxTier(type) { return FX_TIER[type] || 'b'; }
+
+// S 级的四种"形式"：只换动作，底色（--fx-l/--fx-m）不变
+const FX_KIND = { '🐋': 'whale', '☂': 'umb', '🌈': 'rainbow', '🌙': 'moon' };
+
+// 演一条技能：S/A 级走全屏舞台（stage），B 级什么都不做（交给横幅）
+// 把技能名拆成一个个带序号的字：--i 是第几个字，--d 是它到中点的有向距离，
+// CSS 拿这两个数逐字做字形（拱形、扇开、错落、放大 †）。
+function fxTitleHtml(name) {
+  const chars = Array.from(String(name));
+  const mid = (chars.length - 1) / 2;
+  return chars.map((ch, i) => {
+    const d = Math.round((i - mid) * 100) / 100;
+    const esc = ch.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<span style="--i:' + i + ';--d:' + d + '"' + (ch === '†' ? ' data-dag="1"' : '') + '>' + esc + '</span>';
+  }).join('');
+}
+
+function playSkillFx(e) {
+  const stage = $('fxStage');
+  if (!stage || !e || !e.type) return;
+  const tier = fxTier(e.type);
+  if (tier === 'b') return;
+  const side = e.side === 'ai' ? 'ai' : 'me';
+  const sig = stage.querySelector('.fx-sigil');
+  const ttl = stage.querySelector('.fx-title');
+  if (sig) sig.textContent = e.type;
+  // 只留技能名，效果文字不再显示；逐字包一层，好让每张卡有自己的"字体表情"
+  if (ttl) ttl.innerHTML = fxTitleHtml(e.name || '');
+  stage.className = 'fx-stage';          // 先归零，逼一次重排，动画才会重播
+  void stage.offsetWidth;
+  const kind = tier === 's' ? (FX_KIND[e.type] || '') : '';
+  stage.className = 'fx-stage on t-' + tier + ' s-' + side + (kind ? ' k-' + kind : '');
+  if (tier === 's') {
+    const battle = document.querySelector('.battle');
+    if (battle) {
+      const shake = () => {
+        battle.classList.remove('shake');
+        void battle.offsetWidth;
+        battle.classList.add('shake');
+        FX_TIMERS.push(setTimeout(() => battle.classList.remove('shake'), 640));
+      };
+      // 十字架是"钉下去"那一下才震，眼睛/雨/彩虹开局就震
+      if (e.type === '🌙') FX_TIMERS.push(setTimeout(shake, 1010));
+      else shake();
+    }
+    if (e.type === '🐋' && side === 'ai') {          // 被对面封印：自己的手牌当场蒙灰
+      const hand = $('meHand');
+      if (hand) {
+        hand.classList.add('sealed');
+        FX_TIMERS.push(setTimeout(() => hand.classList.remove('sealed'), 1400));
+      }
+    }
+    sfx('heavy');
+  } else {
+    sfx('skill');
+  }
+  FX_TIMERS.push(setTimeout(() => { if (stage) stage.className = 'fx-stage'; }, tier === 's' ? 1600 : 1050));
+}
+
 // 技能横幅：文字按事件表顺序排（层序即优先级），同一回合的多条竖着一起拉出来
 function skillFxRows(list) {
   return (list || []).map((x) =>
@@ -444,18 +517,27 @@ function clearFx() {
   while (FX_TIMERS.length) clearTimeout(FX_TIMERS.shift());
   const box = $('skillFx');
   if (box) box.innerHTML = '';
+  const stage = $('fxStage');
+  if (stage) stage.className = 'fx-stage';
 }
 
-// 拉出来 → 停一小会儿 → 收回去
+// 拉出来 → 停一小会儿 → 收回去；同一回合里最狠的那条同时走全屏舞台
 function paintSkillFx(list) {
   clearFx();
   const box = $('skillFx');
   if (!box || !list || !list.length) return;
-  box.innerHTML = skillFxRows(list);
-  const rows = Array.prototype.slice.call(box.querySelectorAll ? box.querySelectorAll('.fx-row') : []);
-  requestAnimationFrame(() => { rows.forEach((r) => r.classList.add('in')); });
-  FX_TIMERS.push(setTimeout(() => { rows.forEach((r) => r.classList.remove('in')); }, 1900));
-  FX_TIMERS.push(setTimeout(() => { if (box) box.innerHTML = ''; }, 2500));
+  const sorted = list.slice().sort((x, y) => FX_RANK[fxTier(x.type)] - FX_RANK[fxTier(y.type)]);
+  const star = sorted[0];
+  // S/A 级的那个已经占了屏幕，就不再重复挂一条横幅
+  const rest = fxTier(star.type) === 'b' ? list : list.filter((x) => x !== star);
+  if (rest.length) {
+    box.innerHTML = skillFxRows(rest);
+    const rows = Array.prototype.slice.call(box.querySelectorAll ? box.querySelectorAll('.fx-row') : []);
+    requestAnimationFrame(() => { rows.forEach((r) => r.classList.add('in')); });
+    FX_TIMERS.push(setTimeout(() => { rows.forEach((r) => r.classList.remove('in')); }, 1900));
+    FX_TIMERS.push(setTimeout(() => { if (box) box.innerHTML = ''; }, 2500));
+  }
+  playSkillFx(star);
 }
 
 function paintSync(note) {
@@ -1154,8 +1236,7 @@ function playPair() {
       dropMe: [], dropAi: []
     });
 
-    paintSkillFx(res.sk);
-    if (res.sk && res.sk.length) sfx('skill');
+    paintSkillFx(res.sk);   // 音效也在里面按分级选（S 级走 heavy）
 
     const myWin = res.result === 'me', tie = res.result === 'tie';
     msg = '';   // 这一手的结论已经在回合块里了，上面不再重复一遍
@@ -1480,6 +1561,10 @@ loadRemoteRank();
 // 本地预览（127.0.0.1 / localhost）才显示"AI 难度"开关；线上按段位自动
 if (/^(localhost|127.0.0.1|::1)$/.test(location.hostname || '')) {
   document.documentElement.classList.add('dev-mode');
+  // 预览调试条（preview-server 注入）用这两个钩子逐个试播技能特效
+  window.__qcFx = (list) => (Array.isArray(list) ? list : [list]).forEach(playSkillFx);
+  window.__qcFxPlay = paintSkillFx;   // 走完整分流（B 级也拉横幅，跟真打出来一样）
+  window.__qcFxList = Object.keys(SKILL).map((t) => ({ type: t, name: SKILL[t] }));
 }
 
 /* 首屏已经画完，收掉加载遮罩。

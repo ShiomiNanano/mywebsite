@@ -97,6 +97,180 @@
   .fx-row[data-t="☂"]{ border-right-color:#b9d4ff }
   @media (min-width:1100px){ .fx-row{ padding:11px 19px 11px 14px } .fx-name{ font-size:15px } .fx-ico{ font-size:21px } }
   @media (max-width:420px){ .fx-row{ padding:7px 12px 7px 10px } .fx-name{ font-size:12px; letter-spacing:.08em } }
+
+  /* ===== 彩卡特效演出（S 级改写战局 / A 级改写点数） ===== */
+  .fx-stage{ position:fixed; inset:0; z-index:47; pointer-events:none; display:flex; align-items:center;
+    justify-content:center; opacity:0; visibility:hidden; transition:opacity .26s ease, visibility 0s linear .26s;
+    --fx-l:255,240,208; --fx-m:232,196,122 }        /* 烫金底色：四张 S 卡共用，只换"形式" */
+  .fx-stage.on{ opacity:1; visibility:visible; transition:opacity .18s ease }
+  .fx-veil{ position:absolute; inset:0; opacity:0; transition:opacity .3s ease;
+    background:radial-gradient(circle at 50% 47%, rgba(0,0,0,0) 0%, rgba(0,0,0,.40) 44%, rgba(0,0,0,.74) 100%) }
+  .fx-stage.on .fx-veil{ opacity:1 }
+  .fx-core{ position:relative; display:flex; flex-direction:column; align-items:center; gap:10px;
+    text-align:center; padding:0 24px; isolation:isolate }
+  /* 符号背后垫一层柔和的暗罩：字压在桌布上也不会糊 */
+  .fx-core::before{ content:''; position:absolute; left:50%; top:50%; width:min(780px,94vw); height:min(430px,62vh);
+    transform:translate(-50%,-50%); border-radius:50%; z-index:-1; opacity:0; transition:opacity .3s ease;
+    background:radial-gradient(ellipse at 50% 50%, rgba(6,5,3,.74) 0%, rgba(6,5,3,.46) 46%, rgba(6,5,3,0) 72%) }
+  .fx-stage.on .fx-core::before{ opacity:1 }
+  .fx-beam{ position:absolute; left:50%; top:-30px; width:2px; height:0; margin-left:-1px;
+    background:linear-gradient(180deg, rgba(var(--fx-m),0), rgba(var(--fx-m),.55) 22%, rgba(var(--fx-m),0));
+    filter:blur(.6px); transition:height .5s cubic-bezier(.2,.8,.2,1) }
+  .fx-stage.t-s.on .fx-beam{ height:220px }
+  .fx-emblem{ position:relative; display:flex; align-items:center; justify-content:center }
+  .fx-form{ position:absolute; left:50%; top:50%; width:0; height:0; z-index:-1; pointer-events:none;
+    transform-origin:0 0 }
+  .fx-fw{ position:absolute; left:0; top:0; display:none }
+  .fx-stage.k-whale .fx-fw.k-whale,
+  .fx-stage.k-umb .fx-fw.k-umb,
+  .fx-stage.k-rainbow .fx-fw.k-rainbow,
+  .fx-stage.k-moon .fx-fw.k-moon{ display:block }
+  .fx-stage.k-moon .fx-sigil{ visibility:hidden }      /* 弯月本身就是那张牌，不再叠一个 emoji */
+
+  /* ① 🐋 封印：一只眼从一线缝隙里睁开，鲸鱼落在瞳孔里 */
+  .fx-eye{ position:absolute; left:0; top:0; width:min(470px,88vw); height:214px; transform:translate(-50%,-52%);
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 52%, rgba(var(--fx-l),.95) 0 7%, rgba(var(--fx-m),.72) 13%,
+        rgba(var(--fx-m),.20) 33%, rgba(0,0,0,0) 62%),
+      radial-gradient(ellipse at 50% 50%, rgba(var(--fx-m),.16), rgba(0,0,0,0) 72%);
+    box-shadow: inset 0 0 0 2px rgba(var(--fx-m),.45), inset 0 0 56px rgba(var(--fx-m),.26),
+      0 0 60px rgba(var(--fx-m),.16);
+    clip-path: inset(49.6% 0 49.6% 0 round 50%);
+    animation:fxEyeOpen 1.1s cubic-bezier(.22,.9,.22,1) .06s forwards }
+  .fx-eye .iris{ position:absolute; left:50%; top:52%; width:150px; height:150px; transform:translate(-50%,-50%);
+    border-radius:50%;
+    background:radial-gradient(circle at 50% 46%, rgba(20,12,4,.9) 0 40%, rgba(var(--fx-l),.85) 45% 57%,
+      rgba(var(--fx-m),.22) 66%, rgba(0,0,0,0) 74%) }
+  @keyframes fxEyeOpen{
+    0%{ clip-path: inset(49.7% 0 49.7% 0 round 50%) }
+    40%{ clip-path: inset(19% 0 19% 0 round 50%) }
+    54%{ clip-path: inset(40% 0 40% 0 round 50%) }   /* 睁到一半眨一下，更像活物 */
+    100%{ clip-path: inset(0 0 0 0 round 50%) } }
+
+  /* ② ☂ 重置：先下满一场雨，然后所有雨滴同时倒着流回去 */
+  .fx-rain{ position:absolute; left:0; top:0; width:min(760px,96vw); height:min(480px,68vh);
+    transform:translate(-50%,-50%) }
+  .fx-rain i{ position:absolute; top:0; width:1.6px; border-radius:2px; opacity:0;
+    background:linear-gradient(180deg, rgba(var(--fx-m),0), rgba(var(--fx-m),.9) 45%, rgba(var(--fx-l),.3));
+    filter:blur(.3px);
+    animation:fxRain 1.24s cubic-bezier(.45,.05,.55,.95) forwards }
+  @keyframes fxRain{
+    0%{ transform:translateY(-40px) scaleY(.6); opacity:0 }
+    10%{ opacity:.9 }
+    44%{ transform:translateY(var(--h)) scaleY(1); opacity:.9 }
+    52%{ transform:translateY(calc(var(--h) - 16px)) scaleY(.82); opacity:.55 }  /* 顿一下 = 回溯的起手 */
+    80%{ transform:translateY(-150px) scaleY(1.35); opacity:.5 }
+    100%{ transform:translateY(-200px) scaleY(.7); opacity:0 } }
+
+  /* ③ 🌈 平局改判：一道拱从中间向两边展开（脚刚好落在符号下沿，不压标题） */
+  .fx-arch{ position:absolute; left:0; top:0; transform:translateY(40px) }
+  .fx-arch i{ position:absolute; left:50%; top:0; border-radius:50%; opacity:.92;
+    transform:translate(-50%,-50%) scaleX(0); transform-origin:50% 50%;
+    background:radial-gradient(circle at 50% 50%, rgba(0,0,0,0) calc(50% - var(--w)),
+      rgba(var(--c),.88) calc(50% - var(--w)) 50%, rgba(0,0,0,0) 50%);
+    clip-path:inset(0 0 50% 0);
+    animation:fxArch .92s cubic-bezier(.2,.85,.25,1) forwards }
+  @keyframes fxArch{ to{ transform:translate(-50%,-50%) scaleX(1) } }
+
+  /* ④ 🌙 弃牌：一轮弯月升起，十字架自上而下钉进去 */
+  .fx-moon{ position:absolute; left:0; top:0; width:230px; height:230px; border-radius:50%; opacity:0;
+    transform:translate(-50%,-50%) rotate(-26deg) scale(.82);
+    background:radial-gradient(circle at 44% 40%, rgba(var(--fx-l),1), rgba(var(--fx-m),.5) 60%,
+      rgba(var(--fx-m),.08) 80%);
+    -webkit-mask:radial-gradient(circle at 69% 30%, transparent 51%, #000 55%);
+    mask:radial-gradient(circle at 69% 30%, transparent 51%, #000 55%);
+    filter:drop-shadow(0 0 30px rgba(var(--fx-m),.5));
+    animation:fxMoonIn .78s cubic-bezier(.2,.85,.25,1) .04s forwards }
+  @keyframes fxMoonIn{
+    0%{ opacity:0; transform:translate(-50%,-50%) rotate(-30deg) scale(.78) }
+    100%{ opacity:1; transform:translate(-50%,-50%) rotate(-10deg) scale(1) } }
+  .fx-x{ position:absolute; left:0; top:0; width:132px; height:182px; transform:translate(-50%,-230%); opacity:0;
+    animation:fxCrossIn .8s cubic-bezier(.32,.86,.2,1) .52s forwards }
+  .fx-x b{ position:absolute; border-radius:3px;
+    background:linear-gradient(180deg, rgba(var(--fx-l),1), rgba(var(--fx-m),.62));
+    box-shadow:0 0 24px rgba(var(--fx-m),.6) }
+  .fx-x .v{ left:50%; top:0; width:7px; height:100%; margin-left:-3.5px }
+  .fx-x .h{ left:0; top:31%; width:100%; height:7px; margin-top:-3.5px }
+  @keyframes fxCrossIn{
+    0%{ transform:translate(-50%,-235%); opacity:0 }
+    42%{ opacity:1 }
+    72%{ transform:translate(-50%,-43%) }
+    86%{ transform:translate(-50%,-54%) }   /* 钉进去的那一下回弹 */
+    100%{ transform:translate(-50%,-50%); opacity:1 } }
+
+  .fx-sigil{ font-size:92px; line-height:1; opacity:0; transform:scale(1.65);
+    /* 把彩色 emoji 压成烫金/朱红的"印记"，比原色贴纸更像牌桌里的东西 */
+    filter:grayscale(1) sepia(.55) saturate(2.1) hue-rotate(-10deg) brightness(1.12)
+      drop-shadow(0 14px 34px rgba(0,0,0,.65)) drop-shadow(0 0 26px rgba(232,207,154,.45));
+    transition:opacity .24s ease, transform .62s cubic-bezier(.16,.92,.24,1) }
+  .fx-stage.on .fx-sigil{ opacity:1; transform:scale(1) }
+  .fx-title{ font-family:var(--serif); font-size:30px; line-height:1.25; letter-spacing:.34em; color:#f8e8bd;
+    text-shadow:0 6px 26px rgba(0,0,0,.85), 0 0 34px rgba(232,207,154,.22); opacity:0; transform:translateY(10px);
+    transition:opacity .3s ease .1s, transform .5s cubic-bezier(.2,.8,.2,1) .1s, letter-spacing .7s ease .1s }
+  .fx-stage.on .fx-title{ opacity:1; transform:none; letter-spacing:.12em }
+  /* ── 技能名的字形表情：逐字包一层 span（--i 序号、--d 到中点的有向距离），四张 S 卡各一套 ── */
+  .fx-title span{ display:inline-block }
+  @keyframes fxChar{ from{ opacity:0; filter:blur(4px) } to{ opacity:1; filter:blur(0) } }
+  .fx-stage.on .fx-title span{ animation:fxChar .42s ease both; animation-delay:calc(var(--i) * 32ms) }
+
+  /* 🐋 铭文：字重压厚、带描边、整排微微下沉，像刻在石面上 */
+  .fx-stage.k-whale .fx-title span{
+    font-weight:600; transform:translateY(calc(var(--d) * var(--d) * .5px + 2px));
+    -webkit-text-stroke:.7px rgba(126,82,20,.5);
+    text-shadow:0 0 26px rgba(255,198,92,.52), 0 3px 0 rgba(0,0,0,.32) }
+  .fx-stage.on.k-whale .fx-title{ letter-spacing:.3em; margin-top:12px }
+
+  /* ☂ 雨垂：上下错落，投影拉长，读起来是"淋着"的 */
+  .fx-stage.k-umb .fx-title span{ text-shadow:0 12px 22px rgba(0,0,0,.62), 0 0 20px rgba(232,207,154,.3) }
+  .fx-stage.k-umb .fx-title span:nth-child(odd){ transform:translateY(6px) }
+  .fx-stage.k-umb .fx-title span:nth-child(even){ transform:translateY(-2px) }
+  .fx-stage.on.k-umb .fx-title{ letter-spacing:.18em }
+
+  /* 🌈 七彩：一个字一段色相，整排拱起来并向外扇开 */
+  .fx-stage.k-rainbow .fx-title span{
+    color:hsl(calc(46 - var(--i) * 15), 76%, 70%);
+    transform:translateY(calc(var(--d) * var(--d) * 1.1px)) rotate(calc(var(--d) * 1.8deg));
+    text-shadow:0 0 20px rgba(255,206,140,.55), 0 6px 20px rgba(0,0,0,.62) }
+  .fx-stage.on.k-rainbow .fx-title{ letter-spacing:.24em }
+  .fx-stage.s-ai.k-rainbow .fx-title span{ color:hsl(calc(14 - var(--i) * 5), 92%, 70%) }
+
+  /* 🌙 剑铭：细瘦、逐字微旋，† 放大成主角 */
+  .fx-stage.k-moon .fx-title span{
+    transform:translateY(calc(var(--i) * -.6px)) rotate(calc(var(--d) * .8deg));
+    text-shadow:0 0 22px rgba(255,214,120,.45), 0 6px 22px rgba(0,0,0,.7) }
+  .fx-stage.k-moon .fx-title span[data-dag]{ transform:scale(1.6) translateY(-2px); color:#fff0c6;
+    text-shadow:0 0 26px rgba(255,214,120,.95), 0 0 62px rgba(255,190,80,.5) }
+  .fx-stage.on.k-moon .fx-title{ letter-spacing:.34em }
+  /* 对手打出来的：整体换冷色，读得出「这是冲你来的」 */
+  .fx-stage.s-ai{ --fx-l:255,222,206; --fx-m:236,138,108 }
+  .fx-stage.s-ai .fx-title{ color:#ffc9bb }
+  .fx-stage.s-ai .fx-sigil{ filter:grayscale(1) sepia(.7) saturate(4.4) hue-rotate(-44deg) brightness(1.02)
+    drop-shadow(0 14px 34px rgba(0,0,0,.66)) drop-shadow(0 0 26px rgba(255,120,90,.5)) }
+  .fx-stage.s-ai .fx-core::before{ background:radial-gradient(ellipse at 50% 50%, rgba(30,3,0,.76) 0%, rgba(30,3,0,.5) 46%, rgba(30,3,0,0) 72%) }
+  /* A 级：不压暗全场，只在中间浮一下（没有形式动画） */
+  .fx-stage.t-a .fx-sigil{ font-size:54px }
+  .fx-stage.t-a .fx-title{ font-size:19px; letter-spacing:.2em; color:#ffe9bd }
+  .fx-stage.t-a .fx-veil{ background:radial-gradient(ellipse at 50% 47%, rgba(0,0,0,.18) 0%, rgba(0,0,0,0) 62%) }
+  .fx-stage.t-a .fx-core::before{ width:min(520px,86vw); height:min(300px,44vh) }
+  @media (max-width:520px){
+    .fx-sigil{ font-size:68px } .fx-title{ font-size:22px } .fx-stage.t-a .fx-title{ font-size:16px }
+    .fx-form{ transform:scale(.74) }        /* 窄屏把整套形式缩一点，别顶出屏幕 */
+  }
+  /* 震一下（S 级落地的那一拍） */
+  .battle.shake{ animation:fxShake .5s cubic-bezier(.36,.07,.19,.97) }
+  @keyframes fxShake{
+    0%,100%{ transform:translate3d(0,0,0) }
+    14%{ transform:translate3d(-3px,2px,0) } 28%{ transform:translate3d(3px,-2px,0) }
+    42%{ transform:translate3d(-2px,-1px,0) } 56%{ transform:translate3d(2px,1px,0) }
+    72%{ transform:translate3d(-1px,0,0) } 86%{ transform:translate3d(1px,0,0) }
+  }
+  /* 被封印：自己的手牌当场蒙灰 */
+  .hand.sealed .card{ filter:grayscale(.85) brightness(.62); transition:filter .3s ease }
+  @media (prefers-reduced-motion:reduce){
+    .fx-stage, .fx-sigil, .fx-title, .fx-sub, .fx-veil, .fx-beam{ transition-duration:.01s !important; transition-delay:0s !important }
+    .battle.shake{ animation:none }
+  }
   .lbl{font-size:11px; color:var(--ink3); letter-spacing:.06em; margin-bottom:7px}
   @media (min-width:760px){ .lbl{font-size:12.5px} }
 
@@ -1341,6 +1515,58 @@
   <div class="skill-fx" id="skillFx" aria-live="polite"></div>
 </div>
 
+<!-- 彩卡特效演出：S 级（改写战局）走这里，A 级只浮一下，B 级仍用右上横幅 -->
+<div class="fx-stage" id="fxStage" aria-hidden="true">
+  <div class="fx-veil"></div>
+  <div class="fx-core">
+    <div class="fx-beam"></div>
+    <div class="fx-emblem">
+      <div class="fx-form">
+        <!-- ① 封印：眼睛睁开 -->
+        <div class="fx-fw k-whale"><div class="fx-eye"><i class="iris"></i></div></div>
+        <!-- ② 重置：雨落下去，再倒着流回来 -->
+        <div class="fx-fw k-umb fx-rain">
+          <i style="left:3%;--h:230px;height:30px;animation-delay:.04s"></i>
+          <i style="left:8%;--h:320px;height:42px;animation-delay:.13s"></i>
+          <i style="left:13%;--h:260px;height:26px;animation-delay:.07s"></i>
+          <i style="left:18%;--h:380px;height:48px;animation-delay:.17s"></i>
+          <i style="left:23%;--h:290px;height:34px;animation-delay:.01s"></i>
+          <i style="left:28%;--h:340px;height:40px;animation-delay:.10s"></i>
+          <i style="left:33%;--h:250px;height:28px;animation-delay:.19s"></i>
+          <i style="left:38%;--h:400px;height:50px;animation-delay:.05s"></i>
+          <i style="left:43%;--h:280px;height:32px;animation-delay:.14s"></i>
+          <i style="left:47%;--h:330px;height:38px;animation-delay:.08s"></i>
+          <i style="left:52%;--h:250px;height:28px;animation-delay:.16s"></i>
+          <i style="left:57%;--h:390px;height:46px;animation-delay:.02s"></i>
+          <i style="left:62%;--h:280px;height:32px;animation-delay:.11s"></i>
+          <i style="left:67%;--h:340px;height:40px;animation-delay:.06s"></i>
+          <i style="left:72%;--h:260px;height:26px;animation-delay:.15s"></i>
+          <i style="left:77%;--h:370px;height:44px;animation-delay:.00s"></i>
+          <i style="left:82%;--h:290px;height:34px;animation-delay:.09s"></i>
+          <i style="left:86%;--h:240px;height:26px;animation-delay:.18s"></i>
+          <i style="left:90%;--h:350px;height:42px;animation-delay:.03s"></i>
+          <i style="left:94%;--h:280px;height:32px;animation-delay:.12s"></i>
+          <i style="left:97%;--h:220px;height:24px;animation-delay:.06s"></i>
+        </div>
+        <!-- ③ 平局改判：一道拱从中间向两边展开 -->
+        <div class="fx-fw k-rainbow">
+          <div class="fx-arch">
+            <i style="width:320px;height:320px;--w:6px;--c:248,216,140;animation-delay:0s"></i>
+            <i style="width:296px;height:296px;--w:6px;--c:238,176,108;animation-delay:.06s"></i>
+            <i style="width:272px;height:272px;--w:6px;--c:222,136,100;animation-delay:.12s"></i>
+            <i style="width:248px;height:248px;--w:6px;--c:198,124,136;animation-delay:.18s"></i>
+            <i style="width:224px;height:224px;--w:6px;--c:186,152,142;animation-delay:.24s"></i>
+          </div>
+        </div>
+        <!-- ④ 弃牌：弯月升起，十字架自上而下钉进去 -->
+        <div class="fx-fw k-moon"><i class="fx-moon"></i><i class="fx-x"><b class="v"></b><b class="h"></b></i></div>
+      </div>
+      <div class="fx-sigil"></div>
+    </div>
+    <div class="fx-title"></div>
+  </div>
+</div>
+
 
   <div class="mine">
     <div class="mine-row">
@@ -1446,7 +1672,7 @@
 </div>
 
 <script src="./engine.js?v=20261030"></script>
-<script src="./game.js?v=20261032"></script>
+<script src="./game.js?v=20261033"></script>
 <script src="./pvp.js?v=20261031"></script>
 </body>
 </html>
