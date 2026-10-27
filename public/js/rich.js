@@ -167,14 +167,17 @@ window.Rich = (function () {
         continue;
       }
       // 版式块：居中 / 放大 / 缩小 / 手写体 / 楷体（都要 ::: 收尾）
-      var blk6 = /^:::(center|big|small|hw|kai)\s*$/.exec(t);
+      // 可以叠着写：:::center big 就是「既居中又放大」，同一行里写几个都行
+      var blk6 = /^:::(center|big|small|hw|kai)((?:\s+(?:center|big|small|hw|kai))*)\s*$/.exec(t);
       if (blk6) {
-        var CLS6 = { center: 'rc-center', big: 'rc-big', small: 'rc-small', hw: 'rc-hw', kai: 'rc-kai' };
+        var LAY6 = { center: 'rc-center', big: 'rc-big', small: 'rc-small', hw: 'rc-hw', kai: 'rc-kai' };
+        var kinds6 = (blk6[1] + blk6[2]).split(/\s+/).filter(Boolean);
+        var cls6 = kinds6.map(function (k) { return LAY6[k]; }).join(' ');
         var buf6 = [];
         i++;
         while (i < lines.length && lines[i].trim() !== ':::') { buf6.push(lines[i]); i++; }
         i++;
-        out.push('<div class="' + CLS6[blk6[1]] + '">' + paras(buf6) + '</div>');
+        out.push('<div class="' + cls6 + '">' + paras(buf6) + '</div>');
         continue;
       }
       // 静默 / 时间标：单行，不需要收尾

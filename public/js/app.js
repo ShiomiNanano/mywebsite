@@ -2597,17 +2597,65 @@ const card = (x) => {
 
     /* ---------- 工具栏 ---------- */
     const PH = { bold: '加粗文字', italic: '斜体文字', hl: '要highlight的文字', del: '作废的字' };
+    /* 版式块开关：光标在某个版式块里就切换它的修饰词（:::center big 叠着用），
+       不在块里就新插一个。这样「居中 + 放大」「手写 + 居中」都能叠出来。 */
+    const LAYOUT_KINDS = ['center', 'big', 'small', 'hw', 'kai'];
+    const LAYOUT_PLACE = { center: '这一行居中显示。', big: '放大的一行。', small: '缩小的一行。', hw: '手写的字，信封背面的那种。', kai: '楷体的一行。' };
+    const layoutBlockAt = () => {
+      const v = box.value;
+      const at = box.selectionStart;
+      const lines = v.split('\n');
+      const cur = v.slice(0, at).split('\n').length - 1;
+      for (let k = cur; k >= 0; k--) {
+        const m = /^:::\s*(.*)$/.exec(lines[k].trim());
+        if (!m) continue;
+        const words = m[1].split(/\s+/).filter(Boolean);
+        if (!words.length) return null;                       // 碰到收尾的 :::
+        if (LAYOUT_KINDS.indexOf(words[0]) < 0) return null;  // 不是版式块
+        return { line: k, words: words };
+      }
+      return null;
+    };
+    const toggleLayout = (kind) => {
+      const hit = layoutBlockAt();
+      if (!hit) {
+        const body = ':::' + kind + '\n' + LAYOUT_PLACE[kind] + '\n:::';
+        const start = box.selectionStart;
+        const head = ':::' + kind + '\n';
+        R.insertBlock(box, body, start + head.length, start + head.length + LAYOUT_PLACE[kind].length);
+        return;
+      }
+      const lines = box.value.split('\n');
+      const words = hit.words.slice();
+      let lineStart = 0;
+      for (let k = 0; k < hit.line; k++) lineStart += lines[k].length + 1;
+      const j = words.indexOf(kind);
+      if (j >= 0) words.splice(j, 1);
+      else words.push(kind);
+      let caret = lineStart;
+      if (words.length) {
+        lines[hit.line] = ':::' + words.join(' ');
+        caret = lineStart + lines[hit.line].length;   // 光标停在开头行末尾，方便接着叠下一个
+      } else {
+        let end = -1;
+        for (let k = hit.line + 1; k < lines.length; k++) {
+          if (lines[k].trim() === ':::') { end = k; break; }
+        }
+        if (end > 0) { lines.splice(end, 1); lines.splice(hit.line, 1); }
+        else lines[hit.line] = '';
+      }
+      box.value = lines.join('\n');
+      box.focus();
+      box.selectionStart = box.selectionEnd = Math.min(caret, box.value.length);
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    };
     const doAct = (act) => {
       if (act === 'bold') R.surround(box, '**', '**', PH.bold);
       else if (act === 'italic') R.surround(box, '*', '*', PH.italic);
       else if (act === 'hl') R.surround(box, '==', '==', '高亮的话');
       else if (act === 'del') R.surround(box, '~~', '~~', '划掉的字');
       else if (act === 'zoom') R.surround(box, '^^', '^^', '大一点的字');
-      else if (act === 'center') R.insertBlock(box, ':::center\n这一行居中显示。\n:::', 10, 18);
-      else if (act === 'big') R.insertBlock(box, ':::big\n放大的一行。\n:::', 7, 13);
-      else if (act === 'small') R.insertBlock(box, ':::small\n缩小的一行。\n:::', 9, 15);
-      else if (act === 'hw') R.insertBlock(box, ':::hw\n手写的字，信封背面的那种。\n:::', 6, 19);
-      else if (act === 'kai') R.insertBlock(box, ':::kai\n楷体的一行。\n:::', 7, 13);
+      else if (act === 'center' || act === 'big' || act === 'small' || act === 'hw' || act === 'kai') toggleLayout(act);
       else if (act === 'h2') R.prefixLines(box, '## ');
       else if (act === 'h3') R.prefixLines(box, '### ');
       else if (act === 'quote') R.prefixLines(box, '> ');
