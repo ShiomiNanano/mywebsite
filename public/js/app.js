@@ -2021,39 +2021,78 @@ const card = (x) => {
             <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
           </div>
           <div class="form-row">
-            <label>正文内容 <span class="hint">（一行就是一段；工具栏可以插人物卡、图片、互链等（互链写成 <code>[[名字]]</code>，指向同名设定））</span></label>
-            <div class="editor-toolbar" id="editorToolbar">
-              <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
-              <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
-              <span class="et-sep"></span>
-              <button type="button" class="et-btn" data-act="h2">小标题</button>
-              <button type="button" class="et-btn" data-act="h3">次级标题</button>
-              <button type="button" class="et-btn" data-act="quote">引用</button>
-              <button type="button" class="et-btn" data-act="hr">分隔线</button>
-              <span class="et-sep"></span>
-              <button type="button" class="et-btn et-key" data-act="card">人物卡</button>
-              <button type="button" class="et-btn" data-act="note">提示块</button>
-              <button type="button" class="et-btn" data-act="image">图片</button>
-              <span class="et-sep"></span>
-              <button type="button" class="et-btn" data-act="scene" title="章节内换场的一行分隔">场景分隔</button>
-              <button type="button" class="et-btn et-key" data-act="say">对白</button>
-              <button type="button" class="et-btn" data-act="letter">书信</button>
-              <button type="button" class="et-btn" data-act="spoiler">剧透折叠</button>
-              <span class="et-sep"></span>
-              <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
-              <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
-              <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
-              <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
-              <button type="button" class="et-btn et-wiki" data-act="wiki" title="插入指向某个设定的互链（写 [[名字]]）">互链</button>
-              <button type="button" class="et-btn et-wiki" data-act="wiki-alias" title="别名互链：显示成别的文字，但指向那个设定（写 [[名字|显示文字]]）">别名</button>
-              <span class="et-sep"></span>
-              <button type="button" class="et-btn" data-act="preview" id="etPreviewBtn">显示预览</button>
+            <label>正文内容 <span class="hint">（一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默）</span></label>
+            <div class="ws" id="wsWork">
+              <div class="ws-main">
+                <div class="ws-info" id="wsInfo"></div>
+                <div id="wsRestore"></div>
+                <div class="ws-bar editor-toolbar" id="editorToolbar">
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
+                    <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
+                    <button type="button" class="et-btn" data-act="hl" title="高亮：像用荧光笔划一道">高亮</button>
+                    <button type="button" class="et-btn" data-act="del" title="划掉：表示作废 / 删去的字">划掉</button>
+                    <button type="button" class="et-btn" data-act="zoom" title="相对放大：选中的这几个字比正文大一号">字大</button>
+                  </div>
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn" data-act="h2">小标题</button>
+                    <button type="button" class="et-btn" data-act="h3">次级标题</button>
+                    <button type="button" class="et-btn" data-act="quote">引用</button>
+                    <button type="button" class="et-btn" data-act="hr">分隔线</button>
+                    <button type="button" class="et-btn" data-act="scene" title="章节内换场的一行分隔">场景</button>
+                  </div>
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn et-key" data-act="epi" title="题记：放在章首的一句引文">题记</button>
+                    <button type="button" class="et-btn et-key" data-act="say" title="对白">对白</button>
+                    <button type="button" class="et-btn et-key" data-act="letter" title="书信">书信</button>
+                    <button type="button" class="et-btn et-key" data-act="doc" title="档案：一张米色纸片（调研说明 / 报告 / 通缉）">档案</button>
+                    <button type="button" class="et-btn et-key" data-act="memo" title="便签：斜贴的一张黄纸（菜单 / 留言）">便签</button>
+                    <button type="button" class="et-btn et-key" data-act="whisper" title="低语：小一号、发灰的轻话">低语</button>
+                    <button type="button" class="et-btn" data-act="seal" title="印章：斜盖上去的一方红印">印章</button>
+                    <button type="button" class="et-btn" data-act="time" title="时间 / 场景标">时间标</button>
+                    <button type="button" class="et-btn" data-act="beat" title="静默：留白里只放一个点">静默</button>
+                  </div>
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn et-key" data-act="center" title="这一块整体居中">居中</button>
+                    <button type="button" class="et-btn" data-act="big" title="这一块整体放大一号">放大</button>
+                    <button type="button" class="et-btn" data-act="small" title="这一块整体缩小一号（像注解）">缩小</button>
+                    <button type="button" class="et-btn et-key" data-act="hw" title="手写体 / 书信体：信、便条、题字">手写</button>
+                    <button type="button" class="et-btn" data-act="kai" title="楷体：比正文更古雅一点">楷体</button>
+                  </div>
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn" data-act="card">人物卡</button>
+                    <button type="button" class="et-btn et-wiki" data-act="wiki" title="插入指向某个设定的互链（写 [[名字]]）">互链</button>
+                    <button type="button" class="et-btn et-wiki" data-act="wiki-alias" title="别名互链：显示成别的文字，但指向那个设定">别名</button>
+                    <button type="button" class="et-btn" data-act="note">提示块</button>
+                    <button type="button" class="et-btn" data-act="image">图片</button>
+                    <button type="button" class="et-btn" data-act="spoiler">剧透</button>
+                  </div>
+                  <div class="ws-grp">
+                    <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
+                    <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
+                    <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
+                    <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
+                  </div>
+                </div>
+                <textarea name="content" id="wsText" class="ws-text" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
+                <div class="ws-foot">
+                  <span id="wsPos">第 1 段</span>
+                  <span id="wsCount">0 字</span>
+                  <span id="paraHint">正文还是空的</span>
+                  <span id="wsSaved" class="is-clean">未改动</span>
+                </div>
+              </div>
+              <aside class="ws-pane" id="wsPane">
+                <div class="ws-tabs" id="wsTabs">
+                  <button type="button" class="ws-tab is-on" data-panel="preview">预览</button>
+                  <button type="button" class="ws-tab" data-panel="check">检查<em id="wsCheckNum" hidden></em></button>
+                  <button type="button" class="ws-tab" data-panel="hist">版本</button>
+                </div>
+                <div class="ws-panel is-on" id="wsPanel-preview"><div class="reading-content editor-preview" id="editorPreview"></div></div>
+                <div class="ws-panel" id="wsPanel-check"><ul class="ws-checks" id="wsChecks"></ul></div>
+                <div class="ws-panel" id="wsPanel-hist"><ul class="ws-hist" id="wsHist"></ul></div>
+              </aside>
             </div>
-            <div class="editor-split" id="editorSplit">
-              <textarea name="content" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
-              <div class="editor-preview" id="editorPreview"><div class="reading-content"></div></div>
-            </div>
-            <p class="hint" id="paraHint"></p>
           </div>
           <div class="form-row">
           <!-- 原始 HTML 模式（高级）已按店长要求移除：后台只用标记式编辑器。
@@ -2315,96 +2354,427 @@ const card = (x) => {
     return blocks.filter(b => b.trim()).length;
   },
 
-  /* ---------- 后台正文编辑器：工具栏 + 实时预览 ---------- */
+  /* ---------- 后台正文编辑器：写作台（左结构 / 中正文 / 右预览·检查·版本） ----------
+     仍然是同一个 <textarea> + 标记语法，只是把「写」这件事周围的脚手架补齐了：
+       · 实时预览、检查、版本三个抽屉（手机上排在正文下面）
+       · 本机自动保存 + 草稿恢复（换设备不跟手，所以只叫「本机快照」）
+       · [[ 自动补全设定名
+       · 左侧结构树，随时跳到别的一节
+     所有状态都挂在闭包里，不污染 App.state。 */
   initEditor() {
     const box = document.querySelector('textarea[name="content"]');
-    const bar = document.getElementById('editorToolbar');
-    const wrap = document.getElementById('editorSplit');
-    const pane = document.getElementById('editorPreview');
-    if (!box || !bar || !window.Rich) return;
+    if (!box || !window.Rich) return;
     const R = window.Rich;
+    const byId = (id) => document.getElementById(id);
+    const bar = byId('editorToolbar');
+    const pane = byId('editorPreview');
+    const tabs = byId('wsTabs');
+    const checkList = byId('wsChecks');
+    const histList = byId('wsHist');
+    const checkNum = byId('wsCheckNum');
+    const footPos = byId('wsPos');
+    const footCount = byId('wsCount');
+    const footSaved = byId('wsSaved');
+    const hint = byId('paraHint');
+    const info = byId('wsInfo');
+    const restore = byId('wsRestore');
+    const wsWrap = byId('wsWork');
+    if (!bar || !pane) return;
 
-    const paint = () => {
-      const holder = pane && pane.firstElementChild;
-      if (!holder) return;
-      const html = R.render(box.value);
-      holder.innerHTML = html || '<p class="ph">（还没有内容，左边写完这里就会实时显示）</p>';
+    const editId = (location.hash.match(/admin\/edit\/(\d+)/) || [])[1] || 'new';
+    const K_DRAFT = 'dream-edit:' + editId;
+    const K_HIST = 'dream-edit-hist:' + editId;
+    const LIMIT_HIST = 12;
+
+    /* ---------- 小工具 ---------- */
+    const hhmm = (ts) => {
+      const d = new Date(ts || Date.now());
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     };
-    let timer = 0;
-    const lazyPaint = () => { clearTimeout(timer); timer = setTimeout(paint, 120); };
+    const store = {
+      get(k, def) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } },
+      set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+      del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+    };
+    // 字数：去掉标记符号与空白，比“字符数”更接近作者心里的字数
+    const plainLen = (t) => String(t || '')
+      .replace(/^\s*:::[a-z]+.*$/gm, '')
+      .replace(/[#*>\[\]{}|=~:_`\-]/g, '')
+      .replace(/\s+/g, '').length;
 
-    const PLACEHOLDERS = { bold: '加粗文字', italic: '斜体文字' };
+    /* ---------- 预览 ---------- */
+    const paint = () => {
+      const html = R.render(box.value);
+      pane.innerHTML = html || '<p class="ph">（还没有内容，左边写完这里就会实时显示）</p>';
+      this.markWiki(pane);
+    };
+    let paintTimer = 0;
+    const lazyPaint = () => { clearTimeout(paintTimer); paintTimer = setTimeout(paint, 120); };
+
+    /* ---------- 底部状态 ---------- */
+    const caretPara = () => {
+      const before = box.value.slice(0, box.selectionStart);
+      const n = before.split('\n').length;
+      return Math.max(1, n);
+    };
+    const refreshStats = () => {
+      const n = this.countParagraphs(box.value);
+      if (hint) hint.textContent = n === 0 ? '正文还是空的' : '共 ' + n + ' 段';
+      if (footCount) footCount.textContent = plainLen(box.value).toLocaleString() + ' 字';
+      if (footPos) footPos.textContent = '第 ' + caretPara() + ' 段';
+    };
+
+    /* ---------- 抽屉：预览 / 检查 / 版本 ---------- */
+    const showPanel = (name) => {
+      if (!tabs) return;
+      [...tabs.querySelectorAll('[data-panel]')].forEach((b) => b.classList.toggle('is-on', b.dataset.panel === name));
+      [...document.querySelectorAll('.ws-panel')].forEach((p) => p.classList.toggle('is-on', p.id === 'wsPanel-' + name));
+      if (name === 'check') runChecks();
+      if (name === 'hist') paintHist();
+    };
+
+    /* ---------- 检查 ---------- */
+    let wikiNames = [];
+    const runChecks = () => {
+      if (!checkList) return;
+      const text = box.value;
+      const items = [];
+      const lines = text.split('\n');
+
+      // 1. ::: 块没关
+      let depth = 0, openAt = 0;
+      lines.forEach((l, i) => {
+        const t = l.trim();
+        if (/^:::(epi|doc|memo|whisper|seal|say|letter|spoiler|card|note)\b/.test(t)) {
+          if (!depth) openAt = i + 1;
+          depth++;
+        } else if (t === ':::') {
+          depth = Math.max(0, depth - 1);
+        }
+      });
+      if (depth) items.push({ lv: 'bad', text: '第 ' + openAt + ' 行的 ::: 块没收尾，补一行 :::', line: openAt });
+
+      // 2. 空块（:::note 下面一行都没有）；印章的内容就在开头那一行，不算空块
+      for (let i = 0; i < lines.length - 1; i++) {
+        if (/^:::(epi|doc|memo|whisper|say|letter|spoiler|card|note)\b/.test(lines[i].trim())
+          && lines[i + 1].trim() === ':::') {
+          items.push({ lv: 'warn', text: '第 ' + (i + 1) + ' 行的块是空的', line: i + 1 });
+        }
+      }
+
+      // 3. [[名字]] 指向的设定不存在
+      const missing = [];
+      const reWiki = /\[\[([^\[\]|]+)(?:\|[^\[\]]+)?\]\]/g;
+      let mm;
+      while ((mm = reWiki.exec(text))) {
+        const name = mm[1].trim();
+        if (wikiNames.length && !wikiNames.includes(name) && !missing.includes(name)) missing.push(name);
+      }
+      if (missing.length) items.push({ lv: 'warn', text: '这些互链没有对应的设定：' + missing.slice(0, 4).join('、') });
+
+      // 4. 超长段（一段两百多字，手机上就是一大坨）
+      lines.forEach((l, i) => {
+        const t = l.trim();
+        if (!t || /^:::|^#{2,3}\s|^!\[|^>/.test(t)) return;
+        if (t.length > 220) items.push({ lv: 'warn', text: '第 ' + (i + 1) + ' 段有 ' + t.length + ' 字，考虑断开', line: i + 1 });
+      });
+
+      // 5. 行尾空格 / 全角空格 / 连续空行
+      lines.forEach((l, i) => {
+        if (/[ \t]+$/.test(l) && !/ {2}$/.test(l)) items.push({ lv: 'ok', text: '第 ' + (i + 1) + ' 行行尾多了空格', line: i + 1 });
+        if (/[\u3000]/.test(l)) items.push({ lv: 'ok', text: '第 ' + (i + 1) + ' 行有全角空格', line: i + 1 });
+      });
+      if (/\n{3,}/.test(text)) items.push({ lv: 'warn', text: '有连续三行以上的空行' });
+
+      // 6. 引号配对
+      const open = (text.match(/「/g) || []).length;
+      const close = (text.match(/」/g) || []).length;
+      if (open !== close) items.push({ lv: 'warn', text: '「」数量对不上（' + open + ' 个「 / ' + close + ' 个」）' });
+      const lq = (text.match(/“/g) || []).length;
+      const rq = (text.match(/”/g) || []).length;
+      if (lq !== rq) items.push({ lv: 'warn', text: '“”数量对不上（' + lq + ' / ' + rq + '）' });
+
+      // 7. 简介
+      const sum = document.querySelector('#adminForm input[name="summary"]');
+      if (sum && !sum.value.trim()) items.push({ lv: 'ok', text: '还没写卡片简介（留空会自动截取正文开头）' });
+
+      const bad = items.filter((x) => x.lv === 'bad').length;
+      const warn = items.filter((x) => x.lv === 'warn').length;
+      if (checkNum) {
+        checkNum.hidden = !(bad + warn);
+        checkNum.textContent = String(bad + warn);
+      }
+      checkList.innerHTML = items.length
+        ? items.map((x) => `<li class="ws-check ${x.lv}"><i>${x.lv === 'bad' ? '！' : x.lv === 'warn' ? '·' : '·'}</i>`
+          + `<span>${esc(x.text)}</span>${x.line ? `<em data-line="${x.line}">定位</em>` : ''}</li>`).join('')
+        : '<li class="ws-check ok"><i>✓</i><span>没发现明显问题，可以发了</span></li>';
+      return { bad, warn };
+    };
+
+    // 点「定位」跳到那一行
+    checkList && checkList.addEventListener('click', (ev) => {
+      const em = ev.target.closest('[data-line]');
+      if (!em) return;
+      const ln = Number(em.dataset.line) - 1;
+      const lines = box.value.split('\n');
+      let pos = 0;
+      for (let i = 0; i < ln && i < lines.length; i++) pos += lines[i].length + 1;
+      box.focus();
+      box.setSelectionRange(pos, pos + (lines[ln] || '').length);
+      const lh = parseFloat(getComputedStyle(box).lineHeight) || 26;
+      box.scrollTop = Math.max(0, ln * lh - box.clientHeight / 2);
+    });
+
+    /* ---------- 版本（本机快照） ---------- */
+    const snapList = () => store.get(K_HIST, []);
+    const paintHist = () => {
+      if (!histList) return;
+      const list = snapList();
+      histList.innerHTML = list.length
+        ? list.map((s, i) => `<li><b>${esc(s.t)}</b><span>${esc(s.label || '自动')}</span>`
+          + `<span>${plainLen(s.v).toLocaleString()} 字</span><button type="button" data-hist="${i}">恢复</button></li>`).join('')
+        : '<li><span>还没有快照。改动满两分钟或手动保存时会自动留一份。</span></li>';
+    };
+    const snap = (label) => {
+      const v = box.value;
+      if (!v.trim()) return;
+      const list = snapList();
+      if (list[0] && list[0].v === v) return;
+      if (label === '自动' && list[0] && Date.now() - (list[0].at || 0) < 120000) return;
+      list.unshift({ t: hhmm(), at: Date.now(), label, v });
+      store.set(K_HIST, list.slice(0, LIMIT_HIST));
+      paintHist();
+    };
+    histList && histList.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-hist]');
+      if (!b) return;
+      const s = snapList()[Number(b.dataset.hist)];
+      if (!s || !confirm('把这版内容恢复进编辑框？当前内容会先存成一份快照。')) return;
+      snap('恢复前');
+      box.value = s.v;
+      box.dispatchEvent(new Event('input'));
+      paint();
+    });
+
+    /* ---------- 本机自动保存 ---------- */
+    const markSaved = (t) => {
+      if (!footSaved) return;
+      footSaved.textContent = '已保存 ' + t;
+      footSaved.className = 'is-clean';
+    };
+    let saveTimer = 0;
+    const autoSave = () => {
+      const t = hhmm();
+      if (store.set(K_DRAFT, { t, at: Date.now(), v: box.value })) markSaved(t);
+      snap('自动');
+    };
+    const lazySave = () => {
+      if (footSaved) { footSaved.textContent = '未保存…'; footSaved.className = 'is-dirty'; }
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(autoSave, 2200);
+    };
+
+    // 打开时若本机有更新的草稿，给一条可恢复的提示（不自动覆盖）
+    const draft = store.get(K_DRAFT, null);
+    if (restore && draft && typeof draft.v === 'string' && draft.v !== box.value && draft.v.trim()) {
+      restore.innerHTML = `<div class="ws-hint-bar"><span>本机还有一份 ${esc(draft.t || '')} 的草稿（${plainLen(draft.v).toLocaleString()} 字）</span>`
+        + '<button type="button" data-r="use">用这份草稿</button>'
+        + '<button type="button" data-r="drop" class="ghost">丢掉</button></div>';
+      restore.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-r]');
+        if (!b) return;
+        if (b.dataset.r === 'use') {
+          box.value = draft.v;
+          box.dispatchEvent(new Event('input'));
+          paint();
+        } else {
+          store.del(K_DRAFT);
+        }
+        restore.innerHTML = '';
+      });
+    }
+    if (draft && draft.v === box.value) markSaved(draft.t || hhmm());
+
+    /* ---------- 工具栏 ---------- */
+    const PH = { bold: '加粗文字', italic: '斜体文字', hl: '要highlight的文字', del: '作废的字' };
     const doAct = (act) => {
-      if (act === 'bold') R.surround(box, '**', '**', PLACEHOLDERS.bold);
-      else if (act === 'italic') R.surround(box, '*', '*', PLACEHOLDERS.italic);
+      if (act === 'bold') R.surround(box, '**', '**', PH.bold);
+      else if (act === 'italic') R.surround(box, '*', '*', PH.italic);
+      else if (act === 'hl') R.surround(box, '==', '==', '高亮的话');
+      else if (act === 'del') R.surround(box, '~~', '~~', '划掉的字');
+      else if (act === 'zoom') R.surround(box, '^^', '^^', '大一点的字');
+      else if (act === 'center') R.insertBlock(box, ':::center\n这一行居中显示。\n:::', 10, 18);
+      else if (act === 'big') R.insertBlock(box, ':::big\n放大的一行。\n:::', 7, 13);
+      else if (act === 'small') R.insertBlock(box, ':::small\n缩小的一行。\n:::', 9, 15);
+      else if (act === 'hw') R.insertBlock(box, ':::hw\n手写的字，信封背面的那种。\n:::', 6, 19);
+      else if (act === 'kai') R.insertBlock(box, ':::kai\n楷体的一行。\n:::', 7, 13);
       else if (act === 'h2') R.prefixLines(box, '## ');
       else if (act === 'h3') R.prefixLines(box, '### ');
       else if (act === 'quote') R.prefixLines(box, '> ');
       else if (act === 'hr') R.insertBlock(box, '---');
+      else if (act === 'scene') R.insertBlock(box, ':::scene');
+      else if (act === 'beat') R.insertBlock(box, ':::beat');
+      else if (act === 'time') R.insertBlock(box, ':::time 04:12 · 雨', 8, 16);
+      else if (act === 'epi') R.insertBlock(box, ':::epi 出自哪里\n一句放在章首的引文。\n:::', 7, 15);
+      else if (act === 'doc') R.insertBlock(box, ':::doc 档案标题\n正文按照档案的口吻写……\n:::', 7, 12);
+      else if (act === 'memo') R.insertBlock(box, ':::memo 便签标题\n一行一行写上去。\n:::', 8, 13);
+      else if (act === 'whisper') R.insertBlock(box, ':::whisper\n声音很轻的一句话。\n:::', 11, 19);
+      else if (act === 'seal') R.insertBlock(box, ':::seal 驳回\n:::', 8, 11);
       else if (act === 'note') R.insertBlock(box, ':::note 提示标题\n写在这里\n:::', 8, 12);
       else if (act === 'image') R.insertBlock(box, '![图片说明](https://图片地址)', 2, 6);
-      else if (act === 'scene') R.insertBlock(box, ':::scene');
       else if (act === 'say') R.insertBlock(box, ':::say 角色名\n「台词……」\n:::', 4, 7);
       else if (act === 'letter') R.insertBlock(box, ':::letter 标题\n内容……\n:::', 8, 10);
       else if (act === 'spoiler') R.insertBlock(box, ':::spoiler 后文剧透\n这里写不能提前看的内容……\n:::', 10, 14);
       else if (act.indexOf('c-') === 0) R.surround(box, '{{' + act.slice(2) + '|', '}}', '文字');
-      /* 互链：选中了文字就包成 [[选中]]；没选就插 [[名字]] 并把「名字」选中，直接打字即可替换。 */
       else if (act === 'wiki') R.surround(box, '[[', ']]', '名字');
-      /* 别名：选中「潮見柒乃」再点，得到 [[潮見柒乃|显示文字]] ——
-         链接仍指向潮見柒乃，读者看到的是「显示文字」。没选就把「名字」占位选中。 */
       else if (act === 'wiki-alias') R.surround(box, '[[', '|显示文字]]', '名字');
-      else if (act === 'card') {
-        const tpl = ':::card 名字 | 别名\n@ 一句话简介（年龄 / 身份 之类）\n正文……\n:::';
-        R.insertBlock(box, tpl, 8, 10);
-      } else if (act === 'preview') {
-        const on = wrap.classList.toggle('preview-off');
-        const btn = document.getElementById('etPreviewBtn');
-        if (btn) btn.textContent = on ? '显示预览' : '隐藏预览';
-      }
+      else if (act === 'card') R.insertBlock(box, ':::card 名字 | 别名\n@ 一句话简介（年龄 / 身份 之类）\n正文……\n:::', 8, 10);
       paint();
-      this.markWiki(document.getElementById('editorPreview'));   // 预览里的互链：有词条=金色，没写过=灰色
-      const n = this.countParagraphs(box.value);
-      const hint = document.getElementById('paraHint');
-      if (hint) hint.textContent = '共 ' + n + ' 段（一行一段；工具栏插入的块也算在内）';
+      refreshStats();
+      lazySave();
     };
 
     bar.addEventListener('click', (ev) => {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
       ev.preventDefault();
-      const st = box.scrollTop, sl = box.scrollLeft;   // 记住视野
+      const st = box.scrollTop, sl = box.scrollLeft;   // 记住视野，别让长文跳回顶部
       doAct(btn.dataset.act);
       box.focus();
-      /* 把视野还原回去。textarea 重新获得焦点时，浏览器会把滚动位置拉到光标处，
-         长正文里就表现为"框一下子跳到文末"，作者得自己爬回去找刚才写的地方。 */
       box.scrollTop = st;
       box.scrollLeft = sl;
     });
 
-    box.addEventListener('input', () => {
-      lazyPaint();
-      this.updateParaHint();
+    tabs && tabs.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-panel]');
+      if (b) showPanel(b.dataset.panel);
     });
 
-    // Ctrl/Cmd + B / I
+    box.addEventListener('input', () => { lazyPaint(); refreshStats(); lazySave(); closeComplete(); });
+    box.addEventListener('keyup', (ev) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(ev.key)) refreshStats();
+    });
+    box.addEventListener('click', refreshStats);
+    box.addEventListener('blur', () => setTimeout(closeComplete, 150));
+
+    // Ctrl/Cmd + B / I / K
     box.addEventListener('keydown', (ev) => {
       if (!(ev.ctrlKey || ev.metaKey)) return;
       const k = (ev.key || '').toLowerCase();
-      if (k !== 'b' && k !== 'i') return;
-      ev.preventDefault();
-      doAct(k === 'b' ? 'bold' : 'italic');
+      if (k === 'b' || k === 'i') { ev.preventDefault(); doAct(k === 'b' ? 'bold' : 'italic'); return; }
+      if (k === 's') { ev.preventDefault(); autoSave(); return; }
+      if (k === 'enter') { ev.preventDefault(); const c = pickComplete(); if (c != null) applyComplete(c); }
     });
 
-    paint();
+    /* ---------- [[ 自动补全 ---------- */
+    let completeEl = null;
+    let completeItems = [];
+    const closeComplete = () => { if (completeEl) { completeEl.remove(); completeEl = null; } };
+    const pickComplete = () => (completeEl ? completeEl.querySelector('button.is-on') : null);
+    const applyComplete = (btn) => {
+      if (!btn) return;
+      const name = btn.dataset.name;
+      const pos = box.selectionStart;
+      const before = box.value.slice(0, pos);
+      const m = /\[\[([^\[\]\n|]{0,20})$/.exec(before);
+      if (!m) return;
+      const start = pos - m[0].length;
+      box.value = box.value.slice(0, start) + '[[' + name + ']]' + box.value.slice(pos);
+      const caret = start + name.length + 4;
+      box.setSelectionRange(caret, caret);
+      closeComplete();
+      box.dispatchEvent(new Event('input'));
+    };
+    const showComplete = (kw) => {
+      const pool = wikiNames.filter((n) => !kw || n.indexOf(kw) === 0 || n.indexOf(kw) >= 0).slice(0, 8);
+      if (!pool.length) { closeComplete(); return; }
+      if (!completeEl) {
+        completeEl = document.createElement('div');
+        completeEl.className = 'ws-complete';
+        bar.after(completeEl);
+      }
+      completeItems = pool;
+      completeEl.innerHTML = pool.map((n, i) => `<button type="button" data-name="${esc(n)}" class="${i === 0 ? 'is-on' : ''}">${esc(n)}</button>`).join('');
+    };
+    completeEl && null;
+    document.addEventListener('click', (ev) => {
+      if (!completeEl) return;
+      if (ev.target.closest('.ws-complete')) {
+        const b = ev.target.closest('[data-name]');
+        if (b) { ev.preventDefault(); applyComplete(b); }
+        return;
+      }
+      if (!ev.target.closest('#editorToolbar')) closeComplete();
+    });
+    box.addEventListener('input', () => {
+      if (!wikiNames.length) return;
+      const m = /\[\[([^\[\]\n|]{0,20})$/.exec(box.value.slice(0, box.selectionStart));
+      if (m) showComplete(m[1].trim()); else closeComplete();
+    });
 
-    // 老文章：异步取回标记原文回填。只有用户还没动过输入框才覆盖，
-    // 免得网络慢的时候把刚敲的字冲掉。
-    const m = location.hash.match(/admin\/edit\/(\d+)/);
-    if (!m) return;
-    const initial = box.value;
-    API.get('/api/admin/source/' + m[1]).then(r => {
-      if (r && r.source && box.value === initial) { box.value = r.source; paint(); this.updateParaHint(); }
+    /* ---------- 设定名（给 [[ 补全 用，结构树已经去掉） ---------- */
+    API.get('/api/menu').then((m) => {
+      wikiNames = ((m && m.settings) || []).map((s) => s.title).filter(Boolean);
     }).catch(() => {});
+
+    /* ---------- 顶部信息条 ---------- */
+    const refreshInfo = () => {
+      if (!info) return;
+      const cat = document.querySelector('#adminForm select[name="category"]');
+      const chNo = document.querySelector('#adminForm input[name="chapter_no"]');
+      const chTitle = document.querySelector('#adminForm input[name="chapter_title"]');
+      const secNo = document.querySelector('#adminForm input[name="section_no"]');
+      const secTitle = document.querySelector('#adminForm input[name="section_title"]');
+      const bits = [];
+      if (cat && cat.value === 'main') {
+        if (chNo && chNo.value !== '') bits.push(this.chapterLabel(chNo.value, chTitle && chTitle.value));
+        else bits.push('未定章');
+        if (secNo && secNo.value) bits.push('第 ' + secNo.value + ' 节');
+        if (secTitle && secTitle.value) bits.push(secTitle.value);
+      } else if (cat && cat.value === 'personal') {
+        bits.push('个人章');
+        if (secTitle && secTitle.value) bits.push(secTitle.value);
+      } else {
+        bits.push('设定');
+      }
+      bits.push(editId === 'new' ? '新建（还没保存过）' : '编号 #' + editId);
+      info.innerHTML = bits.map((x) => `<b>${esc(x)}</b>`).join('<span>·</span>');
+    };
+    ['category', 'chapter_no', 'chapter_title', 'section_no', 'section_title'].forEach((n) => {
+      const el = document.querySelector('#adminForm [name="' + n + '"]');
+      if (el) el.addEventListener('input', refreshInfo);
+      if (el) el.addEventListener('change', refreshInfo);
+    });
+
+    /* ---------- 老文章：异步取回标记原文 ---------- */
+    const m = location.hash.match(/admin\/edit\/(\d+)/);
+    if (m) {
+      const initial = box.value;
+      API.get('/api/admin/articles/' + m[1]).then((r) => {
+        if (r && r.source && box.value === initial) {
+          box.value = r.source;
+          paint();
+          refreshStats();
+          refreshInfo();
+          snap('打开');   // 原文是异步回来的，快照要等它落地再存一份
+          paintHist();
+        }
+      }).catch(() => {});
+    }
+
+    /* ---------- 收尾 ---------- */
+    document.getElementById('adminForm') && document.getElementById('adminForm').addEventListener('submit', () => {
+      snap('提交前');
+      autoSave();
+    });
+    window.addEventListener('beforeunload', () => { if (saveTimer) autoSave(); });
+
+    paint();
+    refreshStats();
+    refreshInfo();
+    snap('打开');
+    paintHist();
+    showPanel('preview');
   },
 
   // 正文框下面的提示：让作者当场看到"会被识别成几段"

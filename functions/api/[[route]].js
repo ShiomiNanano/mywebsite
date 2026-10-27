@@ -159,6 +159,11 @@ function richInline(s) {
         const show = String(label || target).trim();
         return '<a class="wiki" href="#/wiki/' + encodeURIComponent(t) + '">' + show + '</a>';
       })
+      // 高亮：==文字==（像用荧光笔划了一道）/ 划掉：~~文字~~
+      .replace(/==([^=\n]+)==/g, '<mark class="hl">$1</mark>')
+      .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
+      // 相对放大：^^文字^^（比正文大一号，正文是 17px，这里是 1.16 倍）
+      .replace(/\^\^([^^\n]+)\^\^/g, '<span class="fs-up">$1</span>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 }
@@ -244,7 +249,46 @@ function richToHtml(text) {
             + '</summary><div class="rc-spoiler-body">' + richParas(buf4) + '</div></details>');
         }
         continue;
-      }    const blk = /^:::(card|note)\s*(.*)$/.exec(t);
+      }
+      // 题记 / 档案 / 便签 / 低语 / 印章：都有 ::: 收尾
+      var blk5 = /^:::(epi|doc|memo|whisper|seal)\s*(.*)$/.exec(t);
+      if (blk5) {
+        var kind5 = blk5[1], head5 = blk5[2].trim(), buf5 = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ':::') { buf5.push(lines[i]); i++; }
+        i++;
+        if (kind5 === 'epi') {
+          out.push('<div class="rc-epi">' + richParas(buf5) + (head5 ? '<cite>' + richInline(head5) + '</cite>' : '') + '</div>');
+        } else if (kind5 === 'doc') {
+          out.push('<div class="rc-doc">' + (head5 ? '<div class="rc-doc-head">' + richInline(head5) + '</div>' : '')
+            + '<div class="rc-doc-body">' + richParas(buf5) + '</div></div>');
+        } else if (kind5 === 'memo') {
+          out.push('<div class="rc-memo">' + (head5 ? '<div class="rc-memo-head">' + richInline(head5) + '</div>' : '')
+            + '<div class="rc-memo-body">' + richParas(buf5) + '</div></div>');
+        } else if (kind5 === 'whisper') {
+          out.push('<div class="rc-whisper">' + richParas(buf5) + '</div>');
+        } else {
+          out.push('<div class="rc-seal"><span>' + richInline(head5 || buf5.join(' ') || '印') + '</span></div>');
+        }
+        continue;
+      }
+      // 版式块：居中 / 放大 / 缩小 / 手写体 / 楷体（都要 ::: 收尾）
+      var blk6 = /^:::(center|big|small|hw|kai)\s*$/.exec(t);
+      if (blk6) {
+        var CLS6 = { center: 'rc-center', big: 'rc-big', small: 'rc-small', hw: 'rc-hw', kai: 'rc-kai' };
+        var buf6 = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ':::') { buf6.push(lines[i]); i++; }
+        i++;
+        out.push('<div class="' + CLS6[blk6[1]] + '">' + richParas(buf6) + '</div>');
+        continue;
+      }
+      // 静默 / 时间标：单行，不需要收尾
+      var beat = /^:::beat\s*(.*)$/.exec(t);
+      if (beat) { out.push('<div class="rc-beat">' + richInline(beat[1].trim() || '·') + '</div>'); i++; continue; }
+      var tm = /^:::time\s+(.+)$/.exec(t);
+      if (tm) { out.push('<div class="rc-time"><span>' + richInline(tm[1].trim()) + '</span></div>'); i++; continue; }
+      const blk = /^:::(card|note)\s*(.*)$/.exec(t);
     if (blk) {
       const kind = blk[1], head = blk[2].trim(), buf = [];
       i++;

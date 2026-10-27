@@ -1826,6 +1826,145 @@ html[data-wallpaper="on"] .menu-continue {
   .editor-split { grid-template-columns: 1fr 1fr; }
   .editor-split.preview-off { grid-template-columns: 1fr; }
 }
+/* ============================================================================
+   写作台 1.5：左结构 / 中正文 / 右预览·检查·版本
+   ----------------------------------------------------------------------------
+   手机竖屏先满足：正文优先，工具栏横滑，预览/检查排在正文下方；
+   宽屏才把结构树和右栏固定在两侧。所有面板都只是 .ws 的网格子项，
+   不靠 fixed 浮层，避免手机上遮住键盘。
+   ============================================================================ */
+.ws {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 0;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); overflow: hidden;
+}
+/* 手机/桌面的底部导航是 fixed 的，会盖住最后一屏，给写作台留出空档 */
+#wsWork { margin-bottom: 72px; }
+.ws-main { display: flex; flex-direction: column; min-width: 0; }
+.ws-info {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
+  padding: 9px 14px; background: var(--surface-3);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-3);
+}
+.ws-info b { font-weight: 500; color: var(--ink-2); }
+.ws-tools { display: flex; gap: 4px; }
+
+/* 工具栏：宽屏换行、手机横滑 */
+.ws-bar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: nowrap;
+  padding: 7px 10px; background: transparent;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.ws-bar::-webkit-scrollbar { display: none; }
+.ws-bar .et-btn { flex: 0 0 auto; }
+.ws-grp { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+.ws-grp + .ws-grp { padding-left: 5px; border-left: 1px solid var(--line); margin-left: 2px; }
+.ws-text {
+  width: 100%; min-height: 46vh; padding: var(--sp-4) var(--sp-5);   flex: 1 1 auto;
+  background: transparent; border: 0; border-radius: 0;
+  color: var(--ink); line-height: 1.85; font-family: var(--font-body);
+  font-size: var(--fs-md); resize: vertical;
+}
+.ws-text:focus { outline: none; }
+.ws-foot {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: 8px 14px; background: var(--surface-3); border-top: 1px solid var(--line);
+  font-family: var(--font-body); font-size: 11.5px; color: var(--ink-3);
+}
+.ws-foot span { letter-spacing: .04em; }
+.ws-foot .is-dirty { color: var(--gold); }
+.ws-foot .is-clean { color: var(--ink-3); }
+.ws-pane { display: grid; gap: 0; min-width: 0; align-content: start; border-top: 1px solid var(--line); }
+.ws-tabs { display: flex; gap: 2px; padding: 6px 8px 0; background: var(--surface-3);
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+.ws-tab {
+  flex: 1; padding: 7px 4px; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .06em;
+  color: var(--ink-3); background: none; border: 0; border-radius: var(--r-sm);
+}
+.ws-tab:hover { color: var(--ink); background: var(--surface-3); }
+.ws-tab.is-on { color: var(--ink); background: var(--surface-3); box-shadow: inset 0 -2px 0 var(--gold); }
+.ws-tab em { font-style: normal; margin-left: 4px; color: var(--gold); }
+.ws-panel { display: none; }
+.ws-panel.is-on { display: block; }
+.ws-panel { max-height: 66vh; overflow: auto; }
+.ws-panel .reading-content {
+  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  background: transparent; border: 0; border-radius: 0;
+}
+.ws-checks { display: grid; gap: 6px; margin: 0; padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  list-style: none; background: transparent; border: 0; border-radius: 0;
+  max-height: 66vh; overflow: auto; }
+.ws-check {
+  display: flex; gap: 7px; padding: 7px 9px; border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: var(--fs-xs); line-height: 1.7;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-2);
+}
+.ws-check b { color: var(--ink); font-weight: 500; }
+.ws-check em { font-style: normal; margin-left: auto; white-space: nowrap; color: var(--ink-3); cursor: pointer; }
+.ws-check:hover em { color: var(--gold); }
+.ws-check.ok { border-color: transparent; background: none; color: var(--ink-3); }
+.ws-check.warn { border-color: var(--frame-line); background: var(--gold-soft); }
+.ws-check.bad { border-color: rgba(232, 154, 154, .35); background: rgba(232, 154, 154, .08); }
+.ws-check.bad i { color: var(--tint-red, #e89a9a); }
+.ws-check i { font-style: normal; flex: 0 0 auto; }
+.ws-hist { display: grid; gap: 6px; margin: 0; padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  list-style: none; background: transparent; border: 0; border-radius: 0;
+  max-height: 66vh; overflow: auto; }
+.ws-hist li {
+  display: flex; align-items: baseline; gap: 8px; padding: 7px 9px;
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
+}
+.ws-hist b { font-weight: 500; color: var(--ink); }
+.ws-hist button {
+  margin-left: auto; padding: 2px 9px; cursor: pointer;
+  font-size: 11.5px; color: var(--gold); background: none;
+  border: 1px solid var(--frame-line); border-radius: var(--r-full);
+}
+/* [[ 补全：走文档流贴在工具栏下面，手机弹出键盘时也不会被顶出屏幕 */
+.ws-complete {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; padding: 6px;
+  background: var(--surface-3); border: 1px solid var(--line-2); border-radius: var(--r-sm);
+}
+.ws-complete button {
+  padding: 5px 10px; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-full);
+}
+.ws-complete button:hover, .ws-complete button.is-on { background: var(--gold-soft); color: var(--gold); }
+.ws-hint-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 4px;
+  background: var(--gold-soft); border: 1px solid var(--frame-line); border-radius: var(--r-sm);
+  font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-2);
+}
+.ws-hint-bar button {
+  padding: 3px 10px; cursor: pointer; font-size: 11.5px;
+  color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line-2); border-radius: var(--r-full);
+}
+.ws-hint-bar button.ghost { color: var(--ink-3); background: none; border-color: var(--line); }
+
+/* 宽屏时写作台比表单宽：表单是阅读宽度（约 620px），三栏挤在里头会把中栏压没。
+   用 margin-left 把它从表单里撑出去并居中，不改动表单自身宽度。 */
+@media (min-width: 1100px) {
+  #wsWork {
+    width: min(1180px, 96vw);
+    margin-left: calc(50% - min(590px, 48vw));
+  }
+}
+@media (min-width: 1000px) {
+  .ws { grid-template-columns: minmax(0, 1fr) 384px; align-items: stretch; }
+  .ws-pane { border-top: 0; border-left: 1px solid var(--line); }
+  .ws-text { min-height: 52vh; }
+  .ws-bar { flex-wrap: wrap; overflow: visible; }
+}
+@media (min-width: 760px) and (max-width: 999px) {
+  .ws-text { min-height: 50vh; }
+}
 @media (max-width: 899px) {
   .editor-split .editor-preview { display: none; }
   .editor-split:not(.preview-off) .editor-preview { display: block; }
@@ -2212,6 +2351,22 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
     background: linear-gradient(168deg, var(--tag-paper-1, #f5edde) 0%, var(--tag-paper-2, #d8cab0) 100%);
   }
 }
+/* 版式块：居中 / 放大 / 缩小 / 手写体（书信体）/ 楷体，以及行内 ^^放大^^
+   —— .reading-content p 自带 text-align:justify + text-indent:2em，
+      所以这些覆盖必须写在 p 上，写在外层 div 上是压不住的。 */
+.reading-content .rc-center p { text-align: center; text-indent: 0; }
+.reading-content .rc-big p { font-size: clamp(19px, 5.6vw, 21px); line-height: 1.9; text-indent: 0; }
+.reading-content .rc-small p { font-size: clamp(14.5px, 4.2vw, 16px); line-height: 2; color: var(--ink-2); text-indent: 0; }
+.reading-content .rc-hw p {
+  font-family: var(--font-hand); font-size: clamp(21px, 6.2vw, 24px);
+  line-height: 1.85; letter-spacing: .02em; text-indent: 0;
+}
+.reading-content .rc-kai p {
+  font-family: KaiTi, "Kaiti SC", STKaiti, var(--font-serif);
+  font-size: clamp(18px, 5.2vw, 20px); line-height: 2; text-indent: 0;
+}
+.reading-content .fs-up { font-size: 1.12em; letter-spacing: .01em; }
+
 /* ============================================================================
    新增：场景分隔 / 对白 / 书信 / 剧透折叠 + 四种字体颜色
    ----------------------------------------------------------------------------
@@ -2245,7 +2400,11 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   font-family: var(--font-serif); font-size: var(--fs-md);
   color: var(--gold-2); letter-spacing: .06em;
 }
-.reading-content .rc-letter-body p { text-indent: 0; margin-bottom: .6em; }
+/* 信的正文默认就是手写体（取不到手写字体时自动落回楷体） */
+.reading-content .rc-letter-body p {
+  text-indent: 0; margin-bottom: .6em;
+  font-family: var(--font-hand); font-size: clamp(19px, 5.4vw, 22px); line-height: 1.9;
+}
 
 .reading-content .rc-spoiler {
   margin: 0 0 var(--sp-5); overflow: hidden;
@@ -2264,6 +2423,146 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   border-top: 1px solid var(--frame-line);
 }
 .reading-content .rc-spoiler-body p { text-indent: 0; margin-bottom: .6em; }
+
+/* ============================================================================
+   新增的「眼前一亮」块：题记 / 档案 / 便签 / 低语 / 印章 / 时间标 / 静默
+   ----------------------------------------------------------------------------
+   都是从已发布的正文里挑出来的场景（卷首题记、公海群岛调研说明、店门口的小黑板、
+   梦境里的轻话、驳回文书、凌晨四点的雨）。颜色一律 var(名, 兜底)。
+   ============================================================================ */
+
+/* ---------- 题记：一句放在章首的引文 ---------- */
+.reading-content .rc-epi {
+  margin: var(--sp-6) 0; padding-top: var(--sp-4); text-align: center;
+}
+.reading-content .rc-epi::before {
+  content: ""; display: block; width: 42px; height: 1px; margin: 0 auto var(--sp-4);
+  background: linear-gradient(90deg, transparent, var(--gold, #d6b678), transparent);
+}
+.reading-content .rc-epi p {
+  text-indent: 0; margin: 0 auto .3em; max-width: 30em;
+  font-family: var(--font-serif); font-size: var(--fs-md); line-height: 2.05;
+  color: var(--ink-2); letter-spacing: .05em;
+}
+.reading-content .rc-epi p:last-of-type { margin-bottom: 0; }
+.reading-content .rc-epi cite {
+  display: block; margin-top: var(--sp-4);
+  font-family: var(--font-body); font-size: var(--fs-xs); font-style: normal;
+  letter-spacing: .2em; color: var(--gold);
+}
+.reading-content .rc-epi cite::before { content: "\2014\2014 "; opacity: .65; }
+
+/* ---------- 档案：一张米色纸片（调研说明 / 通缉 / 报告） ---------- */
+.reading-content .rc-doc {
+  position: relative; margin: 0 0 var(--sp-5); padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .012) 0 1px, transparent 1px 3px),
+    linear-gradient(170deg, var(--doc-paper-1, #f3ecdd), var(--doc-paper-2, #e2d6be));
+  color: var(--doc-ink, #2b2418);
+  border: 1px solid rgba(0, 0, 0, .14);
+  box-shadow: 0 18px 34px -26px rgba(0, 0, 0, .9), inset 0 0 60px rgba(120, 90, 40, .07);
+}
+.reading-content .rc-doc::after {
+  content: "ARCHIVE"; position: absolute; right: 12px; top: 10px;
+  font-family: var(--font-body); font-size: 9px; letter-spacing: .3em;
+  color: rgba(43, 36, 24, .32);
+}
+.reading-content .rc-doc-head {
+  margin-bottom: var(--sp-3); padding-bottom: 7px;
+  border-bottom: 1px dashed rgba(43, 36, 24, .3);
+  font-family: var(--font-body); font-size: var(--fs-sm); font-weight: 700;
+  letter-spacing: .18em; color: inherit;
+}
+.reading-content .rc-doc-body p {
+  text-indent: 0; margin-bottom: .5em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-sm); line-height: 1.95; letter-spacing: .02em; color: inherit;
+}
+.reading-content .rc-doc-body p:last-child { margin-bottom: 0; }
+.reading-content .rc-doc .wiki { color: #7a5a1e; }
+
+/* ---------- 便签：斜贴的一张黄纸（菜单 / 留言） ---------- */
+.reading-content .rc-memo {
+  position: relative; margin: var(--sp-6) auto; padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  max-width: 27em; border-radius: 2px;
+  background: linear-gradient(160deg, var(--memo-1, #f8e8bd), var(--memo-2, #eed79c));
+  color: var(--memo-ink, #3a2f18);
+  transform: rotate(-.6deg);
+  box-shadow: 0 16px 26px -20px rgba(0, 0, 0, .9);
+}
+.reading-content .rc-memo::before {
+  content: ""; position: absolute; left: 50%; top: -9px; width: 76px; height: 20px; z-index: 2;
+  transform: translateX(-50%) rotate(-2.4deg);
+  background: rgba(255, 250, 236, .62);
+  border-left: 1px dashed rgba(0, 0, 0, .07); border-right: 1px dashed rgba(0, 0, 0, .07);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .07);
+}
+.reading-content .rc-memo-head {
+  margin-bottom: 5px; font-family: var(--font-serif);
+  font-size: var(--fs-md); letter-spacing: .06em; color: inherit;
+}
+.reading-content .rc-memo-body p {
+  text-indent: 0; margin-bottom: .35em; font-size: var(--fs-sm); line-height: 1.9; color: inherit;
+}
+.reading-content .rc-memo-body p:last-child { margin-bottom: 0; }
+
+/* ---------- 低语：小一号、缩进、发灰的轻话 ---------- */
+.reading-content .rc-whisper {
+  margin: var(--sp-5) 0; padding-left: var(--sp-6);
+  border-left: 1px solid var(--frame-line);
+}
+.reading-content .rc-whisper p {
+  text-indent: 0; margin-bottom: .45em;
+  font-size: var(--fs-sm); line-height: 2.05; font-style: italic;
+  color: var(--ink-3); letter-spacing: .06em;
+  text-shadow: 0 0 22px rgba(214, 182, 120, .12);
+}
+.reading-content .rc-whisper p:last-child { margin-bottom: 0; }
+
+/* ---------- 印章：斜盖上去的一方红印 ---------- */
+.reading-content .rc-seal { margin: var(--sp-5) 0; text-align: center; }
+.reading-content .rc-seal span {
+  display: inline-block; padding: 9px 20px 9px 24px;
+  font-family: var(--font-serif); font-size: var(--fs-lg);
+  letter-spacing: .3em; line-height: 1.2;
+  color: var(--seal-ink, #b8452f);
+  border: 2px solid var(--seal-ink, #b8452f); border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(184, 69, 47, .3);
+  transform: rotate(-7deg); opacity: .88;
+}
+
+/* ---------- 时间 / 场景标：一道细线中间夹着时间 ---------- */
+.reading-content .rc-time {
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin: var(--sp-5) 0;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .26em; color: var(--gold);
+}
+.reading-content .rc-time::before,
+.reading-content .rc-time::after {
+  content: ""; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--frame-line), transparent);
+}
+
+/* ---------- 静默：一段留白里只放一个点 ---------- */
+.reading-content .rc-beat {
+  margin: var(--sp-6) 0; text-align: center;
+  font-size: var(--fs-lg); color: var(--gold);
+  text-indent: 0; letter-spacing: .5em; opacity: .75;
+}
+
+/* ---------- 行内：高亮 / 划掉 ---------- */
+.reading-content mark.hl {
+  background: var(--hl, rgba(214, 182, 120, .26));
+  color: inherit; padding: 0 .08em; border-radius: 2px;
+}
+.reading-content del {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-color: rgba(232, 154, 154, .75);
+  text-decoration-thickness: 1px;
+}
 
 /* 四种字体颜色：偏柔和的色值，深色纸上不刺眼 */
 .reading-content .t-red, .reading-content .t-red * { color: var(--tint-red, #e89a9a); }
