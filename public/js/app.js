@@ -33,6 +33,70 @@ function toast(msg, type = 'ok') {
    玩家一开「查看源代码」或审查元素就能看到整副牌，等于明牌在玩。
    现在没翻开的牌，DOM 里那个格子是空的，牌面只活在这个闭包里。
    （真想作弊还是能在控制台里翻到，但至少不再是「看一眼源码就会」的程度。） */
+// 文章配图：保持原比例，只把长边压到 maxEdge（默认 1400），导出 webp。
+// 解码沿用上面 shrinkImage 的三条路 —— 手机上不同机型卡的地方不一样，多一条就多一条活路。
+function shrinkPhoto(file, maxEdge = 1400, quality = 0.86) {
+  const toData = (bmp) => {
+    const w0 = bmp.width || bmp.naturalWidth || 0;
+    const h0 = bmp.height || bmp.naturalHeight || 0;
+    if (!w0 || !h0) throw new Error('拿不到图片尺寸');
+    const scale = Math.min(1, maxEdge / Math.max(w0, h0));
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, w, h);
+    let out = c.toDataURL('image/webp', quality);
+    let type = 'image/webp';
+    if (out.indexOf('data:image/webp') !== 0) { out = c.toDataURL('image/jpeg', quality); type = 'image/jpeg'; }
+    if (out.indexOf('data:image/') !== 0) throw new Error('画布导出失败');
+    return { dataUrl: out, type: type, width: w, height: h };
+  };
+  const viaImage = (src, cleanup) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try { resolve(toData(img)); } catch (e) { reject(new Error('画布:' + e.message)); }
+      finally { cleanup && cleanup(); }
+    };
+    img.onerror = () => { cleanup && cleanup(); reject(new Error('解码失败')); };
+    img.src = src;
+  });
+  const viaBlob = () => {
+    const url = URL.createObjectURL(file);
+    return viaImage(url, () => URL.revokeObjectURL(url));
+  };
+  const viaDataUrl = () => new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => viaImage(String(fr.result)).then(resolve, reject);
+    fr.onerror = () => reject(new Error('读取文件失败'));
+    fr.readAsDataURL(file);
+  });
+  const viaBitmap = () => {
+    if (typeof createImageBitmap !== 'function') return Promise.reject(new Error('不支持'));
+    return createImageBitmap(file).then((bmp) => {
+      try { return toData(bmp); } catch (e) { throw new Error('画布:' + e.message); }
+      finally { if (bmp && bmp.close) bmp.close(); }
+    });
+  };
+  const errs = [];
+  const tryOne = (name, fn) => fn().then((v) => v, (e) => {
+    errs.push(name + '=' + (e && e.message ? e.message : '失败'));
+    throw e;
+  });
+  return new Promise((resolve) => {
+    tryOne('位图', viaBitmap)
+      .catch(() => tryOne('blob', viaBlob))
+      .catch(() => tryOne('dataURL', viaDataUrl))
+      .then(resolve, () => {
+        const e = new Error(errs.join(' / '));
+        e.detail = errs.join(' / ');
+        throw e;
+      });
+  });
+}
+
 const SECRET = { mem: [], num: [] };
 
 // 本地图片 → 正方形缩略图（默认 128px webp，约 10KB），避免把 2MB 原图塞进数据库
@@ -2669,7 +2733,17 @@ const card = (x) => {
       else if (act === 'whisper') R.insertBlock(box, ':::whisper\n声音很轻的一句话。\n:::', 11, 19);
       else if (act === 'seal') R.insertBlock(box, ':::seal 驳回\n:::', 8, 11);
       else if (act === 'note') R.insertBlock(box, ':::note 提示标题\n写在这里\n:::', 8, 12);
-      else if (act === 'image') R.insertBlock(box, '![图片说明](https://图片地址)', 2, 6);
+      else if (act === 'image') {
+        // 本地上传：选文件 → 压到长边 1400 → 传到 /api/media → 插入 ![](/api/media/<id>)
+        // 插入发生在异步回调里，所以这里提前 return，不走下面那套立即 paint。
+        App.pickArticleImage(box, (url) => {
+          R.insertBlock(box, '![图片说明](' + url + ')', 2, 6);
+          paint();
+          refreshStats();
+          lazySave();
+        });
+        return;
+      }
       else if (act === 'say') R.insertBlock(box, ':::say 角色名\n「台词……」\n:::', 4, 7);
       else if (act === 'letter') R.insertBlock(box, ':::letter 标题\n内容……\n:::', 8, 10);
       else if (act === 'spoiler') R.insertBlock(box, ':::spoiler 后文剧透\n这里写不能提前看的内容……\n:::', 10, 14);
@@ -3278,6 +3352,61 @@ const card = (x) => {
       this.bumpCommentCount(Number(form.dataset.article), 1);
       this.route();
     } catch (err) { toast(err.message, 'err'); }
+  },
+
+  /* ---------- 编辑器插图：选本地文件 → 压缩 → 上传 → 插入 markdown ---------- */
+  pickArticleImage(box, done) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+    const clean = () => { try { input.remove(); } catch (e) {} };
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      clean();
+      if (file) this.uploadArticleImage(file, box, done);
+    });
+    input.addEventListener('cancel', clean);
+    input.click();
+  },
+
+  async uploadArticleImage(file, box, done) {
+    if (file.size > 40 * 1024 * 1024) {
+      toast('图片太大了（超过 40MB），换一张吧', 'err');
+      return;
+    }
+    toast('正在压缩图片…');
+    let shot;
+    try {
+      shot = await shrinkPhoto(file, 1400, 0.86);
+    } catch (err) {
+      const detail = (err && (err.detail || err.message)) || '未知';
+      console.warn('[插图] 压缩失败：' + detail + ' · ' + (file.size / 1024 / 1024).toFixed(1) + 'MB');
+      toast('图片处理失败（' + detail + '）', 'err');
+      return;
+    }
+    const kb = Math.round(shot.dataUrl.length * 0.75 / 1024);
+    if (kb > 620) {
+      // 再压一档：长边 1000、质量 0.78，仍然超就放弃，别让接口 413
+      try { shot = await shrinkPhoto(file, 1000, 0.78); } catch (e) { /* 用上一步的结果 */ }
+    }
+    toast('正在上传（约 ' + kb + 'KB）…');
+    try {
+      const r = await API.post('/api/media', {
+        type: shot.type,
+        data: shot.dataUrl.replace(/^data:[^,]*,/, ''),
+        width: shot.width,
+        height: shot.height,
+        name: file.name || '',
+      });
+      if (!r || !r.url) throw new Error('服务器没有返回图片地址');
+      toast('图片已插入 · ' + shot.width + '×' + shot.height + ' · ' + Math.round((r.bytes || 0) / 1024) + 'KB');
+      if (done) done(r.url);
+    } catch (err) {
+      toast('上传失败：' + ((err && err.message) || '未知') + '（可以先截图再试，或临时用图片链接）', 'err');
+    }
   },
 
   async handleAvatarFile(e) {

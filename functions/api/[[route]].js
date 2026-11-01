@@ -22,6 +22,9 @@ const COOKIE = 'daydream_session';
 const ONE_DAY = 86400;
 const MAX_BODY = 1024 * 1024;      // 请求体上限 1MB
 const MAX_AVATAR = 300000;         // 头像字符串上限（约 200KB 图片）
+// 文章配图：单张上限。请求体整体被 MAX_BODY(1MB) 卡着，base64 会膨胀 4/3，
+// 所以这里按解码后的字节算，留出编码余量。
+const MAX_MEDIA = 700000;
 const MAX_CONTENT = 200000;        // 单篇正文上限
 const CHAT_PER_MINUTE = 15;        // 每个用户每分钟的对话条数
 const LOGIN_MAX_FAILS = 10;        // 同一用户名在窗口内的最大失败次数
@@ -398,6 +401,11 @@ async function ensureSchema(env) {
       code TEXT NOT NULL, round_no INTEGER NOT NULL, side TEXT NOT NULL,
       kind TEXT NOT NULL DEFAULT 'play',
       cards TEXT NOT NULL, at TEXT NOT NULL, PRIMARY KEY (code, round_no, side, kind))`),
+    /* 文章配图：后台直接上传的本地图片，base64 存在 D1 里，由 /api/media/<id> 发出去。
+       图片内容一旦写进去就不会改，所以读的时候可以给 immutable 的长缓存。 */
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS media (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, mime TEXT NOT NULL,
+      bytes INTEGER NOT NULL, width INTEGER, height INTEGER, data TEXT NOT NULL, created_at TEXT)`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pvp_host ON pvp_rooms (host_id)`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pvp_guest ON pvp_rooms (guest_id)`),
   ]);
@@ -1354,6 +1362,51 @@ export async function onRequest(context) {
       if (user.role !== 'admin') return json({ error: '需要管理员权限' }, 403);
       return null;
     };
+
+    /* ===== 文章配图 =====
+       GET  /api/media/<id>   公开读图（长缓存）
+       POST /api/media        管理员上传：{ type, data(base64), width, height, name } */
+    m = path.match(/^\/media\/(\d+)$/);
+    if (method === 'GET' && m) {
+      const row = await env.DB.prepare('SELECT mime, data FROM media WHERE id=?').bind(Number(m[1])).first();
+      if (!row || !row.data) return json({ error: '图片不存在' }, 404);
+      let bin;
+      try { bin = Uint8Array.from(atob(row.data), (ch) => ch.charCodeAt(0)); }
+      catch (e) { return json({ error: '图片数据损坏' }, 500); }
+      return new Response(bin, {
+        status: 200,
+        headers: {
+          'Content-Type': row.mime || 'application/octet-stream',
+          'Content-Length': String(bin.length),
+          'Cache-Control': 'public, max-age=31536000, immutable',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
+    if (method === 'POST' && path === '/media') {
+      const e = needAdmin(); if (e) return e;
+      const body = await readBody(request);
+      const mime = String(body.type || '').toLowerCase();
+      if (!/^image\/(png|jpe?g|webp|gif|avif)$/.test(mime)) {
+        return json({ error: '只支持 PNG / JPG / WebP / GIF / AVIF 图片' }, 400);
+      }
+      const b64 = String(body.data || '').replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
+      if (!b64 || !/^[A-Za-z0-9+/=]+$/.test(b64)) return json({ error: '图片数据无效' }, 400);
+      let bin;
+      try { bin = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)); }
+      catch (err) { return json({ error: '图片数据无效' }, 400); }
+      if (!bin.length) return json({ error: '图片是空的' }, 400);
+      if (bin.length > MAX_MEDIA) {
+        return json({ error: '图片太大（' + Math.round(bin.length / 1024) + 'KB，上限 ' + Math.round(MAX_MEDIA / 1024) + 'KB），换小一点的或先压缩' }, 413);
+      }
+      const w = parseInt(body.width, 10), h = parseInt(body.height, 10);
+      const r = await env.DB.prepare(
+        'INSERT INTO media (user_id, name, mime, bytes, width, height, data, created_at) VALUES (?,?,?,?,?,?,?,?)'
+      ).bind(user.id, String(body.name || '').slice(0, 120), mime, bin.length,
+        Number.isFinite(w) ? w : null, Number.isFinite(h) ? h : null, b64, nowStr()).run();
+      const id = r.meta.last_row_id;
+      return json({ id: id, url: '/api/media/' + id, bytes: bin.length }, 201);
+    }
 
     // 后台编辑用：取标记原文（只有管理员拿得到，而且不缓存）。
     // ⚠️ 必须放在 needAdmin 定义之后 —— 它是局部 const，放在前面会触发 TDZ 报错（表现为 500）
