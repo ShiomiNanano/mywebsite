@@ -3782,6 +3782,9 @@ html[data-cloth="on"] .game-page {
 .landing .book-cover {
   overflow: hidden;                                  /* 光斑要裁在封面里 */
   border: 1px solid rgba(255, 255, 255, .07);
+  /* 布面下面压了一张生成出来的夜景插画（media/cover-night.webp，36KB）：
+     第 5 层是把暖夜压成整站深蓝绿的冷调蒙版，保证「白日梦」与烫金 logo 在图上依旧清楚；
+     第 7 层是图没加载出来时的兜底布面渐变。 */
   background-image:
     radial-gradient(118% 76% at 16% -14%, rgba(255, 246, 226, .14), rgba(255, 246, 226, 0) 56%),
     linear-gradient(0deg, rgba(0, 0, 0, .40), rgba(0, 0, 0, 0) 46%),
@@ -3789,10 +3792,20 @@ html[data-cloth="on"] .game-page {
       rgba(255, 255, 255, .026) 0 1px, rgba(0, 0, 0, .028) 1px 2px),
     repeating-linear-gradient(0deg,
       rgba(255, 255, 255, .013) 0 1px, rgba(0, 0, 0, .016) 1px 3px),
+    linear-gradient(182deg,
+      rgba(6, 18, 30, .26) 0%,
+      rgba(6, 18, 30, .04) 20%,
+      rgba(6, 18, 30, .14) 42%,
+      rgba(6, 18, 30, .30) 64%,
+      rgba(7, 19, 31, .88) 100%),
+    url('/media/cover-night.webp?v=2'),
     linear-gradient(158deg,
       var(--wp-cover-1, #24506f) 0%,
       var(--wp-cover-2, #12293f) 52%,
       var(--wp-deep, #0a1c2c) 100%);
+  background-size: auto, auto, auto, auto, auto, cover, auto;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, center 42%, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, repeat, no-repeat, no-repeat, no-repeat;
   /* 封面压在纸叠上：右侧和下侧留一道贴近的暗影，厚度才立得住 */
   box-shadow:
     0 30px 60px -20px rgba(0, 0, 0, .7),

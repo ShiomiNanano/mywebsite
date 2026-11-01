@@ -266,8 +266,9 @@ let g = null, sel = [], phase = 'ready', STARTED = false, msg = '', miss = 0;
 
 /* ===================== 音效 ===================== */
 // 全部用 WebAudio 现场合成：不下载音频文件、不占带宽、不用管 CSP 的 media-src。
-// 音量压得很低（master 0.35），只做"纸牌 + 木质"底子，不做旋律性花活。
-const SFX = { ctx: null, master: null, noise: null, on: true };
+// 两条总线：干声（近场、干脆）+ 湿声（过一段现搓的卷积混响）。纸牌走干声，
+// 特效和结算走湿声，于是"纸牌在桌上、技能在大厅里"。
+const SFX = { ctx: null, master: null, dry: null, wet: null, noise: null, ir: null, on: true, vol: 0.72 };
 const SFX_KEY = 'qc_sound';
 
 function sfxLoad() {
@@ -277,19 +278,50 @@ function sfxSave() {
   try { localStorage.setItem(SFX_KEY, SFX.on ? '1' : '0'); } catch (e) { /* 同上 */ }
 }
 
+// 1.8 秒的衰减噪声当混响核：不用外部音频，也有房间的尾巴
+function sfxIR(c) {
+  if (SFX.ir) return SFX.ir;
+  const len = Math.floor(c.sampleRate * 1.8);
+  const buf = c.createBuffer(2, len, c.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.6);
+    }
+  }
+  SFX.ir = buf;
+  return buf;
+}
+
 function sfxCtx() {
   if (SFX.ctx) return SFX.ctx;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   try {
-    SFX.ctx = new AC();
-    SFX.master = SFX.ctx.createGain();
-    SFX.master.gain.value = 0.35;
-    const lp = SFX.ctx.createBiquadFilter();
+    const c = new AC();
+    SFX.ctx = c;
+    SFX.master = c.createGain();
+    SFX.master.gain.value = SFX.vol;
+    const lp = c.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 5200;          // 把高频削掉，听起来"闷"一点，符合丝绒桌面
-    SFX.master.connect(lp);
-    lp.connect(SFX.ctx.destination);
+    lp.frequency.value = 7600;          // 高频削掉一点，"闷"下来，符合丝绒桌面
+    SFX.dry = c.createGain(); SFX.dry.gain.value = 1;
+    SFX.wet = c.createGain(); SFX.wet.gain.value = 0.36;
+    const conv = c.createConvolver();
+    conv.buffer = sfxIR(c);
+    SFX.dry.connect(SFX.master);
+    SFX.wet.connect(conv); conv.connect(SFX.master);
+    let tail = SFX.master;
+    tail.connect(lp);
+    if (c.createDynamicsCompressor) {
+      const cp = c.createDynamicsCompressor();
+      cp.threshold.value = -18; cp.knee.value = 16; cp.ratio.value = 3.2;
+      cp.attack.value = 0.004; cp.release.value = 0.24;
+      lp.connect(cp); cp.connect(c.destination);
+    } else {
+      lp.connect(c.destination);
+    }
   } catch (e) { SFX.ctx = null; }
   return SFX.ctx;
 }
@@ -305,60 +337,171 @@ function sfxNoise(c) {
   return b;
 }
 
-function sfxTone(c, f, dur, type, gain, at, glide) {
-  const o = c.createOscillator(), gn = c.createGain();
-  o.type = type || 'sine';
-  o.frequency.setValueAtTime(f, at);
-  if (glide && glide !== f) o.frequency.exponentialRampToValueAtTime(glide, at + dur * 0.9);
+// 一个节点同时送到干、湿两条总线；wet 0..1 是送多少到混响
+function sfxOut(c, node, wet) {
+  node.connect(SFX.dry);
+  if (wet > 0 && SFX.wet) {
+    const g = c.createGain();
+    g.gain.value = wet;
+    node.connect(g); g.connect(SFX.wet);
+  }
+}
+
+// 正弦/三角音：glide 是收尾频率；detune 加一个微失谐的副本，出"厚度"（拍频）
+function sfxTone(c, f, dur, type, gain, at, glide, wet, detune) {
+  const mk = (cents) => {
+    const o = c.createOscillator(), gn = c.createGain();
+    o.type = type || 'sine';
+    if (cents && o.detune) o.detune.value = cents;
+    o.frequency.setValueAtTime(f, at);
+    if (glide && glide !== f) o.frequency.exponentialRampToValueAtTime(glide, at + dur * 0.9);
+    gn.gain.setValueAtTime(0.0001, at);
+    gn.gain.exponentialRampToValueAtTime(gain, at + Math.min(0.025, dur * 0.3));
+    gn.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(gn);
+    sfxOut(c, gn, wet || 0);
+    o.start(at); o.stop(at + dur + 0.04);
+  };
+  mk(0);
+  if (detune) mk(detune);
+}
+
+// 带通噪声：q 越大越"窄"，f2 给了就从 f1 扫到 f2（抽牌、雨、挥砍都用它）
+function sfxNoiseHit(c, dur, gain, freq, q, at, wet, f2) {
+  const src = c.createBufferSource(), bp = c.createBiquadFilter(), gn = c.createGain();
+  src.buffer = sfxNoise(c);
+  bp.type = 'bandpass'; bp.frequency.setValueAtTime(freq, at); bp.Q.value = q || 1;
+  if (f2 && f2 !== freq) bp.frequency.exponentialRampToValueAtTime(f2, at + dur * 0.9);
   gn.gain.setValueAtTime(0.0001, at);
   gn.gain.exponentialRampToValueAtTime(gain, at + Math.min(0.02, dur * 0.3));
   gn.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  o.connect(gn); gn.connect(SFX.master);
-  o.start(at); o.stop(at + dur + 0.03);
+  src.connect(bp); bp.connect(gn);
+  sfxOut(c, gn, wet || 0);
+  src.start(at); src.stop(at + dur + 0.04);
 }
 
-function sfxNoiseHit(c, dur, gain, freq, q, at) {
-  const src = c.createBufferSource(), bp = c.createBiquadFilter(), gn = c.createGain();
-  src.buffer = sfxNoise(c);
-  bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q || 1;
-  gn.gain.setValueAtTime(gain, at);
-  gn.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  src.connect(bp); bp.connect(gn); gn.connect(SFX.master);
-  src.start(at); src.stop(at + dur + 0.03);
+// 一叠音，按顺序铺开（琶音、钟、结算和弦）
+function sfxArp(c, freqs, dur, type, gain, at, step, wet, detune) {
+  freqs.forEach((f, i) => sfxTone(c, f, dur, type, gain, at + i * step, 0, wet || 0, detune || 0));
 }
 
-// pick 选牌 · deal 放牌/弃牌 · reveal 翻牌 · skill 特效触发 · win/lose/tie 结算
-function sfx(name) {
+// S 级四张卡各一段"出场乐"：形式是画面上的，音色是耳朵里的
+function sfxKind(c, t, kind) {
+  if (kind === 'whale') {                       // 深潜：下潜的低频 + 一声长长的鲸歌
+    sfxTone(c, 58, 1.05, 'sine', 0.24, t, 34, 0.12, 6);
+    sfxTone(c, 186, 0.95, 'sine', 0.10, t + 0.06, 122, 0.5, 9);
+    sfxTone(c, 372, 0.7, 'triangle', 0.035, t + 0.1, 248, 0.55);
+    sfxNoiseHit(c, 0.55, 0.10, 520, 0.7, t, 0.5, 180);
+    sfxArp(c, [1567.98, 2093.0], 0.5, 'sine', 0.03, t + 0.16, 0.05, 0.6);
+  } else if (kind === 'umb') {                  // 落雨：一阵雨幕，三滴水，末尾一记轻顿
+    sfxNoiseHit(c, 0.62, 0.34, 4200, 0.5, t, 0.35, 2400);
+    sfxTone(c, 74, 0.5, 'sine', 0.14, t, 52, 0.1);
+    [1760, 2349, 2637].forEach((f, i) => sfxTone(c, f, 0.16, 'sine', 0.14, t + 0.1 + i * 0.11, f * 0.86, 0.6));
+    sfxNoiseHit(c, 0.3, 0.07, 900, 1.1, t + 1.0, 0.4, 400);
+  } else if (kind === 'rainbow') {              // 放晴：竖琴一样的上行琶音
+    sfxArp(c, [523.25, 659.25, 783.99, 1046.5, 1318.51], 0.62, 'triangle', 0.12, t + 0.02, 0.062, 0.55, 5);
+    sfxTone(c, 261.63, 1.05, 'sine', 0.10, t, 0, 0.3);
+    sfxNoiseHit(c, 0.4, 0.05, 5200, 1.4, t + 0.02, 0.5);
+  } else if (kind === 'moon') {                 // 弦月：钟声起，刀锋落下，十字钉进去
+    sfxTone(c, 196, 1.2, 'sine', 0.15, t, 0, 0.6, 4);
+    sfxTone(c, 392, 0.9, 'sine', 0.075, t + 0.01, 0, 0.6);
+    sfxTone(c, 587.33, 0.6, 'triangle', 0.04, t + 0.02, 0, 0.55);
+    sfxNoiseHit(c, 0.34, 0.13, 2600, 0.9, t + 0.5, 0.35, 700);   // 挥砍
+    sfxTone(c, 78, 0.42, 'sine', 0.22, t + 0.98, 44, 0.18);       // 钉进去那一下
+    sfxNoiseHit(c, 0.22, 0.13, 220, 1.2, t + 0.98, 0.2, 120);
+    sfxArp(c, [1046.5, 1568.0], 0.45, 'sine', 0.03, t + 1.0, 0.06, 0.6);
+  } else {                                      // 兜底：跟以前一样的落地感
+    sfxTone(c, 148, 0.55, 'sine', 0.16, t, 62, 0.2);
+    sfxTone(c, 92, 0.8, 'triangle', 0.10, t + 0.02, 48, 0.25);
+    sfxNoiseHit(c, 0.22, 0.14, 900, 0.8, t, 0.3);
+  }
+}
+
+// ---- 采样音效：sfx-data.js 里 11 记 base64 mp3，FluidSynth 2.6.1 + MuseScore_General.sf3 渲染 ----
+// 有采样就播采样；还没解码完（或老缓存没这个文件）就退回下面的现场合成，听感不断档。
+const SFX_SAMPLE = { buf: {}, started: false };
+
+function sfxKeyOf(name, kind) {
+  if (name === 'heavy') {
+    return kind === 'whale' || kind === 'umb' || kind === 'rainbow' || kind === 'moon' ? kind : '';
+  }
+  if (name === 'skill') return 'skill_a';
+  return ['pick', 'deal', 'reveal', 'win', 'lose', 'tie'].indexOf(name) >= 0 ? name : '';
+}
+
+function sfxB64Buf(b64) {
+  const bin = atob(b64), n = bin.length, u8 = new Uint8Array(n);
+  for (let i = 0; i < n; i++) u8[i] = bin.charCodeAt(i);
+  return u8.buffer;
+}
+
+function sfxPreload() {
+  if (SFX_SAMPLE.started || !window.QC_SFX) return;
+  const c = sfxCtx();
+  if (!c || !c.decodeAudioData) return;
+  SFX_SAMPLE.started = true;
+  Object.keys(window.QC_SFX).forEach((k) => {
+    try {
+      const p = c.decodeAudioData(sfxB64Buf(window.QC_SFX[k]));
+      if (p && p.then) p.then((b) => { SFX_SAMPLE.buf[k] = b; }).catch(() => { });
+      else SFX_SAMPLE.buf[k] = p;
+    } catch (e) { /* 单条坏了不影响其它 */ }
+  });
+}
+
+function sfxPlaySample(key) {
+  const b = SFX_SAMPLE.buf[key], c = SFX.ctx;
+  if (!b || !c) return false;
+  try {
+    const src = c.createBufferSource();
+    src.buffer = b;
+    const g = c.createGain();
+    g.gain.value = 1;
+    src.connect(g);
+    g.connect(SFX.dry || SFX.master || c.destination);
+    src.start();
+    return true;
+  } catch (e) { return false; }
+}
+
+// pick 选牌 · deal 放牌/弃牌 · reveal 翻牌 · skill A 级特效 · heavy S 级特效（带 kind）
+// win / lose / tie 结算
+function sfx(name, kind) {
   if (!SFX.on) return;
   const c = sfxCtx();
   if (!c) return;
   if (c.state === 'suspended') { try { c.resume(); } catch (e) { /* 部分浏览器要求手势后再 resume */ } }
+  if (!SFX.renderOffline) {
+    sfxPreload();
+    const key = sfxKeyOf(name, kind);
+    if (key && sfxPlaySample(key)) return;
+  }
   const t = c.currentTime + 0.001;
   if (name === 'pick') {
-    sfxNoiseHit(c, 0.045, 0.10, 3200, 1.6, t);
+    sfxNoiseHit(c, 0.05, 0.34, 3400, 1.9, t);
+    sfxTone(c, 1240, 0.035, 'triangle', 0.07, t + 0.002, 0);
   } else if (name === 'deal') {
-    sfxNoiseHit(c, 0.15, 0.30, 1500, 0.7, t);
-    sfxTone(c, 300, 0.11, 'sine', 0.05, t, 220);
+    sfxNoiseHit(c, 0.16, 0.52, 2400, 0.65, t, 0.08, 900);
+    sfxTone(c, 300, 0.12, 'sine', 0.11, t, 210, 0);
   } else if (name === 'reveal') {
-    sfxNoiseHit(c, 0.05, 0.20, 2400, 1.8, t);
-    sfxTone(c, 700, 0.09, 'triangle', 0.05, t + 0.015, 900);
+    sfxNoiseHit(c, 0.055, 0.42, 2600, 1.8, t, 0.05);
+    sfxTone(c, 784, 0.1, 'triangle', 0.10, t + 0.015, 940, 0.1);
   } else if (name === 'skill') {
-    sfxTone(c, 659.25, 0.5, 'sine', 0.11, t);
-    sfxTone(c, 987.77, 0.38, 'sine', 0.045, t + 0.04);
+    sfxTone(c, 880, 0.55, 'sine', 0.16, t, 0, 0.45, 4);
+    sfxTone(c, 1320, 0.4, 'sine', 0.085, t + 0.03, 0, 0.5);
+    sfxNoiseHit(c, 0.12, 0.12, 3000, 1.2, t, 0.3);
   } else if (name === 'heavy') {
-    // S 级技法的落地感：一声低频下坠 + 金属泛音
-    sfxTone(c, 148, 0.55, 'sine', 0.16, t, 62);
-    sfxTone(c, 92, 0.8, 'triangle', 0.10, t + 0.02, 48);
-    sfxNoiseHit(c, 0.22, 0.14, 900, 0.8, t);
-    sfxTone(c, 1567.98, 0.42, 'sine', 0.035, t + 0.05);
-    sfxTone(c, 2349.32, 0.3, 'sine', 0.02, t + 0.09);
+    sfxKind(c, t, kind);
   } else if (name === 'win') {
-    [523.25, 659.25, 783.99].forEach((f, i) => sfxTone(c, f, 0.7, 'triangle', 0.12, t + i * 0.11));
+    sfxArp(c, [523.25, 659.25, 783.99, 1046.5], 0.75, 'triangle', 0.13, t, 0.085, 0.4, 4);
+    sfxTone(c, 130.81, 1.1, 'sine', 0.10, t, 0, 0.25);
   } else if (name === 'lose') {
-    sfxTone(c, 311.13, 0.55, 'sine', 0.12, t, 259.66);
-    sfxTone(c, 207.65, 0.75, 'sine', 0.06, t + 0.12);
+    sfxTone(c, 311.13, 0.6, 'sine', 0.14, t, 259.66, 0.4);
+    sfxTone(c, 207.65, 0.85, 'sine', 0.075, t + 0.12, 0, 0.45);
+    sfxNoiseHit(c, 0.5, 0.07, 600, 0.9, t + 0.02, 0.4, 260);
   } else if (name === 'tie') {
-    sfxTone(c, 392, 0.45, 'sine', 0.09, t);
+    sfxTone(c, 392, 0.55, 'sine', 0.11, t, 0, 0.5);
+    sfxTone(c, 523.25, 0.5, 'sine', 0.07, t + 0.06, 0, 0.5);
   }
 }
 
@@ -498,7 +641,7 @@ function playSkillFx(e) {
         FX_TIMERS.push(setTimeout(() => hand.classList.remove('sealed'), 1400));
       }
     }
-    sfx('heavy');
+    sfx('heavy', kind);
   } else {
     sfx('skill');
   }
@@ -1305,6 +1448,7 @@ $('restart').onclick = doRestart;
 
 // 音效开关（记在本地）
 sfxLoad();
+sfxPreload();
 function paintSfx() {
   const b = $('sfxBtn');
   if (!b) return;
@@ -1592,6 +1736,56 @@ if (/^(localhost|127.0.0.1|::1)$/.test(location.hostname || '')) {
   window.__qcFx = (list) => (Array.isArray(list) ? list : [list]).forEach(playSkillFx);
   window.__qcFxPlay = paintSkillFx;   // 走完整分流（B 级也拉横幅，跟真打出来一样）
   window.__qcFxList = Object.keys(SKILL).map((t) => ({ type: t, name: SKILL[t] }));
+  // 把一记音效离线渲染成 WAV（base64）搬出来试听：不响真声、不动当前上下文
+  window.__qcSfxRender = async (name, kind, secs) => {
+    const SR = 44100;
+    const dur = Math.max(0.4, Math.min(6, secs || 2.4));
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OAC) return '';
+    const oc = new OAC(2, Math.round(SR * dur), SR);
+    oc.resume = () => Promise.resolve();          // 离线渲染不需要 resume，挡掉 sfx() 里的手势处理
+    const keep = { ctx: SFX.ctx, master: SFX.master, dry: SFX.dry, wet: SFX.wet, ir: SFX.ir, noise: SFX.noise };
+    try {
+      const master = oc.createGain(); master.gain.value = SFX.vol;
+      const dry = oc.createGain();
+      const wet = oc.createGain(); wet.gain.value = 0.36;
+      const conv = oc.createConvolver(); conv.buffer = sfxIR(oc);
+      dry.connect(master); wet.connect(conv); conv.connect(master); master.connect(oc.destination);
+      SFX.ctx = oc; SFX.master = master; SFX.dry = dry; SFX.wet = wet; SFX.ir = null; SFX.noise = null;
+      SFX.renderOffline = true;
+      sfx(name, kind);
+      const buf = await oc.startRendering();
+      const L = buf.getChannelData(0), R = buf.getChannelData(1);
+      let peak = 0;
+      for (let i = 0; i < L.length; i++) {
+        const a = Math.abs(L[i]), c2 = Math.abs(R[i]);
+        if (a > peak) peak = a;
+        if (c2 > peak) peak = c2;
+      }
+      const g = 2.2;   // 固定增益，不按条归一：这样试听文件之间还能互相比响度
+      const len = L.length;
+      const view = new DataView(new ArrayBuffer(44 + len * 4));
+      const wr = (o, s) => { for (let k = 0; k < s.length; k++) view.setUint8(o + k, s.charCodeAt(k)); };
+      wr(0, 'RIFF'); view.setUint32(4, 36 + len * 4, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+      view.setUint32(24, SR, true); view.setUint32(28, SR * 4, true); view.setUint16(32, 4, true);
+      view.setUint16(34, 16, true); wr(36, 'data'); view.setUint32(40, len * 4, true);
+      let o = 44;
+      for (let i = 0; i < len; i++) {
+        const l = Math.max(-1, Math.min(1, L[i] * g)), r = Math.max(-1, Math.min(1, R[i] * g));
+        view.setInt16(o, l < 0 ? l * 0x8000 : l * 0x7fff, true); o += 2;
+        view.setInt16(o, r < 0 ? r * 0x8000 : r * 0x7fff, true); o += 2;
+      }
+      const bytes = new Uint8Array(view.buffer);
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 8192) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+      return btoa(s);
+    } finally {
+      SFX.renderOffline = false;
+      SFX.ctx = keep.ctx; SFX.master = keep.master; SFX.dry = keep.dry;
+      SFX.wet = keep.wet; SFX.ir = keep.ir; SFX.noise = keep.noise;
+    }
+  };
 }
 
 /* 首屏已经画完，收掉加载遮罩。
