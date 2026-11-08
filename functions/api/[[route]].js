@@ -823,12 +823,12 @@ export async function onRequest(context) {
 
     /* ===== 阅读（公开，游客可读） ===== */
     if (method === 'GET' && path === '/menu') {
-      // 注意：这里只取正文的前 400 字用来生成摘要，绝不把全文带进目录接口。
-      // 否则每次打开书架都要下载整本小说。
+      // 注意：这里取回 content 只在 worker 里用 —— 一是算「纯文字」字数（要跟阅读页那行
+      // 「约 N 字」完全一致，所以必须去掉标签和空白，SQL 的 LENGTH 会把 <p> 之类也算进去），
+      // 二是截前 400 字做摘要。返回给前端时 content 一律剔掉，目录接口不会因此变胖。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
         a.section_no, a.section_title, a.title, a.created_at, a.updated_at,
-        LENGTH(a.content) AS chars,
-        substr(a.content, 1, 400) AS head, a.summary, a.tags, a.chapter_title AS setting_type, a.locked,
+        a.content, a.summary, a.tags, a.chapter_title AS setting_type, a.locked,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
       const main = [], mmap = {}, personal = [], settings = [];
@@ -842,13 +842,14 @@ export async function onRequest(context) {
           chapter_no: a.chapter_no, chapter_title: a.chapter_title,
           section_no: a.section_no, section_title: a.section_title,
           title: a.title,
-          excerpt: (a.summary && String(a.summary).trim()) ? String(a.summary).trim() : makeExcerpt(a.head),
+          excerpt: (a.summary && String(a.summary).trim()) ? String(a.summary).trim() : makeExcerpt(String(a.content || '').slice(0, 400)),
           setting_type: a.setting_type || '',
           locked: Number(a.locked) ? 1 : 0,
           tags: a.tags || '',
           created_at: a.created_at || '',
           updated_at: a.updated_at || a.created_at || '',
-          chars: Number(a.chars) || 0,
+          // 与前端阅读页的 plainLen 同一套算法：去掉标签、再去掉所有空白
+          chars: String(a.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length,
           comment_count: Number(a.comment_count),
         };
         if (a.category === 'main') {

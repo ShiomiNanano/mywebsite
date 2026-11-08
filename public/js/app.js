@@ -156,7 +156,11 @@ const App = {
     }
 
     // 阅读字号（0 小 / 1 中 / 2 大）
-    try { document.documentElement.setAttribute('data-font', localStorage.getItem('daydream-font-size') || '0'); } catch (e) {}
+    try {
+    document.documentElement.setAttribute('data-font', localStorage.getItem('daydream-font-size') || '0');
+    document.documentElement.setAttribute('data-line', localStorage.getItem('daydream-line') || 'normal');
+    document.documentElement.setAttribute('data-readtheme', localStorage.getItem('daydream-theme') || 'night');
+  } catch (e) {}
 
     // 字体延后注入：正文优先用系统字体，装饰/标题字体不再阻塞首屏。
     // （国内直连 fonts.googleapis.com 经常超时，放在这里加载失败也不影响阅读）
@@ -322,8 +326,91 @@ const App = {
     this.route();
   },
 
+  /* 行距：normal（默认 2.05）/ tight（1.78） */
+  applyLine(v) {
+    const val = v === 'tight' ? 'tight' : 'normal';
+    document.documentElement.setAttribute('data-line', val);
+    try { localStorage.setItem('daydream-line', val); } catch (e) {}
+  },
+
+  /* 阅读配色：night（默认）/ paper（纸白）/ green（护眼） */
+  applyReadTheme(v) {
+    const val = ['paper', 'green'].includes(v) ? v : 'night';
+    document.documentElement.setAttribute('data-readtheme', val);
+    try { localStorage.setItem('daydream-theme', val); } catch (e) {}
+  },
+
+  /* 「Aa 阅读设置」小面板 */
+  openReadSet() {
+    if (document.getElementById('readSet')) { this.closeReadSet(); return; }
+    const font = parseInt(document.documentElement.getAttribute('data-font'), 10) || 0;
+    const line = document.documentElement.getAttribute('data-line') || 'normal';
+    const theme = document.documentElement.getAttribute('data-readtheme') || 'night';
+    const box = document.createElement('div');
+    box.id = 'readSet';
+    box.className = 'readset';
+    box.innerHTML = `
+      <div class="readset-head"><b>阅读设置</b><button type="button" class="readset-x" aria-label="关闭">✕</button></div>
+      <div class="readset-row">
+        <span class="readset-label">字号</span>
+        <button type="button" class="readset-btn" data-size="-1" aria-label="缩小">A－</button>
+        <em class="readset-val" id="readSetSize">${font + 1} / 5</em>
+        <button type="button" class="readset-btn" data-size="1" aria-label="放大">A＋</button>
+      </div>
+      <div class="readset-row">
+        <span class="readset-label">行距</span>
+        <button type="button" class="readset-pill${line === 'normal' ? ' is-on' : ''}" data-line="normal">舒适</button>
+        <button type="button" class="readset-pill${line === 'tight' ? ' is-on' : ''}" data-line="tight">紧凑</button>
+      </div>
+      <div class="readset-row">
+        <span class="readset-label">配色</span>
+        <button type="button" class="readset-swatch sw-night${theme === 'night' ? ' is-on' : ''}" data-readtheme="night">夜读</button>
+        <button type="button" class="readset-swatch sw-paper${theme === 'paper' ? ' is-on' : ''}" data-readtheme="paper">纸白</button>
+        <button type="button" class="readset-swatch sw-green${theme === 'green' ? ' is-on' : ''}" data-readtheme="green">护眼</button>
+      </div>`;
+    document.body.appendChild(box);
+    box.querySelector('.readset-x').onclick = () => this.closeReadSet();
+    box.querySelectorAll('[data-size]').forEach((b) => {
+      b.onclick = () => {
+        this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) + Number(b.dataset.size));
+        const cur = parseInt(document.documentElement.getAttribute('data-font'), 10) || 0;
+        const val = box.querySelector('#readSetSize');
+        if (val) val.textContent = (cur + 1) + ' / 5';
+      };
+    });
+    box.querySelectorAll('[data-line]').forEach((b) => {
+      b.onclick = () => {
+        this.applyLine(b.dataset.line);
+        box.querySelectorAll('[data-line]').forEach((x) => x.classList.toggle('is-on', x === b));
+      };
+    });
+    box.querySelectorAll('[data-readtheme]').forEach((b) => {
+      b.onclick = () => {
+        this.applyReadTheme(b.dataset.readtheme);
+        box.querySelectorAll('[data-readtheme]').forEach((x) => x.classList.toggle('is-on', x === b));
+      };
+    });
+    setTimeout(() => {
+      document.addEventListener('click', this._readSetOutside = (ev) => {
+        if (!document.getElementById('readSet')) return;
+        if (document.getElementById('readSet').contains(ev.target)) return;
+        if (ev.target.closest && ev.target.closest('#openReadSet')) return;
+        this.closeReadSet();
+      });
+    }, 0);
+  },
+
+  closeReadSet() {
+    const box = document.getElementById('readSet');
+    if (box) box.remove();
+    if (this._readSetOutside) {
+      document.removeEventListener('click', this._readSetOutside);
+      this._readSetOutside = null;
+    }
+  },
+
   applyFont(n) {
-    const v = String(Math.min(2, Math.max(0, parseInt(n, 10) || 0)));
+    const v = String(Math.min(4, Math.max(0, parseInt(n, 10) || 0)));
     document.documentElement.setAttribute('data-font', v);
     try { localStorage.setItem('daydream-font-size', v); } catch (e) {}
   },
@@ -1851,9 +1938,7 @@ const card = (x) => {
           <div class="reading-divider"><span>❧</span></div>
         </header>
         <div class="reading-tools">
-          <span class="reading-tools-label">字号</span>
-          <button class="btn btn-small btn-ghost" id="fontSmaller" title="缩小字号">A－</button>
-          <button class="btn btn-small btn-ghost" id="fontLarger" title="放大字号">A＋</button>
+          <button class="btn btn-small btn-ghost" id="openReadSet" title="字号 / 行距 / 配色">Aa 阅读设置</button>
           <button class="btn btn-small btn-ghost" id="openToc" title="本章目录">目录</button>
         </div>
         ${this.wikiBackBar(article)}
@@ -3564,10 +3649,8 @@ const card = (x) => {
     const moreBtn = document.getElementById('loadMoreComments');
     if (moreBtn) moreBtn.onclick = () => this.loadMoreComments(moreBtn);
 
-    const fontSmaller = document.getElementById('fontSmaller');
-    if (fontSmaller) fontSmaller.onclick = () => this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) - 1);
-    const fontLarger = document.getElementById('fontLarger');
-    if (fontLarger) fontLarger.onclick = () => this.applyFont((parseInt(document.documentElement.getAttribute('data-font'), 10) || 0) + 1);
+    const readSetBtn = document.getElementById('openReadSet');
+    if (readSetBtn) readSetBtn.onclick = () => this.openReadSet();
 
     const saveAvatar = document.getElementById('saveAvatar');
     if (saveAvatar) saveAvatar.onclick = () => this.handleSaveAvatar();
@@ -3696,6 +3779,18 @@ const card = (x) => {
       gauge.innerHTML = '<b>0%</b>';
       document.body.appendChild(gauge);
     }
+    // 「回顶」和进度浮标装进同一个右下角竖列：沉浸态只移动这个容器，
+    // 保证两者永远同一竖线、只有纵向位移。
+    let stack = document.getElementById('rvFloat');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'rvFloat';
+      stack.className = 'rv-float';
+      document.body.appendChild(stack);
+    }
+    if (chrome.top.parentNode !== stack) stack.appendChild(chrome.top);
+    if (gauge.parentNode !== stack) stack.appendChild(gauge);
+
     const gaugeNum = gauge.querySelector('b');
     const gaugeEta = gauge.querySelector('span');
     const totalChars = Number(reading.dataset.chars || 0);
@@ -3717,6 +3812,16 @@ const card = (x) => {
       gauge.classList.add('on');
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => gauge.classList.remove('on'), 2200);
+
+      // 沉浸阅读：往下读时收起顶栏与底部导航，往上滑或回到顶部就恢复
+      const last = this._lastScrollY || 0;
+      const down = y > last + 4;
+      const up = y < last - 4;
+      this._lastScrollY = y;
+      if (!document.body.classList.contains('toc-open')) {
+        if (y < 120 || up) document.body.classList.remove('immersive');
+        else if (down && y > 220) document.body.classList.add('immersive');
+      }
 
       // 位置记忆：离开再回来能落回原处（每篇单独存，最多留 200 篇）
       const now = Date.now();
