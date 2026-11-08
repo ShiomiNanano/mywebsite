@@ -564,16 +564,15 @@ const App = {
   },
 
   async route() {
+    this.resetReadingChrome();
     this.cancelCoverTimer();   // 换了页面，封面那个延时跳转立刻作废（否则会顶掉登录页）
     this.veilShow();           // 90ms 内画完就不出现，慢才亮
     const hash = location.hash.replace(/^#/, '') || '/';
     const parts = hash.split('/').filter(Boolean);
-    // 需要加载数据的页面，先显示骨架屏
+    // 需要加载数据的页面：回到顶部即可。
+    // 加载动画统一交给 #pageVeil（咖啡杯），不再插骨架屏 —— 两套动画一起闪很难看
     const heavy = ['menu', 'main', 'personal', 'settings', 'read', 'admin'].includes(parts[0]);
-    if (heavy) {
-      document.getElementById('app').innerHTML = this.loadingSkeleton(parts[0]);
-      window.scrollTo(0, 0);
-    }
+    if (heavy) window.scrollTo(0, 0);
     this.pageTitle = DEFAULT_TITLE;
     let view = '';
     try {
@@ -626,31 +625,6 @@ const App = {
     // 直接收（内部用 setTimeout 排程，天然在绘制之后）。
     // 别放 rAF：遮罩是不透明的静态层，没有重绘需求时 rAF 会被饿死，遮罩就一直挂着。
     this.veilHide();
-  },
-
-  loadingSkeleton(kind) {
-    const line = (w) => `<span class="sk-line" style="width:${w}%"></span>`;
-    let body = '';
-    if (kind === 'read') {
-      body = `<div class="breadcrumb sk-text"></div>
-      <div class="reading sk-reading">
-        <div class="sk-title"></div>
-        <div class="sk-title" style="width:55%"></div>
-        <div class="sk-divider"></div>
-        ${Array.from({ length: 9 }, () => `<div class="sk-para">${line(100)}${line(92)}${line(64)}</div>`).join('')}
-      </div>`;
-    } else if (kind === 'menu') {
-      body = `<div class="menu-hero">${line(40)}${line(60)}</div>
-      <div class="menu-cards">${Array.from({ length: 3 }, () => `<div class="sk-card"></div>`).join('')}</div>`;
-    } else if (kind === 'admin') {
-      body = `<div class="admin-nav">
-        </div><div class="admin-head"></div>
-      <div class="admin-table-wrap"><div class="sk-card" style="height:320px"></div></div>`;
-    } else {
-      body = `<div class="page-head">${line(30)}</div>
-      <div class="chapter-list">${Array.from({ length: 3 }, () => `<div class="sk-card"></div>`).join('')}</div>`;
-    }
-    return `<div class="page loading-page">${this.topbar()}${body}</div>`;
   },
 
   bottomNav(active) {
@@ -1796,6 +1770,7 @@ const card = (x) => {
     const wrap = (x, extra) => Object.assign({
       id: x.id,
       current: x.id === a.id,
+      locked: Number(x.locked) ? 1 : 0,
       read: x.id !== a.id && this.isRead(x.id),
     }, extra || {});
     if (a.category === 'main') {
@@ -1828,6 +1803,13 @@ const card = (x) => {
 
   // 结尾：本节完 → 下一篇卡片 → 小导航（设定不写「本节完」）
   readingEnd(a, prevId, nextId) {
+    // 设定是词条，不是连载：不给上一篇/下一篇，也不给「继续阅读」卡片，
+    // 否则锁定的词条会从这些入口被翻开（列表页那里是灰的、点不动）。
+    if (a.category === 'settings') {
+      // 设定是词条：不给上下篇、不给继续阅读卡，也不给末尾的「目录」
+      // （标题下面已经有一枚「目录」按钮，短词条再来一枚很怪）
+      return '';
+    }
     const next = this.findAnywhere(nextId);
     const prev = this.findAnywhere(prevId);
     const endMark = a.category === 'settings' ? '' : '<p class="reading-end-mark">— 本节完 —</p>';
@@ -1866,7 +1848,14 @@ const card = (x) => {
           <a class="toc-all" href="${data.href}">全部 →</a>
           <button class="toc-x" type="button" data-toc-close aria-label="关闭">✕</button>
         </header>
-        <ol class="toc-list">${data.items.map(it => `<li class="${it.current ? 'is-on' : ''}">
+        <ol class="toc-list">${data.items.map(it => (it.locked && !it.current)
+          ? `<li class="is-locked" aria-disabled="true">
+            <span>
+              <i>${esc(it.label)}</i>
+              <b>${esc(it.title || '')}</b>
+              <em class="toc-lock">未解锁</em>
+            </span></li>`
+          : `<li class="${it.current ? 'is-on' : ''}">
           <a href="#/read/${it.id}">
             <i>${esc(it.label)}</i>
             <b>${esc(it.title || '')}</b>
@@ -1904,7 +1893,9 @@ const card = (x) => {
     // 上下篇用前端已缓存的目录计算，不额外请求数据库
     let prev_id = null, next_id = null;
     const m = this.state.menu;
-    if (m) {
+    if (m && article.category === 'settings') {
+      // 设定是词条，不给上下篇（否则键盘 ← → 与左右滑动会绕过锁定）
+    } else if (m) {
       if (article.category === 'main') {
         const all = [];
         m.main.forEach(ch => all.push(...(ch.sections || [])));
@@ -3738,6 +3729,30 @@ const card = (x) => {
     this.initWallpaper();
   },
 
+  /* 离开阅读页时把挂在 body 上的阅读态全部清掉。
+     典型 bug：沉浸阅读把顶栏/底栏收起来后，用浏览器「后退」回书架，
+     body.immersive 还留着 → 书架页也没有导航栏。/toc-open 会让整页不能滚动。 */
+  resetReadingChrome() {
+    // 单元测试里 document.body 可能不存在（只 stub 了最小 DOM），先挡一下
+    if (typeof document === 'undefined' || !document.body || !document.body.classList) return;
+    const b = document.body;
+    b.classList.remove('immersive');
+    b.classList.remove('toc-open');
+    this._lastScrollY = 0;
+    if (typeof document.getElementById !== 'function') return;
+    ['tocDrawer', 'readSet', 'posBack'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+    const gauge = document.getElementById('readingGauge');
+    if (gauge) gauge.classList.remove('on');
+    const bar = document.getElementById('readingProgress');
+    if (bar) bar.classList.remove('on');
+    const top = document.getElementById('toTop');
+    if (top) top.classList.remove('on');
+    window.onscroll = null;
+  },
+
   /* ---------- 阅读页的滚动装饰：顶部进度条 + 回到顶部 ---------- */
   readingChrome() {
     if (this._chrome) return this._chrome;
@@ -3765,12 +3780,14 @@ const card = (x) => {
     if (!reading) {
       chrome.bar.classList.remove('on');
       chrome.top.classList.remove('on');
+      const g = document.getElementById('readingGauge');
+      if (g) g.classList.remove('on');
       window.onscroll = null;
       return;
     }
     chrome.bar.classList.add('on');
 
-    // 右下角的进度浮标：百分比 + 大约还剩几分钟（中文 350 字/分钟）
+    // 右下角的进度浮标：只显示百分比
     let gauge = document.getElementById('readingGauge');
     if (!gauge) {
       gauge = document.createElement('div');
@@ -3792,7 +3809,6 @@ const card = (x) => {
     if (gauge.parentNode !== stack) stack.appendChild(gauge);
 
     const gaugeNum = gauge.querySelector('b');
-    const gaugeEta = gauge.querySelector('span');
     const totalChars = Number(reading.dataset.chars || 0);
     const articleId = Number(reading.dataset.id || 0);
     let hideTimer = null;

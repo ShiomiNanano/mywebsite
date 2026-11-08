@@ -1091,21 +1091,6 @@ html[data-font="4"] .reading-content p { font-size: clamp(21.5px, 6.2vw, 23.5px)
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.err { background: var(--danger); color: var(--accent-ink); }
 
-/* 骨架屏 */
-.sk-line, .sk-title, .sk-card {
-  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--surface-2) 37%, var(--surface-sunken) 63%);
-  background-size: 400% 100%;
-  animation: sk 1.3s ease-in-out infinite;
-}
-.sk-line { display: block; height: 13px; margin: 9px 0; border-radius: var(--r-xs); }
-.sk-title { height: 24px; width: 68%; margin: 14px auto 10px; border-radius: var(--r-xs); }
-.sk-divider { height: 1px; width: 46%; margin: var(--sp-4) auto; background: var(--line); }
-.sk-para { margin: 0 0 var(--sp-5); }
-.sk-reading { padding-bottom: var(--sp-7); }
-.sk-card { height: 104px; border-radius: var(--r-md); }
-.sk-text { height: 12px; width: 38%; background: var(--surface-sunken); border-radius: var(--r-xs); }
-@keyframes sk { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
-
 /* ============ 6. 响应式与无障碍 ============ */
 @media (min-width: 640px) {
   /* 书架刻意保持单列纵向（不要改成两列）；只有卡片库页面用两列 */
@@ -4337,3 +4322,24 @@ html[data-readtheme="green"] .readset {
 /* 面板底：三套配色的实心底，避免透出正文 */
 html[data-readtheme="paper"] .readset { background-color: rgba(251, 247, 236, .99); }
 html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .99); }
+
+/* 目录里的锁定词条：整体灰掉、不可点（选择器要压得住 .toc-list em / .toc-list a 那几条） */
+.toc-list li.is-locked > span {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; margin: 2px 0;
+  border-radius: 9px;
+  color: var(--ink-3, #93a1ab) !important;
+  background: transparent;
+  cursor: not-allowed;
+}
+.toc-list li.is-locked > span i { opacity: .65; }
+.toc-list li.is-locked > span b { font-weight: 400; }
+.toc-list li.is-locked em.toc-lock {
+  margin-left: auto; font-style: normal;
+  font-size: 10px; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 999px;
+  color: var(--ink-3, #93a1ab) !important;
+  background: rgba(255, 255, 255, .07) !important;
+  border: 1px solid rgba(255, 255, 255, .10);
+  opacity: .9;
+}
