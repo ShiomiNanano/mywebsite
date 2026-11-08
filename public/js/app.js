@@ -602,6 +602,7 @@ const App = {
         else if (sub === 'edit') view = await this.renderAdminForm(parts[2]);
         else if (sub === 'users') view = await this.renderAdminUsers();
         else if (sub === 'music') view = await this.renderAdminMusic();
+      else if (sub === 'links') view = await this.renderAdminLinks();
         else view = await this.renderAdminArticles();
       }
       else view = this.renderLanding();
@@ -1530,6 +1531,11 @@ const App = {
     const isAdmin = !!(u && u.role === 'admin');
     const rawNote = String(data.note || '');
     const friends = this.boardFriends(rawNote);
+    let siteLinks = [];
+    try { siteLinks = await API.get('/api/links'); } catch (e) { siteLinks = []; }
+    const links = (Array.isArray(siteLinks) ? siteLinks : []).map((l) => ({ name: l.name, url: l.url }));
+    friends.links.forEach((l) => { if (!links.some((x) => x.url === l.url)) links.push(l); });
+    if (!links.length) { /* 没有友链就什么都不显示 */ }
     const note = friends.text;
     return `
     <div class="page board-page">
@@ -1539,7 +1545,7 @@ const App = {
         <p>随便聊聊，或者给店长留句话。</p>
       </div>
 
-      <section class="board-board${isAdmin ? ' is-editable' : ''}${friends.links.length ? ' has-links' : ''}" id="boardBoard">
+      <section class="board-board${isAdmin ? ' is-editable' : ''}${links.length ? ' has-links' : ''}" id="boardBoard">
         <div class="bb-head">
           <span class="bb-label">今日推荐</span>
           ${isAdmin ? `<button type="button" class="bb-edit" id="bbEdit">编辑</button>` : ''}
@@ -1556,11 +1562,11 @@ const App = {
         </div>` : ''}
       </section>
 
-      ${friends.links.length ? `
+      ${links.length ? `
       <section class="board-links" aria-label="友情链接">
         <span class="bl-label">友情链接</span>
         <div class="bl-row">
-          ${friends.links.map((l, i) => `<a class="bl-btn" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+          ${links.map((l, i) => `<a class="bl-btn" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
             <span class="bl-no" aria-hidden="true">${['①', '②', '③', '④'][i] || '·'}</span>
             <span class="bl-name">${esc(l.name)}</span>
             <span class="bl-go" aria-hidden="true">↗</span>
@@ -2117,6 +2123,7 @@ const card = (x) => {
         <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
         <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
         <a class="${active === 'music' ? 'active' : ''}" href="#/admin/music">八音盒</a>
+        <a class="${active === 'links' ? 'active' : ''}" href="#/admin/links">友链</a>
       </div>
       <div class="admin-nav-tools">
         <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP）</a>
@@ -2850,6 +2857,125 @@ const card = (x) => {
       b.classList.remove('is-on');
       b.textContent = '▶ 试听';
     });
+  },
+
+  /* ---------- 后台：友情链接 ---------- */
+  linkRowsHtml() {
+    const rows = this._linkRows || [];
+    if (!rows.length) return '<li class="music-empty">还没有友链，上面加一条吧。</li>';
+    return rows.map((l, i) => `
+      <li class="music-row" data-id="${l.id}">
+        <span class="mr-i">${String(i + 1).padStart(2, '0')}</span>
+        <div class="mr-main"><b>${esc(l.name)}</b><span>${esc(l.url)}</span></div>
+        <div class="mr-act">
+          <button type="button" class="btn btn-small" data-lact="up" ${i === 0 ? 'disabled' : ''} title="上移">↑</button>
+          <button type="button" class="btn btn-small" data-lact="down" ${i === rows.length - 1 ? 'disabled' : ''} title="下移">↓</button>
+          <button type="button" class="btn btn-small btn-danger" data-lact="del">删除</button>
+        </div>
+      </li>`).join('');
+  },
+
+  async renderAdminLinks() {
+    const u = this.state.user;
+    if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = '友链管理 · 白日梦咖啡馆';
+    let rows = [];
+    try { rows = await API.get('/api/links'); } catch (e) { rows = []; }
+    this._linkRows = Array.isArray(rows) ? rows : [];
+    return `
+    <div class="page admin-page">
+      ${this.topbar()}
+      ${this.adminNav('links')}
+      <div class="admin-shell">
+        <div class="admin-title">
+          <div class="admin-editor-head-main">
+            <h1>友情链接</h1>
+            <p class="admin-sub">共 ${this._linkRows.length} 条 · 显示在留言板「友情链接」那一排，顺序就是这里的顺序</p>
+          </div>
+        </div>
+        <form class="music-form" id="linkForm">
+          <div class="mf-row">
+            <label>名字<input name="name" maxlength="40" required placeholder="例：糖渍旧蜜"></label>
+            <label>网址<input name="url" maxlength="300" required placeholder="https://example.pages.dev/"></label>
+          </div>
+          <div class="mf-actions">
+            <button class="btn btn-primary btn-small" type="submit">添加友链</button>
+            <span class="mf-hint">网址要 http:// 或 https:// 开头；列表从上往下，就是留言板上的顺序。</span>
+          </div>
+        </form>
+        <ul class="music-list" id="linkList">${this.linkRowsHtml()}</ul>
+        <p class="music-note">想换顺序就用 ↑ ↓ 挪。</p>
+      </div>
+    </div>`;
+  },
+
+  async refreshLinkList() {
+    try {
+      const rows = await API.get('/api/links');
+      this._linkRows = Array.isArray(rows) ? rows : [];
+    } catch (e) {}
+    const box = document.getElementById('linkList');
+    if (box) box.innerHTML = this.linkRowsHtml();
+    const sub = document.querySelector('.admin-sub');
+    if (sub) sub.textContent = '共 ' + (this._linkRows || []).length + ' 条 · 显示在留言板「友情链接」那一排，顺序就是这里的顺序';
+  },
+
+  bindLinkAdmin() {
+    const form = document.getElementById('linkForm');
+    if (form && !form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const name = String(fd.get('name') || '').trim();
+        const url = String(fd.get('url') || '').trim();
+        if (!name) return toast('先给它起个名字');
+        if (!/^https?:\/\//i.test(url)) return toast('网址要 http:// 或 https:// 开头');
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) btn.disabled = true;
+        try {
+          await API.post('/api/links', { name: name, url: url });
+          form.reset();
+          toast('已添加');
+          await this.refreshLinkList();
+        } catch (err) {
+          toast(err.message || '添加失败');
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      });
+    }
+    const list = document.getElementById('linkList');
+    if (list && !list.dataset.bound) {
+      list.dataset.bound = '1';
+      list.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-lact]');
+        if (!btn) return;
+        const row = btn.closest('[data-id]');
+        if (!row) return;
+        const id = Number(row.getAttribute('data-id'));
+        const rows = this._linkRows || [];
+        const i = rows.findIndex((r) => r.id === id);
+        const act = btn.getAttribute('data-lact');
+        try {
+          if (act === 'del') {
+            if (!confirm('删掉「' + (rows[i] ? rows[i].name : '') + '」这条友链？')) return;
+            await API.del('/api/links/' + id);
+            toast('已删除');
+            await this.refreshLinkList();
+            return;
+          }
+          const j = act === 'up' ? i - 1 : i + 1;
+          if (i < 0 || j < 0 || j >= rows.length) return;
+          const x = rows[i], y = rows[j];
+          await API.put('/api/links/' + x.id, { sort: y.sort });
+          await API.put('/api/links/' + y.id, { sort: x.sort });
+          await this.refreshLinkList();
+        } catch (err) {
+          toast(err.message || '操作失败');
+        }
+      });
+    }
   },
 
   musicRowsHtml() {
@@ -3932,6 +4058,7 @@ const card = (x) => {
   /* ---------- 事件绑定 ---------- */
   afterRender() {
     this.bindMusicAdmin();
+    this.bindLinkAdmin();
 
     /* 从互链跳走再点「回到原文」回来时，还原当时的滚动位置 ——
        否则读者会被弹回文章开头，还得自己往下找刚才读到哪 ✗。

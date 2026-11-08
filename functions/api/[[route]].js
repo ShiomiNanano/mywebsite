@@ -1477,6 +1477,53 @@ export async function onRequest(context) {
       return json({ id: id, url: '/api/media/' + id, bytes: bin.length }, 201);
     }
 
+    /* ===== 友情链接（留言板那一排） =====
+       GET 公开；POST / PUT / DELETE 管理员 */
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      sort INTEGER DEFAULT 0,
+      created_at TEXT
+    )`).run();
+    if (method === 'GET' && path === '/links') {
+      const rows = await env.DB.prepare('SELECT id, name, url, sort, created_at FROM links ORDER BY sort, id').all();
+      return json(rows.results || []);
+    }
+    if (method === 'POST' && path === '/links') {
+      const e = needAdmin(); if (e) return e;
+      const body = await readBody(request);
+      const name = String(body.name || '').trim().slice(0, 40);
+      const url2 = String(body.url || '').trim().slice(0, 300);
+      if (!name) return json({ error: '请填写名字' }, 400);
+      if (!/^https?:\/\//i.test(url2)) return json({ error: '网址要 http:// 或 https:// 开头' }, 400);
+      const top = await env.DB.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM links').first();
+      const sort = (Number(top && top.s) || 0) + 10;
+      const r = await env.DB.prepare('INSERT INTO links (name, url, sort, created_at) VALUES (?,?,?,?)')
+        .bind(name, url2, sort, nowStr()).run();
+      return json({ id: r.meta.last_row_id }, 201);
+    }
+    let lm = path.match(/^\/links\/(\d+)$/);
+    if (lm && method === 'DELETE') {
+      const e = needAdmin(); if (e) return e;
+      await env.DB.prepare('DELETE FROM links WHERE id=?').bind(Number(lm[1])).run();
+      return json({ ok: true });
+    }
+    if (lm && method === 'PUT') {
+      const e = needAdmin(); if (e) return e;
+      const id = Number(lm[1]);
+      const row = await env.DB.prepare('SELECT * FROM links WHERE id=?').bind(id).first();
+      if (!row) return json({ error: '这条友链不在了' }, 404);
+      const body = await readBody(request);
+      const name = body.name != null ? String(body.name).trim().slice(0, 40) : row.name;
+      const url2 = body.url != null ? String(body.url).trim().slice(0, 300) : row.url;
+      const sort = body.sort != null ? (parseInt(body.sort, 10) || 0) : row.sort;
+      if (!name) return json({ error: '请填写名字' }, 400);
+      if (!/^https?:\/\//i.test(url2)) return json({ error: '网址要 http:// 或 https:// 开头' }, 400);
+      await env.DB.prepare('UPDATE links SET name=?, url=?, sort=? WHERE id=?').bind(name, url2, sort, id).run();
+      return json({ ok: true });
+    }
+
     /* ===== 柒乃的八音盒（播放列表） =====
        GET    /api/music        公开：按 sort, id 排序
        POST   /api/music        管理员新增：{ title, artist, src }
