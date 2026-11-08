@@ -1664,7 +1664,7 @@ export async function onRequest(context) {
     if (method === 'GET' && path === '/admin/articles') {
       const e = needAdmin(); if (e) return e;
       // 管理列表不显示正文，别把整本书再传一遍
-      const rows = await env.DB.prepare(`SELECT id, category, chapter_no, chapter_title, section_no, section_title, title, created_at, updated_at
+      const rows = await env.DB.prepare(`SELECT id, category, chapter_no, chapter_title, section_no, section_title, title, summary, LENGTH(COALESCE(source, '')) AS src_len, created_at, updated_at
         FROM articles ORDER BY category, chapter_no, section_no, sort_order, id`).all();
       return json(rows.results);
     }

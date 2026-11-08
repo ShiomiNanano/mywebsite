@@ -8,7 +8,7 @@ function esc(s) {
 // 后端存的是 UTC 时间（YYYY-MM-DD HH:MM:SS），这里转成访客本地时间显示
 function formatTime(s) {
   if (!s) return '—';
-  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  const d = new Date(String(s).replace(' ', 'T').replace(/Z$/, '') + 'Z');
   if (isNaN(d.getTime())) return s;
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -1913,12 +1913,15 @@ const card = (x) => {
   /* ---------- 10. 管理后台 ---------- */
   adminNav(active) {
     return `<div class="admin-nav">
-      <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
-      <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
-        
-          <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP·每篇一个 txt）</a>
-          <a class="admin-export" href="/api/admin/export?format=json" download>备份 JSON（含标记原文）</a>
-        </div>`;
+      <div class="admin-nav-tabs">
+        <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
+        <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
+      </div>
+      <div class="admin-nav-tools">
+        <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP）</a>
+        <a class="admin-export" href="/api/admin/export?format=json" download>备份 JSON</a>
+      </div>
+    </div>`;
   },
 
   async renderAdminArticles() {
@@ -1926,37 +1929,284 @@ const card = (x) => {
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
     this.pageTitle = '文章管理 · 白日梦咖啡馆';
     const articles = await API.get('/api/admin/articles');
-    const list = articles || [];
-    const cn = { main: '主线', personal: '个人章', settings: '设定' };
+    this._adminAll = Array.isArray(articles) ? articles : [];
+    this._adminFilter = Object.assign({ q: '', cat: 'all', ch: 'all', sort: 'order' }, this._adminFilter || {});
+    if (this._adminFilter.cat !== 'main') this._adminFilter.ch = 'all';
     return `
-    <div class="page">
+    <div class="page admin-page">
       ${this.topbar()}
       ${this.adminNav('articles')}
-      <div class="admin-head">
-        <h2>文章管理</h2>
-        <a class="btn btn-small btn-primary" href="#/admin/new">＋ 新增文章</a>
-      </div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr><th>ID</th><th>分类</th><th>章·节</th><th>标题</th><th>更新时间</th><th>操作</th></tr></thead>
-          <tbody>
-          ${list.length ? list.map(a => `
-            <tr>
-              <td>${a.id}</td>
-              <td><span class="tag tag-${a.category}">${cn[a.category]}</span></td>
-              <td>${a.category === 'main' ? `${a.chapter_no === 0 ? '序章' : a.chapter_no} · ${a.section_no}` : '—'}</td>
-              <td class="td-title">${esc(a.category === 'main' ? a.section_title : a.title)}</td>
-              <td>${esc(formatTime(a.updated_at))}</td>
-              <td>
-                <button class="btn btn-small btn-ghost" data-action="edit-article" data-id="${a.id}">编辑</button>
-                <a class="admin-export-row" href="/api/admin/export/txt/${a.id}" download>导出</a>
-              <button class="btn btn-small btn-danger" data-action="delete-article" data-id="${a.id}">删除</button>
-              </td>
-            </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--ink-soft)">还没有文章，点右上角「＋ 新增文章」发布第一篇吧。</td></tr>'}
-          </tbody>
-        </table>
+      <div class="admin-shell">
+        <header class="admin-title">
+          <div>
+            <h2>文章管理</h2>
+            <p class="admin-sub" id="adminStats">${this.adminStatsHtml()}</p>
+          </div>
+          <div class="admin-title-actions">
+            <a class="btn btn-small btn-primary" href="#/admin/new">＋ 新增文章</a>
+          </div>
+        </header>
+        <div class="admin-bar" id="adminBar">
+          <label class="admin-search">
+            <span class="admin-search-ico" aria-hidden="true"></span>
+            <input type="search" id="adminSearch" placeholder="搜索标题、节名或 ID" autocomplete="off" value="${esc(this._adminFilter.q)}">
+          </label>
+          <div class="admin-tabs" id="adminTabs" role="tablist">${this.adminTabsHtml()}</div>
+          <div class="admin-bar-tail">
+            <div class="admin-ch" id="adminChWrap">${this.adminChHtml()}</div>
+            <label class="admin-sort" title="排序方式">
+              <select id="adminSort">${this.adminSortHtml()}</select>
+            </label>
+          </div>
+        </div>
+        ${this.adminFilterBar()}
+        <div class="admin-list" id="adminList" aria-live="polite">${this.adminRowsHtml()}</div>
       </div>
     </div>`;
+  },
+
+  /* 顶部那行统计：总数 / 主线几章几节 / 个人章 / 设定，筛选时补一条「当前显示」 */
+  adminStatsHtml() {
+    const all = this._adminAll || [];
+    const n = (c) => all.filter((a) => a.category === c).length;
+    const mainN = n('main');
+    const chapters = new Set(all.filter((a) => a.category === 'main').map((a) => a.chapter_no)).size;
+    const shown = this.adminFiltered().length;
+    const bits = ['共 <b>' + all.length + '</b> 篇'];
+    if (mainN) bits.push('主线 <b>' + chapters + '</b> 章 <b>' + mainN + '</b> 节');
+    bits.push('个人章 <b>' + n('personal') + '</b>');
+    bits.push('设定 <b>' + n('settings') + '</b>');
+    if (shown !== all.length) bits.push('当前显示 <b>' + shown + '</b> 篇');
+    return bits.join(' · ');
+  },
+
+  adminTabsHtml() {
+    const f = this._adminFilter || {};
+    const all = this._adminAll || [];
+    const count = (c) => (c === 'all' ? all.length : all.filter((a) => a.category === c).length);
+    const tabs = [['all', '全部'], ['main', '主线'], ['personal', '个人章'], ['settings', '设定']];
+    return tabs.map(([k, label]) =>
+      `<button type="button" role="tab" data-cat="${k}" class="${f.cat === k ? 'on' : ''}" aria-selected="${f.cat === k}">${label}<b>${count(k)}</b></button>`
+    ).join('');
+  },
+
+  /* 只在「主线」页签下出现的章节下拉 */
+  adminChHtml() {
+    const f = this._adminFilter || {};
+    if (f.cat !== 'main') return '';
+    const seen = {};
+    const chs = [];
+    (this._adminAll || []).forEach((a) => {
+      if (a.category !== 'main') return;
+      const k = String(a.chapter_no);
+      if (seen[k]) return;
+      seen[k] = 1;
+      chs.push({ no: a.chapter_no, title: a.chapter_title || '' });
+    });
+    chs.sort((x, y) => x.no - y.no);
+    return `<label>章
+      <select id="adminChFilter">
+        <option value="all" ${f.ch === 'all' ? 'selected' : ''}>全部</option>
+        ${chs.map((c) => `<option value="${c.no}" ${String(f.ch) === String(c.no) ? 'selected' : ''}>${c.no === 0 ? '序章' : '第 ' + c.no + ' 章'}${c.title ? ' · ' + esc(c.title) : ''}</option>`).join('')}
+      </select>
+    </label>`;
+  },
+
+  adminSortHtml() {
+    const cur = (this._adminFilter || {}).sort || 'updated';
+    return [['order', '阅读顺序'], ['updated', '最近更新'], ['created', '最近创建'], ['id', '按 ID'], ['title', '按标题']]
+      .map(([k, label]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${label}</option>`).join('');
+  },
+
+  adminFilterBar() {
+    const f = this._adminFilter || {};
+    const chips = [];
+    const catName = { main: '主线', personal: '个人章', settings: '设定' };
+    if (f.cat && f.cat !== 'all') chips.push(catName[f.cat] || f.cat);
+    if (f.cat === 'main' && f.ch && f.ch !== 'all') {
+      const a = (this._adminAll || []).find((x) => x.category === 'main' && String(x.chapter_no) === String(f.ch));
+      chips.push(a ? (Number(a.chapter_no) === 0 ? '序章' : '第 ' + a.chapter_no + ' 章') + ' · ' + (a.chapter_title || '') : '第 ' + f.ch + ' 章');
+    }
+    if (f.q) chips.push('「' + f.q + '」');
+    if (!chips.length) return '';
+    return `
+      <div class="admin-active">
+        <span class="admin-active-lead">当前筛选</span>
+        ${chips.map((c) => `<b class="admin-active-chip">${esc(c)}</b>`).join('<i>›</i>')}
+        <button type="button" class="admin-act admin-act-strong" data-action="clear-admin-filter">清除筛选</button>
+      </div>`;
+  },
+
+  syncFilterBar() {
+    const html = this.adminFilterBar();
+    const prev = document.querySelector('.admin-active');
+    if (html) {
+      if (prev) prev.outerHTML = html;
+      else {
+        const l = document.getElementById('adminList');
+        if (l) l.insertAdjacentHTML('beforebegin', html);
+      }
+    } else if (prev) prev.remove();
+  },
+
+  adminFiltered() {
+    const f = this._adminFilter || {};
+    const q = String(f.q || '').trim().toLowerCase();
+    let list = (this._adminAll || []).slice();
+    if (f.cat && f.cat !== 'all') list = list.filter((a) => a.category === f.cat);
+    if (f.cat === 'main' && f.ch && f.ch !== 'all') list = list.filter((a) => String(a.chapter_no) === String(f.ch));
+    if (q) {
+      list = list.filter((a) => {
+        const hay = [a.id, a.title, a.section_title, a.chapter_title].filter(Boolean).join(' ').toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+    const by = f.sort || 'order';
+    if (by !== 'order') list.sort((x, y) => {
+      if (by === 'id') return x.id - y.id;
+      if (by === 'title') return String(x.section_title || x.title || '').localeCompare(String(y.section_title || y.title || ''), 'zh');
+      const kx = by === 'created' ? x.created_at : x.updated_at;
+      const ky = by === 'created' ? y.created_at : y.updated_at;
+      return String(ky || '').localeCompare(String(kx || ''));
+    });
+    return list;
+  },
+
+  adminRowsHtml() {
+    const list = this.adminFiltered();
+    const all = this._adminAll || [];
+    if (!list.length) {
+      return `<div class="admin-empty">
+        <p class="admin-empty-title">${all.length ? '没有符合条件的文章' : '还没有文章'}</p>
+        <p class="admin-empty-hint">${all.length ? '换个关键词，或者点上面的「全部」看全量。' : '点右上角「＋ 新增文章」发布第一篇吧。'}</p>
+        ${all.length ? '<button class="btn btn-small btn-ghost" type="button" data-action="clear-admin-filter">清除筛选</button>' : ''}
+      </div>`;
+    }
+    const main = list.filter((a) => a.category === 'main');
+    const personal = list.filter((a) => a.category === 'personal');
+    const settings = list.filter((a) => a.category === 'settings');
+    let html = '';
+    if (main.length) {
+      const groups = [];
+      const index = {};
+      main.forEach((a) => {
+        const k = String(a.chapter_no);
+        if (!index[k]) { index[k] = { no: a.chapter_no, title: a.chapter_title || '', items: [] }; groups.push(index[k]); }
+        if (!index[k].title && a.chapter_title) index[k].title = a.chapter_title;
+        index[k].items.push(a);
+      });
+      groups.sort((x, y) => x.no - y.no);
+      html += groups.map((g) => `
+        <section class="admin-group">
+          <header class="admin-group-head">
+            <span class="admin-group-title">${g.no === 0 ? '序章' : '第 ' + g.no + ' 章'}${g.title ? ' · ' + esc(g.title) : ''}</span>
+            <span class="admin-group-count">${g.items.length} 节</span>
+          </header>
+          <ul class="admin-rows">${g.items.map((a) => this.adminRowHtml(a)).join('')}</ul>
+        </section>`).join('');
+    }
+    if (personal.length) html += this.adminFlatGroup('个人章', personal);
+    if (settings.length) html += this.adminFlatGroup('设定', settings);
+    return html;
+  },
+
+  adminFlatGroup(title, list) {
+    return `<section class="admin-group">
+      <header class="admin-group-head"><span class="admin-group-title">${title}</span><span class="admin-group-count">${list.length} 篇</span></header>
+      <ul class="admin-rows">${list.map((a) => this.adminRowHtml(a)).join('')}</ul>
+    </section>`;
+  },
+
+  adminRowHtml(a) {
+    const isMain = a.category === 'main';
+    const no = isMain ? String(a.section_no == null ? '' : a.section_no).padStart(2, '0') : '';
+    const title = isMain ? (a.section_title || '（未命名这一节）') : (a.title || '（未命名）');
+    const sub = isMain ? '' : (a.summary || '');
+    const len = a.src_len ? Number(a.src_len).toLocaleString('en-US') + ' 字' : '';
+    const meta = [len, formatTime(a.updated_at)].filter(Boolean).join(' · ');
+    const tag = isMain ? '' : `<span class="tag tag-${a.category}">${a.category === 'personal' ? '个人章' : '设定'}</span>`;
+    return `<li class="admin-row" data-id="${a.id}">
+      <span class="admin-row-no">${no || '·'}</span>
+      <div class="admin-row-main">
+        <div class="admin-row-line">
+          <b class="admin-row-title">${esc(title)}</b>
+          ${tag}
+        </div>
+        ${sub ? `<p class="admin-row-sum">${esc(sub)}</p>` : ''}
+        <span class="admin-row-meta">${esc(meta || '—')}</span>
+      </div>
+      <div class="admin-row-actions">
+        <a class="admin-act" href="#/read/${a.id}" target="_blank" rel="noopener" title="在新标签打开读者视角">预览</a>
+        <button class="admin-act" type="button" data-action="copy-article" data-id="${a.id}" title="复制这篇文章的链接">复制</button>
+        <a class="admin-act" href="/api/admin/export/txt/${a.id}" download title="导出为 txt">导出</a>
+        <a class="admin-act admin-act-strong" href="#/admin/edit/${a.id}">编辑</a>
+        <button class="admin-act admin-act-danger" type="button" data-action="delete-article" data-id="${a.id}">删除</button>
+      </div>
+    </li>`;
+  },
+
+  /* 只重画列表区，不动输入框 —— 否则搜索到一半焦点就丢了 */
+  refreshAdminList() {
+    this.syncFilterBar();
+    const list = document.getElementById('adminList');
+    if (list) list.innerHTML = this.adminRowsHtml();
+    const stats = document.getElementById('adminStats');
+    if (stats) stats.innerHTML = this.adminStatsHtml();
+    const tabs = document.getElementById('adminTabs');
+    if (tabs) tabs.innerHTML = this.adminTabsHtml();
+    const chWrap = document.getElementById('adminChWrap');
+    if (chWrap) chWrap.innerHTML = this.adminChHtml();
+  },
+
+  initEditorChrome() {
+    const bar = document.getElementById('editorToolbar');
+    const more = document.getElementById('wsMore');
+    const grip = document.getElementById('wsGrip');
+    const work = document.getElementById('wsWork');
+    const pane = document.getElementById('wsPane');
+    if (bar && more) {
+      const KEY = 'daydream-toolbar-compact';
+      const apply = (compact) => {
+        bar.classList.toggle('is-compact', compact);
+        more.textContent = compact ? '更多 ▾' : '收起 ▴';
+        try { localStorage.setItem(KEY, compact ? '1' : '0'); } catch (e) {}
+      };
+      let saved = '1';
+      try { saved = localStorage.getItem(KEY) || '1'; } catch (e) {}
+      apply(saved === '1');
+      more.addEventListener('click', () => apply(!bar.classList.contains('is-compact')));
+    }
+    if (grip && pane && work) {
+      let dragging = false;
+      let startX = 0;
+      let startW = 0;
+      const clamp = (w) => Math.max(240, Math.min(w, Math.max(280, work.clientWidth - 340)));
+      try {
+        const saved = Number(localStorage.getItem('daydream-preview-w'));
+        if (saved > 0) work.style.setProperty('--ws-prev', clamp(saved) + 'px');
+      } catch (e) {}
+      grip.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        startX = e.clientX;
+        startW = pane.getBoundingClientRect().width;
+        grip.setPointerCapture(e.pointerId);
+        document.body.style.cursor = 'col-resize';
+        e.preventDefault();
+      });
+      grip.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const w = clamp(startW - (e.clientX - startX));
+        work.style.setProperty('--ws-prev', w + 'px');
+      });
+      const stop = () => {
+        if (!dragging) return;
+        dragging = false;
+        document.body.style.cursor = '';
+        try { localStorage.setItem('daydream-preview-w', String(Math.round(pane.getBoundingClientRect().width))); } catch (e) {}
+      };
+      grip.addEventListener('pointerup', stop);
+      grip.addEventListener('pointercancel', stop);
+    }
   },
 
   async renderAdminForm(id) {
@@ -1971,74 +2221,22 @@ const card = (x) => {
     const rich = false;   // 原始 HTML 模式已移除：一律先给纯文本，标记原文随后异步覆盖
     const body = a ? (rich ? a.content : a.content_text) : '';
     return `
-    <div class="page">
+    <div class="page admin-page">
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/admin/articles">管理后台</a> / ${id ? '编辑文章' : '新增文章'}</div>
       <div class="admin-form-wrap">
         <form id="adminForm" data-id="${id || ''}" class="admin-form">
-          <div class="form-row">
-            <label>分类</label>
-            <select name="category" id="articleCategory">
-              <option value="main" ${isMain ? 'selected' : ''}>主线</option>
-              <option value="personal" ${category === 'personal' ? 'selected' : ''}>个人章</option>
-              <option value="settings" ${category === 'settings' ? 'selected' : ''}>设定</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>从文件导入 <span class="hint">（Word 的 .docx，或 .txt / .md）</span></label>
-            <div class="doc-import">
-              <label class="btn btn-small btn-ghost btn-file">选择文件<input type="file" id="docFile" accept=".docx,.txt,.md,.doc" hidden></label>
-              <span class="doc-import-state" id="docState">也可以把文件直接拖到下面任意位置；旧的 .doc 请先在 Word 里另存为 .docx</span>
+          <header class="admin-editor-head">
+            <div class="admin-editor-head-main">
+              <h2>${id ? '编辑文章' : '新增文章'}</h2>
+              <p class="admin-sub" id="edSub">${isMain ? '主线 · 第 ' + (a ? a.chapter_no : '?') + ' 章 · 第 ' + (a ? a.section_no : '?') + ' 节' : (category === 'personal' ? '个人章' : '设定词条')}</p>
             </div>
-            <div class="doc-summary" id="docSummary" hidden></div>
-          </div>
-          <div class="form-row inline" id="mainFields" ${isMain ? '' : 'style="display:none"'}>
-            <div>
-              <label>章号</label>
-              <input name="chapter_no" type="number" min="0" placeholder="0 = 序章" value="${a ? a.chapter_no : ''}">
+            <div class="admin-editor-head-side">
+              <span class="admin-savebar-state" id="edState">${id ? '编辑中' : '新文章'}</span>
             </div>
-            <div>
-              <label>章节标题</label>
-              <input name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
-            </div>
-          </div>
-          <div class="form-row inline" id="sectionFields" ${isMain ? '' : 'style="display:none"'}>
-            <div>
-              <label>节号</label>
-              <input name="section_no" type="number" min="1" placeholder="如 1" value="${a ? a.section_no : ''}">
-            </div>
-            <div>
-              <label>节标题</label>
-              <input name="section_title" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
-            </div>
-          </div>
-          <div class="form-row inline set-only" id="settingFields" ${category === 'settings' ? '' : 'style="display:none"'}>
-            <div>
-              <label>类型 <span class="hint">（设定用：地点 / 人物 / 组织 / 名词 / 其它）</span></label>
-              <select name="setting_type">
-                ${['地点', '人物', '组织', '名词', '其它'].map(t => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
-              <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
-            </div>
-              <div>
-              <label>公开性 <span class="hint">（锁定后：别人只看得到名字和胶囊，点不开）</span></label>
-              <select name="locked">
-              <option value="0" ${a && Number(a.locked) ? '' : 'selected'}>公开</option>
-              <option value="1" ${a && Number(a.locked) ? 'selected' : ''}>锁定</option>
-              </select>
-              </div>
-          </div>
-          <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
-            <label>标题</label>
-            <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
-          </div>
-          <div class="form-row">
-            <label>卡片简介 <span class="hint">（可不填：留空就自动截取正文开头；在这里写就不会剧透正文）</span></label>
-            <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
-          </div>
+          </header>
+          <div class="admin-editor-shell">
+            <section class="admin-editor-main">
           <div class="form-row">
             <label>正文内容 <span class="hint">（一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默）</span></label>
             <div class="ws" id="wsWork">
@@ -2092,6 +2290,9 @@ const card = (x) => {
                     <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
                     <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
                   </div>
+                  <div class="ws-grp ws-grp-more">
+                    <button type="button" class="et-btn et-more" id="wsMore" title="展开 / 收起不常用的按钮">更多 ▾</button>
+                  </div>
                 </div>
                 <textarea name="content" id="wsText" class="ws-text" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
                 <div class="ws-foot">
@@ -2102,6 +2303,7 @@ const card = (x) => {
                 </div>
               </div>
               <aside class="ws-pane" id="wsPane">
+                <span class="ws-grip" id="wsGrip" role="separator" aria-orientation="vertical" title="拖动调整预览宽度"></span>
                 <div class="ws-tabs" id="wsTabs">
                   <button type="button" class="ws-tab is-on" data-panel="preview">预览</button>
                   <button type="button" class="ws-tab" data-panel="check">检查<em id="wsCheckNum" hidden></em></button>
@@ -2113,14 +2315,89 @@ const card = (x) => {
               </aside>
             </div>
           </div>
+          </section>
+            <aside class="admin-editor-side">
+              <div class="admin-side-card">
+                <p class="admin-side-title">位置</p>
           <div class="form-row">
-          <!-- 原始 HTML 模式（高级）已按店长要求移除：后台只用标记式编辑器。
-               想恢复见 archive/raw-html-mode.md -->
-            <p class="hint">勾选后正文会原样保存，不会自动转成 &lt;p&gt; 段落，也不会被转义。用于人物卡这类带结构的内容。</p>
+            <label>分类</label>
+            <select name="category" id="articleCategory">
+              <option value="main" ${isMain ? 'selected' : ''}>主线</option>
+              <option value="personal" ${category === 'personal' ? 'selected' : ''}>个人章</option>
+              <option value="settings" ${category === 'settings' ? 'selected' : ''}>设定</option>
+            </select>
           </div>
-          <div class="form-row">
-            <button class="btn btn-primary" type="submit">${id ? '保存修改' : '发布文章'}</button>
-            <a class="btn btn-ghost" href="#/admin/articles">取消</a>
+          </div>
+          <div class="form-row inline" id="mainFields" ${isMain ? '' : 'style="display:none"'}>
+            <div>
+              <label>章号</label>
+              <input name="chapter_no" type="number" min="0" placeholder="0 = 序章" value="${a ? a.chapter_no : ''}">
+            </div>
+            <div>
+              <label>章节标题</label>
+              <input name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
+            </div>
+          </div>
+          <div class="form-row inline" id="sectionFields" ${isMain ? '' : 'style="display:none"'}>
+            <div>
+              <label>节号</label>
+              <input name="section_no" type="number" min="1" placeholder="如 1" value="${a ? a.section_no : ''}">
+            </div>
+            <div>
+              <label>节标题</label>
+              <input name="section_title" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
+            </div>
+          </div>
+          <div class="form-row inline set-only" id="settingFields" ${category === 'settings' ? '' : 'style="display:none"'}>
+            <div>
+              <label>类型 <span class="hint">（设定用：地点 / 人物 / 组织 / 名词 / 其它）</span></label>
+              <select name="setting_type">
+                ${['地点', '人物', '组织', '名词', '其它'].map(t => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
+              <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
+            </div>
+              <div>
+              <label>公开性 <span class="hint">（锁定后：别人只看得到名字和胶囊，点不开）</span></label>
+              <select name="locked">
+              <option value="0" ${a && Number(a.locked) ? '' : 'selected'}>公开</option>
+              <option value="1" ${a && Number(a.locked) ? 'selected' : ''}>锁定</option>
+              </select>
+              </div>
+          </div>
+          <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
+            <label>标题</label>
+            <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
+          </div>
+              <div class="admin-side-card">
+                <p class="admin-side-title">卡片</p>
+<div class="form-row">
+            <label>卡片简介 <span class="hint">（可不填：留空就自动截取正文开头；在这里写就不会剧透正文）</span></label>
+            <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
+          </div>
+              </div>
+              <div class="admin-side-card">
+                <p class="admin-side-title">导入</p>
+<div class="form-row">
+            <label>从文件导入 <span class="hint">（Word 的 .docx，或 .txt / .md）</span></label>
+            <div class="doc-import">
+              <label class="btn btn-small btn-ghost btn-file">选择文件<input type="file" id="docFile" accept=".docx,.txt,.md,.doc" hidden></label>
+              <span class="doc-import-state" id="docState">也可以把文件直接拖到下面任意位置；旧的 .doc 请先在 Word 里另存为 .docx</span>
+            </div>
+            <div class="doc-summary" id="docSummary" hidden></div>
+              </div>
+              </div>
+            </aside>
+          </div>
+          <div class="admin-savebar">
+            <span class="admin-savebar-state">${id ? '编辑中' : '新文章'}</span>
+            <div class="admin-savebar-actions">
+              ${id ? `<a class="btn btn-small btn-ghost" href="#/read/${id}" target="_blank" rel="noopener">在站内看</a>` : ''}
+              <a class="btn btn-small btn-ghost" href="#/admin/articles">取消</a>
+              <button class="btn btn-primary" type="submit">${id ? '保存修改' : '发布文章'}</button>
+            </div>
           </div>
         </form>
       </div>
@@ -2132,35 +2409,99 @@ const card = (x) => {
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
     this.pageTitle = '用户管理 · 白日梦咖啡馆';
     const users = await API.get('/api/admin/users');
-    const list = users || [];
+    this._usersAll = Array.isArray(users) ? users : [];
+    this._userFilter = Object.assign({ q: '', role: 'all' }, this._userFilter || {});
     return `
-    <div class="page">
+    <div class="page admin-page">
       ${this.topbar()}
       ${this.adminNav('users')}
-      <div class="admin-head"><h2>用户管理</h2></div>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>加入时间</th><th>操作</th></tr></thead>
-          <tbody>
-          ${list.map(x => `
-            <tr>
-              <td>${x.id}</td>
-              <td>${esc(x.username)}</td>
-              <td>${x.role === 'admin' ? '<span class="tag tag-main">管理员</span>' : '<span class="tag tag-personal">用户</span>'}</td>
-              <td>${esc(formatTime(x.created_at))}</td>
-              <td>
-                ${x.username === this.state.user.username ? '<span class="hint">（当前账号）</span>' : `
-                  <button class="btn btn-small btn-ghost" data-action="set-role" data-id="${x.id}"
-                    data-role="${x.role === 'admin' ? 'user' : 'admin'}">
-                    ${x.role === 'admin' ? '设为用户' : '设为管理员'}
-                  </button>
-                  <button class="btn btn-small btn-danger" data-action="delete-user" data-id="${x.id}">删除</button>`}
-              </td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
+      <div class="admin-shell">
+        <header class="admin-title">
+          <div>
+            <h2>用户管理</h2>
+            <p class="admin-sub" id="userStats">${this.userStatsHtml()}</p>
+          </div>
+        </header>
+        <div class="admin-bar" id="userBar">
+          <label class="admin-search">
+            <span class="admin-search-ico" aria-hidden="true"></span>
+            <input type="search" id="userSearch" placeholder="搜索用户名" autocomplete="off" value="${esc(this._userFilter.q)}">
+          </label>
+          <div class="admin-tabs" id="userTabs" role="tablist">${this.userTabsHtml()}</div>
+        </div>
+        <div class="admin-list" id="userList" aria-live="polite">${this.userRowsHtml()}</div>
       </div>
     </div>`;
+  },
+
+  userStatsHtml() {
+    const all = this._usersAll || [];
+    const admins = all.filter((x) => x.role === 'admin').length;
+    const shown = this.userFiltered().length;
+    const bits = ['共 <b>' + all.length + '</b> 位', '管理员 <b>' + admins + '</b>'];
+    if (shown !== all.length) bits.push('当前显示 <b>' + shown + '</b> 位');
+    return bits.join(' · ');
+  },
+
+  userTabsHtml() {
+    const f = this._userFilter || {};
+    const all = this._usersAll || [];
+    const count = (r) => (r === 'all' ? all.length : all.filter((x) => x.role === r).length);
+    return [['all', '全部'], ['admin', '管理员'], ['user', '普通用户']].map(([k, label]) =>
+      `<button type="button" role="tab" data-role-tab="${k}" class="${f.role === k ? 'on' : ''}" aria-selected="${f.role === k}">${label}<b>${count(k)}</b></button>`
+    ).join('');
+  },
+
+  userFiltered() {
+    const f = this._userFilter || {};
+    const q = String(f.q || '').trim().toLowerCase();
+    let list = (this._usersAll || []).slice();
+    if (f.role && f.role !== 'all') list = list.filter((x) => x.role === f.role);
+    if (q) list = list.filter((x) => String(x.username || '').toLowerCase().indexOf(q) !== -1);
+    list.sort((x, y) => {
+      if (x.role !== y.role) return x.role === 'admin' ? -1 : 1;
+      return String(y.created_at || '').localeCompare(String(x.created_at || ''));
+    });
+    return list;
+  },
+
+  userRowsHtml() {
+    const list = this.userFiltered();
+    if (!list.length) {
+      return `<div class="admin-empty">
+        <p class="admin-empty-title">没有匹配的用户</p>
+        <p class="admin-empty-hint">换个关键词，或者点上面的「全部」。</p>
+      </div>`;
+    }
+    return `<ul class="admin-rows">${list.map((x) => this.userRowHtml(x)).join('')}</ul>`;
+  },
+
+  userRowHtml(x) {
+    const me = !!(this.state.user && (this.state.user.id === x.id || this.state.user.username === x.username));
+    return `<li class="admin-row admin-row-user" data-id="${x.id}">
+      <span class="admin-row-avatar">${this.avatarHtml(x, 34)}</span>
+      <div class="admin-row-main">
+        <div class="admin-row-line">
+          <b class="admin-row-title">${esc(x.username)}</b>
+          ${x.role === 'admin' ? '<span class="tag tag-main">管理员</span>' : '<span class="tag tag-personal">用户</span>'}
+        </div>
+        <span class="admin-row-meta">加入于 ${esc(formatTime(x.created_at))}</span>
+      </div>
+      <div class="admin-row-actions">
+        ${me ? '<span class="admin-self">当前账号</span>' : `
+          <button class="admin-act" type="button" data-action="set-role" data-id="${x.id}" data-role="${x.role === 'admin' ? 'user' : 'admin'}">${x.role === 'admin' ? '设为用户' : '设为管理员'}</button>
+          <button class="admin-act admin-act-danger" type="button" data-action="delete-user" data-id="${x.id}">删除</button>`}
+      </div>
+    </li>`;
+  },
+
+  refreshUserList() {
+    const list = document.getElementById('userList');
+    if (list) list.innerHTML = this.userRowsHtml();
+    const stats = document.getElementById('userStats');
+    if (stats) stats.innerHTML = this.userStatsHtml();
+    const tabs = document.getElementById('userTabs');
+    if (tabs) tabs.innerHTML = this.userTabsHtml();
   },
 
   /* ---------- 卡片跟随鼠标的 3D 倾斜 ---------- */
@@ -3069,8 +3410,44 @@ const card = (x) => {
     const turnstileBox = document.getElementById('turnstileBox');
     if (turnstileBox) this.ensureTurnstile(turnstileBox);
 
+    /* 后台列表：搜索 / 分类页签 / 章节 / 排序（只重画列表区，保住输入焦点） */
+    const adminBar = document.getElementById('adminBar');
+    if (adminBar) {
+      const search = document.getElementById('adminSearch');
+      if (search) {
+        search.oninput = () => { this._adminFilter.q = search.value; this.refreshAdminList(); };
+        search.onkeydown = (e) => {
+          if (e.key === 'Escape') { search.value = ''; this._adminFilter.q = ''; this.refreshAdminList(); }
+        };
+      }
+      adminBar.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-cat]');
+        if (!b) return;
+        this._adminFilter.cat = b.dataset.cat;
+        if (b.dataset.cat !== 'main') this._adminFilter.ch = 'all';
+        this.refreshAdminList();
+      });
+      adminBar.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.id === 'adminSort') { this._adminFilter.sort = t.value; this.refreshAdminList(); }
+        else if (t.id === 'adminChFilter') { this._adminFilter.ch = t.value; this.refreshAdminList(); }
+      });
+    }
+    const userBar = document.getElementById('userBar');
+    if (userBar) {
+      const us = document.getElementById('userSearch');
+      if (us) us.oninput = () => { this._userFilter.q = us.value; this.refreshUserList(); };
+      userBar.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-role-tab]');
+        if (!b) return;
+        this._userFilter.role = b.dataset.roleTab;
+        this.refreshUserList();
+      });
+    }
+
     // 后台正文编辑器（工具栏 + 实时预览）；不在后台页会自动跳过
     this.initEditor();
+    this.initEditorChrome();
 
     const commentForm = document.querySelector('.comment-form');
     if (commentForm) commentForm.onsubmit = (e) => this.handleComment(e);
@@ -3572,6 +3949,19 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'copy-article') {
+    const url = location.origin + '/#/read/' + id;
+    try { await navigator.clipboard.writeText(url); toast('链接已复制'); }
+    catch (err) { window.prompt('复制这个链接：', url); }
+    return;
+  }
+  if (action === 'clear-admin-filter') {
+    App._adminFilter = { q: '', cat: 'all', ch: 'all', sort: 'order' };
+    const box = document.getElementById('adminSearch');
+    if (box) box.value = '';
+    App.refreshAdminList();
+    return;
+  }
   if (action === 'set-role') {
     const role = el.dataset.role;
     if (confirm('确定将该用户角色设为「' + (role === 'admin' ? '管理员' : '普通用户') + '」吗？')) {
@@ -3596,3 +3986,6 @@ document.addEventListener('click', async (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+
+
