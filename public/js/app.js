@@ -33,31 +33,24 @@ function toast(msg, type = 'ok') {
    玩家一开「查看源代码」或审查元素就能看到整副牌，等于明牌在玩。
    现在没翻开的牌，DOM 里那个格子是空的，牌面只活在这个闭包里。
    （真想作弊还是能在控制台里翻到，但至少不再是「看一眼源码就会」的程度。） */
-// 文章配图：保持原比例，只把长边压到 maxEdge（默认 1400），导出 webp。
-// 解码沿用上面 shrinkImage 的三条路 —— 手机上不同机型卡的地方不一样，多一条就多一条活路。
-function shrinkPhoto(file, maxEdge = 1400, quality = 0.86) {
-  const toData = (bmp) => {
-    const w0 = bmp.width || bmp.naturalWidth || 0;
-    const h0 = bmp.height || bmp.naturalHeight || 0;
-    if (!w0 || !h0) throw new Error('拿不到图片尺寸');
-    const scale = Math.min(1, maxEdge / Math.max(w0, h0));
-    const w = Math.max(1, Math.round(w0 * scale));
-    const h = Math.max(1, Math.round(h0 * scale));
+// 本地图片 → data URL。三条解码路（位图 / blob / dataURL）是手机兼容兜底：
+// 不同机型卡在不同环节，多一条路多一条活路。两条调用方只管怎么画。
+function shrinkCanvas(file, quality, draw) {
+  const emit = (bmp) => {
     const c = document.createElement('canvas');
-    c.width = w; c.height = h;
     const ctx = c.getContext('2d');
     if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bmp, 0, 0, w, h);
+    draw(c, ctx, bmp);
     let out = c.toDataURL('image/webp', quality);
     let type = 'image/webp';
     if (out.indexOf('data:image/webp') !== 0) { out = c.toDataURL('image/jpeg', quality); type = 'image/jpeg'; }
     if (out.indexOf('data:image/') !== 0) throw new Error('画布导出失败');
-    return { dataUrl: out, type: type, width: w, height: h };
+    return { dataUrl: out, type: type, width: c.width, height: c.height };
   };
   const viaImage = (src, cleanup) => new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      try { resolve(toData(img)); } catch (e) { reject(new Error('画布:' + e.message)); }
+      try { resolve(emit(img)); } catch (e) { reject(new Error('画布:' + e.message)); }
       finally { cleanup && cleanup(); }
     };
     img.onerror = () => { cleanup && cleanup(); reject(new Error('解码失败')); };
@@ -76,72 +69,7 @@ function shrinkPhoto(file, maxEdge = 1400, quality = 0.86) {
   const viaBitmap = () => {
     if (typeof createImageBitmap !== 'function') return Promise.reject(new Error('不支持'));
     return createImageBitmap(file).then((bmp) => {
-      try { return toData(bmp); } catch (e) { throw new Error('画布:' + e.message); }
-      finally { if (bmp && bmp.close) bmp.close(); }
-    });
-  };
-  const errs = [];
-  const tryOne = (name, fn) => fn().then((v) => v, (e) => {
-    errs.push(name + '=' + (e && e.message ? e.message : '失败'));
-    throw e;
-  });
-  return new Promise((resolve) => {
-    tryOne('位图', viaBitmap)
-      .catch(() => tryOne('blob', viaBlob))
-      .catch(() => tryOne('dataURL', viaDataUrl))
-      .then(resolve, () => {
-        const e = new Error(errs.join(' / '));
-        e.detail = errs.join(' / ');
-        throw e;
-      });
-  });
-}
-
-const SECRET = { mem: [], num: [] };
-
-// 本地图片 → 正方形缩略图（默认 128px webp，约 10KB），避免把 2MB 原图塞进数据库
-function shrinkImage(file, size = 128) {
-  /* 手机上失败的排查版：把「解码」这一步做成三条路，并把失败环节报出来。
-     ① createImageBitmap(file)：最省内存；Safari 对它的选项支持不全，
-        所以【不传任何选项】，只用它解码。
-     ② 老路：URL.createObjectURL + <img>。
-     ③ 另一条路：FileReader 读成 data URL 再交给 <img> ——
-        和 blob URL 是不同的解码路径，某些格式在一条路上失败、另一条能过。
-     出口只有两个：成功，或者抛出一个说明「哪一步、什么原因」的错误。 */
-  const toData = (bmp) => {
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d');
-    const s = Math.min(bmp.width, bmp.height);
-    ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
-    let out = c.toDataURL('image/webp', 0.85);
-    if (out.indexOf('data:image/webp') !== 0) out = c.toDataURL('image/jpeg', 0.85);
-    if (out.indexOf('data:image/') !== 0) throw new Error('画布导出失败');
-    return out;
-  };
-  const viaImage = (src, cleanup) => new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      try { resolve(toData(img)); } catch (e) { reject(new Error('画布:' + e.message)); }
-      finally { cleanup && cleanup(); }
-    };
-    img.onerror = () => { cleanup && cleanup(); reject(new Error('解码失败')); };
-    img.src = src;
-  });
-  const viaBlob = () => {
-    const url = URL.createObjectURL(file);
-    return viaImage(url, () => URL.revokeObjectURL(url));
-  };
-  const viaDataUrl = () => new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => viaImage(String(fr.result)).then(resolve, reject);
-    fr.onerror = () => reject(new Error('读取文件失败'));
-    fr.readAsDataURL(file);
-  });
-  const viaBitmap = () => {
-    if (typeof createImageBitmap !== 'function') return Promise.reject(new Error('不支持'));
-    return createImageBitmap(file).then((bmp) => {
-      try { return toData(bmp); } catch (e) { throw new Error('画布:' + e.message); }
+      try { return emit(bmp); } catch (e) { throw new Error('画布:' + e.message); }
       finally { if (bmp && bmp.close) bmp.close(); }
     });
   };
@@ -160,6 +88,28 @@ function shrinkImage(file, size = 128) {
         e.detail = errs.join(' / ');
         throw e;
       });
+  });
+}
+
+// 头像：裁成正方形缩略图（默认 128px webp，约 6KB）
+function shrinkImage(file, size = 128) {
+  return shrinkCanvas(file, 0.85, (c, ctx, bmp) => {
+    c.width = c.height = size;
+    const s = Math.min(bmp.width, bmp.height);
+    ctx.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
+  }).then((r) => r.dataUrl);
+}
+
+// 文章配图：保持原比例，只把长边压到 maxEdge（默认 1400），导出 webp
+function shrinkPhoto(file, maxEdge = 1400, quality = 0.86) {
+  return shrinkCanvas(file, quality, (c, ctx, bmp) => {
+    const w0 = bmp.width || bmp.naturalWidth || 0;
+    const h0 = bmp.height || bmp.naturalHeight || 0;
+    if (!w0 || !h0) throw new Error('拿不到图片尺寸');
+    const scale = Math.min(1, maxEdge / Math.max(w0, h0));
+    c.width = Math.max(1, Math.round(w0 * scale));
+    c.height = Math.max(1, Math.round(h0 * scale));
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
   });
 }
 
@@ -379,7 +329,7 @@ const App = {
   },
 
   /* ---------- 上次读到哪儿 ---------- */
-  // 注意：书架的「继续阅读」卡片已下线（见 archive/continue-reading.js），
+  // 注意：书架的「继续阅读」卡片在这里渲染（旧版曾下线过，见 archive/continue-reading.js），
   // 但"上次读到哪"仍然在记录 —— 留着它，哪天想恢复那个模块，改回来就能直接用。
   /* ---------- 读过哪些篇（只存在本机，不上传） ---------- */
   readMap() {
@@ -648,7 +598,12 @@ const App = {
   /* ---------- 通用片段 ---------- */
   avatarHtml(user, size = 38) {
     const cls = `avatar size-${size}`;
-    if (user && user.avatar) return `<img class="${cls}" src="${esc(user.avatar)}" alt="">`;
+    // 有人把头像删了、或者 /api/avatar/<id> 404 时，img 自己移除，露出下面的首字母
+    if (user && user.avatar) {
+      const initial = esc((user.username || '?').charAt(0));
+      return `<span class="${cls} avatar-initial">${initial}`
+        + `<img src="${esc(user.avatar)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+    }
     const initial = user ? (user.username || '?').charAt(0) : '?';
     return `<div class="${cls} avatar-initial">${esc(initial)}</div>`;
   },

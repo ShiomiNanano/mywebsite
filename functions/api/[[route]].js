@@ -21,7 +21,10 @@ import './_engine.js';
 const COOKIE = 'daydream_session';
 const ONE_DAY = 86400;
 const MAX_BODY = 1024 * 1024;      // 请求体上限 1MB
-const MAX_AVATAR = 300000;         // 头像字符串上限（约 200KB 图片）
+const MAX_AVATAR = 64000;          // 头像字符串上限（约 46KB 图片）
+/* 头像不再出现在列表接口里：数据库照旧存 data URL（单条，只给本人看），
+   但留言板 / 文章评论这些「一次返回 N 条」的地方一律只给 /api/avatar/<uid>，
+   浏览器可以长期缓存，也不会因为一条留言把接口撑到 1MB。 */
 // 文章配图：单张上限。请求体整体被 MAX_BODY(1MB) 卡着，base64 会膨胀 4/3，
 // 所以这里按解码后的字节算，留出编码余量。
 const MAX_MEDIA = 700000;
@@ -31,6 +34,15 @@ const LOGIN_MAX_FAILS = 10;        // 同一用户名在窗口内的最大失败
 const LOGIN_WINDOW_MIN = 15;       // 登录失败统计窗口（分钟）
 const CHAT_PAGE_SIZE = 50;         // 留言默认每页条数
 const CHAT_PAGE_MAX = 100;
+
+// 头像地址（列表接口只发这个，不发 base64）
+function avatarURL(uid) {
+  return uid ? '/api/avatar/' + uid : '';
+}
+// 把结果集里的 avatar 字段换成可缓存地址
+function withAvatarURL(rows) {
+  return (rows || []).map((r) => Object.assign({}, r, { avatar: avatarURL(r.user_id) }));
+}
 
 // 咖啡馆前台（AI 对话）开关：暂时下线。
 //   false = /api/chat、/api/chat/config、/api/admin/chat-config 一律返回 404，
@@ -786,6 +798,9 @@ export async function onRequest(context) {
       const body = await readBody(request);
       const avatar = String(body.avatar || '').trim();
       if (avatar.length > MAX_AVATAR) return json({ error: '头像过大，请压缩后再试' }, 413);
+      if (/^data:image\/gif/i.test(avatar)) {
+        return json({ error: '头像请用静态图片（PNG / JPG / WebP），动图太占地方' }, 415);
+      }
       if (avatar && !(avatar.startsWith('data:image/') || avatar.startsWith('https://'))) {
         return json({ error: '头像格式无效（只支持 https 图片或本地上传）' }, 400);
       }
@@ -862,6 +877,33 @@ export async function onRequest(context) {
       return jsonPublic({ text, from: from || '' }, 60);
     }
 
+    /* 头像：只回二进制，让浏览器缓存。数据库里存的是 data URL（老数据可能很大），
+       这里解成字节发出去；外链头像直接 302；没设置头像 404（前端回退成首字母）。 */
+    m = path.match(/^\/avatar\/(\d+)$/);
+    if (method === 'GET' && m) {
+      const row = await env.DB.prepare('SELECT avatar FROM users WHERE id=?').bind(Number(m[1])).first();
+      const av = String((row && row.avatar) || '');
+      if (!av) return new Response(null, { status: 404, headers: { 'Cache-Control': 'public, max-age=300' } });
+      if (av.startsWith('https://')) return Response.redirect(av, 302);
+      const hit = av.match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
+      if (!hit) return new Response(null, { status: 404, headers: { 'Cache-Control': 'public, max-age=300' } });
+      let bin;
+      try {
+        bin = Uint8Array.from(atob(hit[2].replace(/\s+/g, '')), (ch) => ch.charCodeAt(0));
+      } catch (e) {
+        return new Response(null, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+      }
+      return new Response(bin, {
+        headers: {
+          'Content-Type': hit[1].toLowerCase(),
+          'Content-Length': String(bin.length),
+          'Cache-Control': 'public, max-age=604800, immutable',
+          'ETag': '"av-' + m[1] + '-' + bin.length + '"',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
+
     m = path.match(/^\/article\/(\d+)\/comments$/);
     if (method === 'GET' && m) {
       const articleId = Number(m[1]);
@@ -876,7 +918,7 @@ export async function onRequest(context) {
       const items = (hasMore ? got.slice(0, limit) : got).reverse();  // 按时间正序展示
       const totalRow = await env.DB.prepare('SELECT COUNT(*) AS c FROM comments WHERE article_id=?').bind(articleId).first();
       return jsonPublic({
-        items,
+        items: withAvatarURL(items),
         has_more: hasMore,
         total: Number((totalRow && totalRow.c) || items.length),
         next_before: items.length ? items[0].id : null,
@@ -889,9 +931,9 @@ export async function onRequest(context) {
       if (!content) return json({ error: '留言不能为空' }, 400);
       if (content.length > 2000) return json({ error: '留言过长' }, 400);
       const r = await env.DB.prepare('INSERT INTO comments (article_id, user_id, username, avatar, content, created_at) VALUES (?,?,?,?,?,?)')
-        .bind(Number(m[1]), user.id, user.username, user.avatar || '', content, nowStr()).run();
+        .bind(Number(m[1]), user.id, user.username, '', content, nowStr()).run();
       const c = await env.DB.prepare('SELECT * FROM comments WHERE id=?').bind(r.meta.last_row_id).first();
-      return json(c, 201);
+      return json(Object.assign({}, c, { avatar: avatarURL(user.id) }), 201);
     }
 
     /* ===== 留言板 =====
@@ -1283,7 +1325,7 @@ export async function onRequest(context) {
       const totalRow = await env.DB.prepare('SELECT COUNT(*) AS c FROM comments WHERE article_id=0').first();
       return jsonPublic({
         note: await getSetting(env, 'board_note', ''),
-        items,
+        items: withAvatarURL(items),
         has_more: hasMore,
         total: Number((totalRow && totalRow.c) || items.length),
         next_before: items.length ? items[0].id : null,
@@ -1320,9 +1362,9 @@ export async function onRequest(context) {
         if (Number.isFinite(t) && Date.now() - t < 10000) return json({ error: '发得太快了，稍等一下再发' }, 429);
       }
       const r = await env.DB.prepare('INSERT INTO comments (article_id, user_id, username, avatar, content, created_at) VALUES (?,?,?,?,?,?)')
-        .bind(0, user.id, user.username, user.avatar || '', content, nowStr()).run();
+        .bind(0, user.id, user.username, '', content, nowStr()).run();
       const c = await env.DB.prepare('SELECT id, user_id, username, avatar, content, created_at FROM comments WHERE id=?').bind(r.meta.last_row_id).first();
-      return json(c, 201);
+      return json(Object.assign({}, c, { avatar: avatarURL(user.id) }), 201);
     }
 
     /* ===== 对话（LLM，读者与柒乃聊天，需要登录） ===== */

@@ -111,8 +111,6 @@
   color-scheme: dark;
 }
 
-
-
 /* ============ 2. 基础与排版 ============ */
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -430,10 +428,6 @@ select { appearance: none; background-image: none; cursor: pointer; }
   color: #eef7fc; letter-spacing: .2em; text-indent: .2em; line-height: 1.1;
   text-shadow: 0 4px 26px rgba(0,0,0,.5);
 }
-.cover-sub {
-  font-family: var(--font-body); font-size: 10.5px; font-weight: 500;
-  color: var(--gold-2); letter-spacing: .34em; text-indent: .34em;
-}
 .cover-line {
   width: 62%; height: 1px;
   background: linear-gradient(90deg, transparent, rgba(208,233,248,.6), transparent);
@@ -443,20 +437,6 @@ select { appearance: none; background-image: none; cursor: pointer; }
   color: rgba(214,236,248,.8); letter-spacing: .26em; text-indent: .26em;
 }
 .book-cover.turning { transform: rotateY(-112deg); opacity: 0; }
-
-.btn-cover {
-  /* fixed-color: 封面上的按钮 */
-  min-height: 50px; padding: 12px 38px;
-  font-family: var(--font-serif); font-size: var(--fs-md);
-  letter-spacing: .34em; text-indent: .34em;
-  color: #eef7fc; background: rgba(238,247,252,.04);
-  border: 1px solid rgba(208,233,248,.42); border-radius: var(--r-full);
-  cursor: pointer; transition: var(--t);
-}
-.btn-cover:hover {
-  background: rgba(208,233,248,.12); border-color: rgba(232,195,106,.7);
-  box-shadow: 0 0 34px -6px rgba(130,190,230,.5); transform: translateY(-1px);
-}
 @media (max-height: 600px) {
   .cover-scene { gap: var(--sp-4); }
   .book-cover { width: min(50vh, 260px); }
@@ -552,11 +532,6 @@ select { appearance: none; background-image: none; cursor: pointer; }
 .login-guest a { color: var(--ink-2); border-bottom: 1px dashed var(--line-2); }
 .login-guest a:hover { color: var(--accent); border-bottom-color: var(--accent); }
 .turnstile-box { display: flex; justify-content: center; margin: var(--sp-4) 0 var(--sp-1); }
-.demo-tip {
-  margin-top: var(--sp-5); padding: var(--sp-3) var(--sp-4);
-  background: var(--surface-2); border: 1px dashed var(--line-2); border-radius: var(--r-sm);
-  font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.7;
-}
 
 /* ---------- 书架 ---------- */
 /* 书架页头：做成一块「咖啡馆招牌」 */
@@ -932,64 +907,12 @@ html[data-font="2"] .reading-content p { font-size: clamp(18.5px, 5.4vw, 20.5px)
 .comment-content { margin-top: 6px; font-size: var(--fs-base); line-height: 1.85; word-break: break-word; }
 .comments-empty { padding: var(--sp-7) var(--sp-4); text-align: center; font-size: var(--fs-sm); color: var(--ink-3); }
 .comments-more-wrap { margin-top: var(--sp-4); text-align: center; }
-
-/* ---------- 咖啡馆前台（AI 对话）：已下线 ----------
-   功能已从界面和后端摘除（前端代码存档在 archive/chat-module.js，后端开关是 CHAT_FEATURE）。
-   样式保留在这里，恢复时不用重写。 */
-.chat-wrap { max-width: var(--maxw-read); margin: 0 auto; padding: var(--sp-4) var(--sp-4) 0; }
-.chat-panel {
-  display: flex; flex-direction: column;
-  height: calc(100vh - 186px); height: calc(100dvh - 186px); min-height: 420px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl);
-  box-shadow: 0 1px 2px rgba(var(--shadow),.05), 0 24px 60px -40px rgba(var(--shadow),.7);
-  overflow: hidden;
-}
-.chat-head {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  background: linear-gradient(140deg, var(--gold-soft), transparent 80%);
-  border-bottom: 1px solid var(--line);
-}
-.chat-nana { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
-.chat-nana-info { min-width: 0; }
-.chat-nana-name { font-family: var(--font-serif); font-size: var(--fs-md); font-weight: 600; letter-spacing: .06em; }
-.chat-nana-sub { font-size: var(--fs-xs); color: var(--ink-3); }
-.chat-body {
-  flex: 1; display: flex; flex-direction: column; gap: var(--sp-4);
-  padding: var(--sp-5) var(--sp-4); overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  background:
-    radial-gradient(560px 280px at 92% 6%, var(--gold-soft), transparent 62%),
-    var(--surface-2);
-}
-.chat-msg { display: flex; align-items: flex-end; gap: var(--sp-2); max-width: 88%; }
-.chat-msg .chat-bubble {
-  padding: 10px 14px; border-radius: var(--r-md);
-  font-size: var(--fs-base); line-height: 1.8;
-  white-space: pre-wrap; word-break: break-word;
-}
-.chat-msg.nana, .chat-msg.assistant { align-self: flex-start; }
-.chat-msg.nana .chat-bubble, .chat-msg.assistant .chat-bubble {
-  background: var(--surface); border: 1px solid var(--line);
-  border-bottom-left-radius: 5px; color: var(--ink);
-}
 .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
 .chat-msg.user .chat-bubble {
   background: linear-gradient(180deg, var(--accent), var(--accent-2));
   color: var(--accent-ink); border-bottom-right-radius: 5px;
   box-shadow: 0 8px 20px -14px rgba(var(--shadow),.7);
 }
-.chat-typing .chat-bubble { color: var(--ink-3); font-size: var(--fs-sm); }
-.chat-input-row {
-  display: flex; align-items: center; gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line); background: var(--surface);
-}
-.chat-input {
-  flex: 1; min-height: 44px; padding: 10px 16px;
-  border-radius: var(--r-full) !important;
-}
-.chat-send { flex: none; border-radius: var(--r-full); }
-.chat-closed { padding: var(--sp-8) var(--sp-5); text-align: center; color: var(--ink-2); font-family: var(--font-serif); }
 
 /* ---------- 个人中心 ---------- */
 .profile-card {
@@ -999,12 +922,6 @@ html[data-font="2"] .reading-content p { font-size: clamp(18.5px, 5.4vw, 20.5px)
   text-align: center;
 }
 .profile-card h2 { margin-top: var(--sp-4); font-family: var(--font-serif); font-size: var(--fs-xl); letter-spacing: .1em; }
-.profile-role {
-  display: inline-block; margin-top: var(--sp-2); padding: 2px 12px;
-  background: var(--accent-soft); color: var(--accent);
-  border-radius: var(--r-full); font-size: var(--fs-xs);
-}
-.profile-since { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--ink-3); }
 .profile-avatar-edit {
   margin-top: var(--sp-6); padding-top: var(--sp-5);
   border-top: 1px solid var(--line); text-align: left;
@@ -1269,8 +1186,6 @@ textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
   --c-continue-soft: rgba(226, 149, 111, .17);
   --glow-3: rgba(198, 132, 72, .13);
 }
-
-
 
 /* ======================= 2. 背景多一层暖光，并缓慢漂移 ======================= */
 /* body::before 是冷调柔光 + 纸纹（原有），这里用 ::after 再加一层暖光并让它慢慢漂。
@@ -1578,9 +1493,6 @@ html[data-wallpaper="on"] .shelf-plaque,
 html[data-wallpaper="on"] .shelf-tip,
 html[data-wallpaper="on"] .empty-hint,
 html[data-wallpaper="on"] .notfound { text-shadow: var(--wp-halo); }
-
-/* 书架页的加载骨架也跟着暗一点，别在照片上显得突兀 */
-html[data-wallpaper="on"] .shelf-skeleton span { opacity: .82; }
 /* ============================================================================
    书架四张模块卡的半透明样式
    ----------------------------------------------------------------------------
@@ -1807,10 +1719,6 @@ html[data-wallpaper="on"] .menu-continue {
 }
 .et-btn:hover { color: var(--ink); border-color: var(--line-2); background: var(--surface-3); }
 .et-btn.et-key { color: var(--accent); border-color: var(--frame-line); }
-.et-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
-
-.editor-split { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
-.editor-split textarea { min-height: 320px; line-height: 1.75; font-family: var(--font-body); }
 .editor-preview {
   min-height: 320px; max-height: 60vh; overflow: auto;
   padding: var(--sp-4) var(--sp-5);
@@ -1848,7 +1756,6 @@ html[data-wallpaper="on"] .menu-continue {
   font-family: var(--font-body); font-size: var(--fs-xs); color: var(--ink-3);
 }
 .ws-info b { font-weight: 500; color: var(--ink-2); }
-.ws-tools { display: flex; gap: 4px; }
 
 /* 工具栏：宽屏换行、手机横滑 */
 .ws-bar {
@@ -1991,7 +1898,6 @@ html[data-wallpaper="on"] .menu-continue {
     drop-shadow(0 0 18px var(--wp-glow, rgba(120, 180, 220, .3)));
 }
 @media (max-width: 520px) { .cover-logo { width: 82%; } }
-
 
 /* ---------- 已读标记 ---------- */
 .read-tag {
@@ -2909,7 +2815,6 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .hub-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
 .hub-card h2 { margin-bottom: 6px; font-family: var(--font-serif); font-size: var(--fs-md); letter-spacing: .06em; color: var(--ink); }
 .hub-card p { margin: 0; font-size: var(--fs-sm); line-height: 1.8; color: var(--ink-2); }
-.hub-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
 .hub-ico { font-size: 20px; letter-spacing: .12em; color: var(--gold); }
 .hub-tag {
   font-family: var(--font-body); font-size: 11px; letter-spacing: .1em;
@@ -3303,7 +3208,6 @@ html[data-wallpaper="on"] .profile-card {
 }
 /* 开了壁纸时，卡片里的分隔虚线也要提亮一点，深色底上才看得见 */
 
-
 /* ============================================================================
    金色玻璃卡里的文字与按钮（白系）
    底色已经很透，所以字全部走白 + 一点点描边光；金色只留给分数与名次本身。
@@ -3470,7 +3374,6 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
 .reading-content strong,
 .reading-content b { font-weight: 700; letter-spacing: .01em; }
 /* 印刷体在浅底/深底上都偏细，350 若不被支持会自动落到 400，仍与 700 有区别 */
-
 
 /* ===== 游戏页：主推卡（幻梦牌）===== */
 .hub-card.hub-main {
@@ -3993,3 +3896,7 @@ html[data-cloth="on"] .game-page {
   .landing .cover-logo { animation: none; }
   .landing .cover-scene::before { transition: none; }
 }
+
+/* 头像：<span class="avatar">首字母<img></span>，图盖住字母；图 404 时 img 被移除，字母露出来 */
+.avatar { position: relative; }
+.avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
