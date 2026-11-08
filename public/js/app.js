@@ -5,19 +5,6 @@ function esc(s) {
   ));
 }
 
-/* 音频地址归一化：网易云整条链接 → netease:<id> / netease-dj:<id>，其余原样 */
-function normalizeMusicSrc(raw) {
-  const v = String(raw == null ? '' : raw).trim();
-  if (!v) return '';
-  const s = v.replace(/\s+/g, '');
-  let m = /^netease-dj:(\d+)$/i.exec(s); if (m) return 'netease-dj:' + m[1];
-  m = /^netease:(\d+)$/i.exec(s); if (m) return 'netease:' + m[1];
-  m = /music\.163\.com\/(?:#\/)?dj\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease-dj:' + m[1];
-  m = /music\.163\.com\/(?:#\/)?(?:song|song\/media\/outer\/url)\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease:' + m[1];
-  m = /music\.163\.com\/program\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease-dj:' + m[1];
-  return v;
-}
-
 // 后端存的是 UTC 时间（YYYY-MM-DD HH:MM:SS），这里转成访客本地时间显示
 function formatTime(s) {
   if (!s) return '—';
@@ -2655,17 +2642,6 @@ const card = (x) => {
     return this._mbList;
   },
 
-  /* netease:<歌曲id> → 现解析成可播的 https 直链（地址有时效，不能缓存进列表） */
-  async mbResolve(src) {
-    const raw = String(src).trim();
-    const isDj = /^netease-dj:/i.test(raw);
-    const id = raw.split(':')[1].trim();
-    if (!/^\d+$/.test(id)) throw new Error(isDj ? 'netease-dj: 后面要跟播客节目 id' : 'netease: 后面要跟数字 id');
-    const r = await API.get('/api/music/resolve?' + (isDj ? 'dj=' : 'id=') + id);
-    if (!r || !r.url) throw new Error((r && r.error) || '这首歌匿名拿不到，换成直链吧');
-    return r.url;
-  },
-
   mbCurrent() {
     const list = this._mbList || [];
     return list[this._mbIndex] || null;
@@ -2677,11 +2653,7 @@ const card = (x) => {
     if (typeof i === 'number') this._mbIndex = (i + list.length) % list.length;
     const m = this.mbCurrent();
     if (!m) return;
-    let url = m.src;
-    if (/^netease(-dj)?:/i.test(url)) {
-      try { url = await this.mbResolve(url); }
-      catch (err) { toast(err.message || '这首歌匿名拿不到', 'err'); this._mbPlaying = false; this.mbPaint(); return; }
-    }
+    const url = m.src;
     const a = this.mbEl();
     if (a.getAttribute('src') !== url) {
       a.setAttribute('src', url);
@@ -2837,10 +2809,6 @@ const card = (x) => {
     const again = old && old.dataset.mid === String(id) && !old.paused;
     this.stopMusicTest();
     if (again) return;                       // 再点一次就是停
-    if (/^netease(-dj)?:/i.test(src)) {
-      try { src = await this.mbResolve(src); }
-      catch (err) { toast(err.message || '这首歌匿名拿不到', 'err'); return; }
-    }
     const a = new Audio();
     a.id = 'mbTestAudio';
     a.dataset.mid = String(id);
@@ -2923,16 +2891,10 @@ const card = (x) => {
             <label>曲名<input name="title" maxlength="120" required placeholder="例：海边的咖啡馆"></label>
             <label>歌手<input name="artist" maxlength="80" placeholder="例：柒乃"></label>
           </div>
-          <label>音频地址<input name="src" maxlength="600" required placeholder="https://…/song.mp3　/ media/music/xxx.mp3　/ 直接粘网易云歌曲或播客链接"></label>
-          <div class="mf-quick">
-            <span>快捷：</span>
-            <button type="button" class="btn btn-small" data-mfill="netease:">网易云歌曲</button>
-            <button type="button" class="btn btn-small" data-mfill="netease-dj:">网易云播客</button>
-            <span class="mf-quick-tip">先点一下，再把 id 数字补在后面</span>
-          </div>
+          <label class="mf-file">音频文件<input type="file" name="file" accept="audio/*,.mp3,.m4a,.ogg,.wav"></label>
           <div class="mf-actions">
-            <button class="btn btn-primary btn-small" type="submit">添加到列表</button>
-            <span class="mf-hint">支持 https 直链、站内 /media/…、<b>netease:&lt;歌曲id&gt;</b>、<b>netease-dj:&lt;节目id&gt;</b>；直接粘整条网易云链接会自动转好。可播格式：mp3 / m4a / ogg / wav</span>
+            <button class="btn btn-primary btn-small" type="submit">上传并添加</button>
+            <span class="mf-hint">选 mp3 / m4a / ogg / wav，单个 ≤ 20MB，直接传到站内存储；传完自动进下面的列表。要换歌就删掉这条再加。</span>
           </div>
         </form>
         <ul class="music-list" id="musicList">${this.musicRowsHtml()}</ul>
@@ -2954,33 +2916,6 @@ const card = (x) => {
   },
 
   bindMusicAdmin() {
-    const mf = document.getElementById('musicForm');
-    if (mf) {
-      const inp = mf.querySelector('[name="src"]');
-      if (inp) {
-        inp.addEventListener('input', () => {
-          const v = normalizeMusicSrc(inp.value);
-          if (v !== inp.value) inp.value = v;
-        });
-        inp.addEventListener('paste', () => setTimeout(() => {
-          const v = normalizeMusicSrc(inp.value);
-          if (v !== inp.value) inp.value = v;
-        }, 0));
-      }
-      mf.addEventListener('submit', () => {
-        if (inp) inp.value = normalizeMusicSrc(inp.value);
-      }, true);
-      mf.querySelectorAll('[data-mfill]').forEach((b) => {
-        b.addEventListener('click', () => {
-          if (!inp) return;
-          const pre = b.getAttribute('data-mfill');
-          const m = /(\d+)/.exec(inp.value);
-          inp.value = pre + (m ? m[1] : '');
-          inp.focus();
-          inp.setSelectionRange(inp.value.length, inp.value.length);
-        });
-      });
-    }
     const form = document.getElementById('musicForm');
     if (form && !form.dataset.bound) {
       form.dataset.bound = '1';
@@ -2989,20 +2924,30 @@ const card = (x) => {
         const fd = new FormData(form);
         const title = String(fd.get('title') || '').trim();
         const artist = String(fd.get('artist') || '').trim();
-        const src = String(fd.get('src') || '').trim();
+        const file = fd.get('file');
         if (!title) return toast('先给它起个名字');
-        if (!/^(https:\/\/|\/|netease(-dj)?:\d{3,})/i.test(src)) return toast('地址要 https:// 开头、站内 /media/…，或者 netease:<歌曲id> / netease-dj:<节目id>');
+        if (!file || !file.size) return toast('先选一个音频文件');
+        if (file.size > 20 * 1024 * 1024) return toast('超过 20MB 了，换短一点的或先压一下');
         const btn = form.querySelector('button[type="submit"]');
-        if (btn) btn.disabled = true;
+        const old = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
         try {
-          await API.post('/api/music', { title: title, artist: artist, src: src });
+          const up = await fetch('/api/music/upload?name=' + encodeURIComponent(file.name || 'song.mp3'), {
+            method: 'POST',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+            credentials: 'same-origin'
+          });
+          const r = await up.json().catch(() => ({}));
+          if (!up.ok || !r || !r.src) throw new Error((r && r.error) || '上传失败');
+          await API.post('/api/music', { title: title, artist: artist, src: r.src });
           form.reset();
-          toast('已加入八音盒');
+          toast('已上传并加入八音盒');
           await this.refreshMusicList();
         } catch (err) {
-          toast(err.message || '添加失败');
+          toast(err.message || '上传失败');
         } finally {
-          if (btn) btn.disabled = false;
+          if (btn) { btn.disabled = false; btn.textContent = old || '上传并添加'; }
         }
       });
     }

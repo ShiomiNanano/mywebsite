@@ -4436,6 +4436,17 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 .mb-list li.mb-empty:hover { background: transparent; }
 
 /* 后台：八音盒页 */
+.music-form .mf-file input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 12px;
+  background: var(--surface-2, #16242f);
+  border: 1px solid var(--line, rgba(255,255,255,.12));
+  border-radius: 10px;
+  color: var(--ink-2, #b9c9d6);
+  font-size: 14px;
+}
 .music-form {
   margin: var(--sp-4, 16px) 0 var(--sp-3, 12px);
   padding: var(--sp-4, 16px);
@@ -4454,19 +4465,6 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 }
 .music-form input:focus { outline: none; border-color: var(--gold-3, rgba(232,207,154,.45)); }
 .music-form > label { margin-top: var(--sp-3, 12px); }
-.mf-quick {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 10px 0 2px;
-  font-size: 13px;
-  color: var(--ink-3, #8ea6b8);
-}
-.mf-quick-tip {
-  color: var(--ink-3, #8ea6b8);
-  font-size: 12px;
-}
 .mf-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: var(--sp-3, 12px); }
 .mf-hint { font-size: 11px; color: var(--ink-3, #93a1ab); }
 .music-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

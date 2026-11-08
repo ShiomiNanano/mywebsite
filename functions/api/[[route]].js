@@ -1480,43 +1480,35 @@ export async function onRequest(context) {
        POST   /api/music        管理员新增：{ title, artist, src }
        PUT    /api/music/<id>   管理员改：{ title?, artist?, src?, sort? }
        DELETE /api/music/<id>   管理员删
-       src 允许 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>（现解析，仅免费曲有效） */
-    const musicSrcOk = (v) => /^(https:\/\/|\/|netease(-dj)?:\d{3,})/i.test(String(v || '').trim());
-    /* netease:<歌曲id>：匿名解析 music.163.com 的 outer/url，只对免费/非 VIP 曲有效；
-       解析出的地址带签名且短时效，所以每次播放前现解析，不进列表、不落库 */
-    const neteaseId = (v) => { const m = /^netease:(\d{3,})$/i.exec(String(v || '').trim()); return m ? m[1] : ''; };
-    if (method === 'GET' && path === '/music/resolve') {
-      let sid = url.searchParams.get('id') || '';
-      const dj = url.searchParams.get('dj') || '';
-      if (dj) {
-        /* 播客：/dj?id=<节目id> 的页面里内嵌 #program-data JSON，取出 mainSong.id 再走外链 */
-        if (!/^\d{3,}$/.test(dj)) return json({ error: '播客 id 不对' }, 400);
-        try {
-          const pg = await fetch('https://music.163.com/dj?id=' + dj, {
-            headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'referer': 'https://music.163.com/' },
-          });
-          const html = await pg.text();
-          const mm = /"mainSong":\{[^}]*?"id":(\d+)/.exec(html) || /"mainTrackId":(\d+)/.exec(html);
-          if (!mm) return json({ error: '这个播客页里找不到音轨（付费或已下架）' }, 404);
-          sid = mm[1];
-        } catch (e) {
-          return json({ error: '连不上网易云（播客页）' }, 502);
-        }
-      }
-      if (!/^\d{3,}$/.test(sid)) return json({ error: '歌曲 id 不对' }, 400);
-      let loc = '';
-      try {
-        const up = await fetch('https://music.163.com/song/media/outer/url?id=' + sid + '.mp3', {
-          redirect: 'manual',
-          headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'referer': 'https://music.163.com/' },
-        });
-        loc = up.headers.get('location') || '';
-        if (!loc && up.status === 200) { const ct = up.headers.get('content-type') || ''; if (ct.indexOf('audio') === 0) loc = up.url; }
-      } catch (e) {
-        return json({ error: '连不上网易云，稍后再试' }, 502);
-      }
-      if (!/music\.126\.net/i.test(loc)) return json({ error: '这首歌匿名拿不到（VIP/独家/地区限制），换成直链吧' }, 404);
-      return json({ url: loc.replace(/^http:\/\//i, 'https://'), id: sid });
+       src 允许站内 /api/music/file/<key>（上传的音频）、https:// 直链或 /media/… 路径 */
+    const musicSrcOk = (v) => /^(https:\/\/|\/)/i.test(String(v || '').trim());
+
+    /* 上传音频进 R2（Pages 的 R2 绑定，变量名 MUSIC）：文件原样 POST，?name= 只取扩展名，上限 20MB */
+    if (method === 'POST' && path === '/music/upload') {
+      const e = needAdmin(); if (e) return e;
+      if (!env.MUSIC) return json({ error: '还没绑定 R2 存储（MUSIC），先按说明配好 bucket' }, 500);
+      const name = String(url.searchParams.get('name') || 'song.mp3');
+      const ext = '.' + (/(mp3|m4a|ogg|wav|flac|aac)$/i.exec(name) || [0, 'mp3'])[1].toLowerCase();
+      const ctRaw = String(request.headers.get('content-type') || '').split(';')[0].trim();
+      const ct = /^audio\//i.test(ctRaw) ? ctRaw : 'audio/mpeg';
+      const buf = await request.arrayBuffer();
+      if (!buf || !buf.byteLength) return json({ error: '空文件' }, 400);
+      if (buf.byteLength > 20 * 1024 * 1024) return json({ error: '文件超过 20MB' }, 413);
+      const key = 'music/' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + ext;
+      await env.MUSIC.put(key, buf, { httpMetadata: { contentType: ct } });
+      return json({ key: key, src: '/api/music/file/' + key }, 201);
+    }
+    m = path.match(/^\/music\/file\/(.+)$/);
+    if (m && method === 'GET') {
+      if (!env.MUSIC) return json({ error: '还没绑定 R2 存储（MUSIC）' }, 500);
+      const obj = await env.MUSIC.get(m[1]);
+      if (!obj) return json({ error: '文件不存在' }, 404);
+      return new Response(obj.body, {
+        headers: {
+          'content-type': (obj.httpMetadata && obj.httpMetadata.contentType) || 'audio/mpeg',
+          'cache-control': 'public, max-age=31536000, immutable',
+        },
+      });
     }
 
     if (method === 'GET' && path === '/music') {
@@ -1532,7 +1524,7 @@ export async function onRequest(context) {
       const artist = String(body.artist || '').trim().slice(0, 80);
       const src = String(body.src || '').trim().slice(0, 500);
       if (!title) return json({ error: '请填写曲名' }, 400);
-      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id> / netease-dj:<节目id>' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要站内 /api/music/file/… 或 https:// 直链' }, 400);
       const top = await env.DB.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM music').first();
       const sort = (Number(top && top.s) || 0) + 10;
       const r = await env.DB.prepare(
@@ -1557,7 +1549,7 @@ export async function onRequest(context) {
       const src = body.src != null ? String(body.src).trim().slice(0, 500) : row.src;
       const sort = body.sort != null ? (parseInt(body.sort, 10) || 0) : row.sort;
       if (!title) return json({ error: '请填写曲名' }, 400);
-      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id> / netease-dj:<节目id>' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要站内 /api/music/file/… 或 https:// 直链' }, 400);
       await env.DB.prepare('UPDATE music SET title=?, artist=?, src=?, sort=? WHERE id=?')
         .bind(title, artist || '', src, sort, id).run();
       return json({ ok: true });
