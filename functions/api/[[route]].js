@@ -36,6 +36,18 @@ const CHAT_PAGE_SIZE = 50;         // 留言默认每页条数
 const CHAT_PAGE_MAX = 100;
 
 // 头像地址（列表接口只发这个，不发 base64）
+// 没有头像时回一张 1×1 透明 PNG：避免每个没设头像的用户都换来一次 404
+const BLANK_PNG = Uint8Array.from(
+  atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='),
+  (ch) => ch.charCodeAt(0)
+);
+const BLANK_PNG_HEADERS = {
+  'Content-Type': 'image/png',
+  'Content-Length': String(BLANK_PNG.length),
+  'Cache-Control': 'public, max-age=300',
+  'X-Content-Type-Options': 'nosniff',
+};
+
 function avatarURL(uid) {
   return uid ? '/api/avatar/' + uid : '';
 }
@@ -883,10 +895,10 @@ export async function onRequest(context) {
     if (method === 'GET' && m) {
       const row = await env.DB.prepare('SELECT avatar FROM users WHERE id=?').bind(Number(m[1])).first();
       const av = String((row && row.avatar) || '');
-      if (!av) return new Response(null, { status: 404, headers: { 'Cache-Control': 'public, max-age=300' } });
+      if (!av) return new Response(BLANK_PNG, { headers: BLANK_PNG_HEADERS });
       if (av.startsWith('https://')) return Response.redirect(av, 302);
       const hit = av.match(/^data:(image\/[a-z0-9.+-]+);base64,([\s\S]+)$/i);
-      if (!hit) return new Response(null, { status: 404, headers: { 'Cache-Control': 'public, max-age=300' } });
+      if (!hit) return new Response(BLANK_PNG, { headers: BLANK_PNG_HEADERS });
       let bin;
       try {
         bin = Uint8Array.from(atob(hit[2].replace(/\s+/g, '')), (ch) => ch.charCodeAt(0));
