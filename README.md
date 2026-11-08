@@ -24,9 +24,14 @@ public/                       静态资源（Pages 发布目录，原样部署�
   js/rich.js                  标记式正文 → HTML（编辑器实时预览用）
   js/docx.js                  Word（.docx）/ 纯文本 导入解析
   js/app.js                   全部前端逻辑（书架 / 阅读 / 后台 / 编辑器）
+  games/quality/              幻梦牌（index.html 页面与样式、game.js 流程、
+                              engine.js 规则、pvp.js 联机、analysis.html 复盘、
+                              sfx-data.js 11 记采样音效的 base64 包）
   media/wallpaper.mp4         主页动态壁纸（另含 poster 海报图与 lqip 低清占位）
   media/wallpaper-palette.css 从壁纸里提取的配色（页面配色跟着它走）
   media/logo-*.png            logo 三种规格（封面蒙版 / 小徽记 / 实心剪影）
+  media/cover-night.webp      封面那本书的夜景插画（340×472 裁切后再压）
+  media/card-back.webp        幻梦牌的牌背（烫金印章）
   media/favicon.png           站点图标（180 与 32 两个尺寸）
 functions/api/[[route]].js    全部后端接口（含富文本渲染，与 rich.js 必须一致）
 schema.sql                    D1 表结构与索引（换新库时执行一次）
@@ -43,7 +48,7 @@ wrangler.toml                 Pages 配置（发布目录、D1 绑定）
 | --- | --- |
 | `chat-module.js` | 咖啡馆前台（AI 对话） |
 | `themes.css` / `theme-module.js` | 另外两套主题（海洋 / 暖纸）—— 现在只有「夜读」 |
-| `continue-reading.js` | 书架上的「继续阅读」卡片 |
+| `continue-reading.js` | 书架上的「继续阅读」卡片（**已恢复上线**，这个文件只作历史存档） |
 | `cover-whale.js` | 封面原有的鲸鱼插画（现为烫金徽记） |
 | `cover-button.md` | 封面按钮的旧样式 |
 | `favicon-moon.svg` | 旧的月亮图标 |
@@ -88,10 +93,11 @@ npx wrangler d1 execute daydream --remote --command \
   "SELECT username, COUNT(*) c FROM users GROUP BY username HAVING c > 1;"
 ```
 
-代码里保留了「每个 isolate 首次请求时补建 `settings` / `chat_usage` / `chat_daily` / `login_attempts`」
-以及**给 `articles` 补 `source` / `summary` 两列**的兜底（`ALTER TABLE` + 吞掉「已存在」的报错，
-所以老库会自动升级，不用手动迁移）。但**索引必须靠 `schema.sql` 建**，
-否则评论分页和目录接口在大数据量下会变慢。
+代码里保留了「每个 isolate 首次请求时补建 `settings` / `chat_usage` / `chat_daily` / `login_attempts` /
+`scores` / `game_rank` / `pvp_*` / `media`」以及**给 `articles` 补 `source` / `summary` / `locked` 列**的兜底
+（`ALTER TABLE` + 吞掉「已存在」的报错，所以老库会自动升级，不用手动迁移）。但**索引必须靠 `schema.sql` 建**，
+否则评论分页和目录接口在大数据量下会变慢。`schema.sql` 里已经包含 `scores` / `game_rank` / `media`
+三张表，新库跑一次就齐了。
 
 把第一个管理员标出来：
 
@@ -168,6 +174,37 @@ npx wrangler pages dev public --d1 DB=daydream
 - **留空** → 完全照旧（自动截取正文开头）
 
 存在 `articles.summary` 里，老文章不用做任何处理。
+
+---
+
+## 图片：插图和头像（2026 年 11 月改版）
+
+### 插图：编辑器里直接选本地图片
+
+后台编辑器的工具条上有一枚「图片」按钮，点了会弹出文件选择框，**不需要自己找图床上传**：
+
+1. 选一张本地图片（PNG / JPG / WebP / GIF 都行）
+2. 浏览器里压一遍：最长边 1400px、质量 0.86 的 WebP；如果压完还超过 620KB，会再压到 1000px / 0.78
+3. `POST /api/media` 上传，落到 D1 的 `media` 表
+4. 正文里插入 `![图片说明](/api/media/12)`，**「图片说明」四个字会自动选中**，直接打字就能改
+
+图片走 `GET /api/media/:id` 输出，带 `max-age=31536000, immutable`，一张图只下载一次。
+单张上限 700KB（实际插图多在 100~300KB）。老写法 `![说明](https://外链)` 依然有效。
+
+渲染时 `![说明](地址)` 会变成一个 `<figure>`，`style.css` 里 `.reading-content figure { text-align: center }`
+—— **图片天然居中**，不需要额外标记。
+
+> 为什么存 D1：这个项目没有 R2 / KV（见文末「还可以继续做的」）。图片以 base64 存在 `media` 表里，
+> 由 Worker 解成二进制吐出来。量再大一个数量级就该搬去 R2 了。
+
+### 头像
+
+- 上传：客户端压到 128px 的 WebP，`PUT /api/me/avatar`，**上限 64KB，且拒绝 GIF 动图**（动图太占地方）
+- 读取：所有列表接口只回一个地址 `/api/avatar/<uid>`，带 7 天 immutable 缓存 + ETag
+- 没设头像：该地址回一张 68 字节的透明 PNG（不是 404），前端露出名字首字母，控制台也不会红
+
+> 历史包袱：2026-11-08 之前允许 300KB 且能传 GIF，库里至今还留着一个 789KB 的动图头像。
+> 它现在只会被单独请求一次（之后走缓存），但那位作者重新选一张静态图会更省。
 
 ---
 
@@ -388,6 +425,28 @@ node preview-server.cjs        # 起在 8899，根目录指向仓库
 
 ---
 
+## 性能（2026-11-08 体检）
+
+测量方式：无头 Edge + CDP，**关掉缓存**、1440×900，读 `performance.getEntriesByType('resource')`
+汇总（脚本在仓库外的 `analysis/perf-probe.mjs`，不参与部署）。
+
+| 页面 | 请求 | 传输 |
+| --- | --- | --- |
+| 书架 `#/menu` | 20 | **299KB** |
+| 正文 `#/read/1` | 22 | **307KB** |
+
+最大的一笔曾经不是图片也不是 JS，而是**留言接口里内嵌的头像 base64**：`/api/board` 1.58MB、
+评论接口 790KB，占首屏下载量的 77%（一个 789KB 的动图头像被复制进每条留言）。
+现在列表只回 `/api/avatar/<uid>`，两个接口降到 **777B / 585B**。
+
+剩下的瓶颈（按体积）：Google Fonts 的中文 CSS 89KB、海报 59KB、`logo-mask.png` 55KB、
+`app.js` 55KB、`style.css` 48KB。前三项都还有压的空间，见文末「还可以继续做的」。
+
+> 记一笔：字节数掉 5 倍并不会让 DCL 等比例下降 —— 首屏时间主要卡在字体 CSS 和几张图上，
+> 优化资源体积省的是**流量和白屏前的下载时长**，尤其对手机流量有意义。
+
+---
+
 ## 接口一览
 
 | 方法 | 路径 | 是否需要登录 | 说明 |
@@ -398,12 +457,18 @@ node preview-server.cjs        # 起在 8899，根目录指向仓库
 | POST | `/api/login` | 否 | 登录，同一用户名 15 分钟内失败 10 次会被限流 |
 | POST | `/api/logout` | 否 | 退出（清 Cookie） |
 | GET | `/api/me` | 否 | 当前登录用户，未登录返回 `{user:null}` |
-| PUT | `/api/me/avatar` | 是 | 设置头像（只接受 `https://` 或 `data:image/*`，上限 300KB 字符串） |
+| PUT | `/api/me/avatar` | 是 | 设置头像（只接受 `https://` 或 `data:image/*`，**上限 64KB，拒绝 GIF**） |
+| GET | `/api/avatar/:id` | 否 | 头像二进制（7 天 immutable 缓存 + ETag；没设头像回 68B 透明 PNG） |
+| POST | `/api/media` | 管理员 | 上传插图（`{type,data,width,height,name}`，700KB 上限）→ `{id,url,bytes}` |
+| GET | `/api/media/:id` | 否 | 插图二进制（1 年 immutable 缓存） |
 | GET | `/api/menu` | 否 | 目录 + **摘要**（不返回正文；摘要优先用 `summary`，没填才自动截取） |
 | GET | `/api/quote` | 否 | 「今日一句」：从主线/个人章里随机取一句 |
 | GET | `/api/article/:id` | 否 | 文章正文 |
 | GET | `/api/article/:id/comments?limit=20&before=<id>` | 否 | 留言分页，返回 `{items, has_more, total, next_before}` |
 | POST | `/api/article/:id/comments` | 是 | 发留言 |
+| GET | `/api/board?limit=20&before=<id>` | 否 | 留言板（复用 `comments`，`article_id=0`），含黑板文案 `note` |
+| POST | `/api/board` | 是 | 贴一张便签 |
+| DELETE | `/api/board/comments/:id` | 是 | 删便签（本人或管理员） |
 | GET | `/api/chat/config` | — | **已下线**，返回 404 |
 | POST | `/api/chat` | — | **已下线**，返回 404 |
 | GET/POST/PUT/DELETE | `/api/admin/articles...` | 管理员 | 文章增删改查（**正文以标记原文 `source` 提交**） |
@@ -417,6 +482,9 @@ node preview-server.cjs        # 起在 8899，根目录指向仓库
 > 后端里仍保留 `raw_html === true` 的兼容分支（几行）。界面上的「原始 HTML 模式（高级）」
 > 已按需要移除，留着这个分支是当**安全网**：万一以后发现有「正文是手写富 HTML、
 > 又没有标记原文」的文章，接口层面还能原样保存。见 `archive/raw-html-mode.md`。
+
+游戏与联机的接口不在上面这张表里，见上文「留言板与游戏」「幻梦牌 · 双人对局」两节
+（`/api/games/scores*`、`/api/pvp/rooms*`）。
 
 ---
 
@@ -439,22 +507,32 @@ node preview-server.cjs        # 起在 8899，根目录指向仓库
 | 后台「对话设定」页 | 已从后台导航和路由中移除 |
 | 三个接口 | `functions/api/[[route]].js` 里的 `CHAT_FEATURE = false`，统一返回 404 |
 | 前端代码 | 存档在 [`archive/chat-module.js`](archive/chat-module.js)，恢复步骤写在文件顶部 |
-| 样式 | 仍保留在 `public/css/style.css`（那一节标注了「已下线」） |
+| 样式 | 2026-11-08 的死代码清理里已删掉 `.chat-*`（当时无页面引用）；恢复办法见本节末尾 |
 | 数据库 | `chat_usage` / `chat_daily` 表和管理员设定都还在，恢复后不丢 |
 
 恢复只需要四步，`archive/chat-module.js` 顶部有完整说明：把文件移回 `public/js/`、在
 `index.html` 加一行 `<script>`、把 `app.js` 里的几处接回去（文件末尾附了要贴回的 HTML）、
 把 `CHAT_FEATURE` 改成 `true`。
 
+⚠️ **第五步（2026-11-08 新增）**：对话的那批 `.chat-*` 样式已经在死代码清理里删掉了
+（当时它们确实没有任何页面在用）。恢复前先从 git 历史里取回那一节：
+
+```bash
+git show 4150763:public/css/style.css | grep -n "chat-"   # 找到行号区间后手工贴回
+```
+
 ### 其它已下线的部分
 
 | 功能 | 处理方式 |
 | --- | --- |
 | 另外两套主题（海洋 / 暖纸） | 只保留「夜读」；代码在 `archive/themes.css` / `archive/theme-module.js`，恢复步骤见文件内说明 |
-| 书架「继续阅读」卡片 | 存档 `archive/continue-reading.js` |
 | 作品统计行 | 存档 `archive/menu-stats.md` |
 | 封面的鲸鱼插画 | 换成烫金徽记；原代码在 `archive/cover-whale.js` |
 | 「原始 HTML 模式（高级）」 | 从编辑器移除；见 `archive/raw-html-mode.md`（后端保留了兼容分支） |
+
+> 书架上的「继续阅读」曾经下架过（`archive/continue-reading.js`），现在**已经回来了**：
+> `app.js` 的 `resumeBar()` 渲染 `.resume-wrap / .resume-bar / .resume-chip`。
+> 存档文件留着当历史，不参与部署。
 
 ## 还可以继续做的
 
@@ -463,5 +541,10 @@ node preview-server.cjs        # 起在 8899，根目录指向仓库
 - **人物关系 + 年表**：把人物卡之间的关系可视化
 - **把 hash 路由换成 History API**：这样每篇文章会有真实 URL（`/read/12`），可以被搜索引擎收录、被单独分享。改动涉及全站链接，建议单独排一次。
 - **加 og:image**：截一张 1200×630 的封面图放到 `public/`，然后补 `index.html` 里的 `og:image`，微信/QQ 分享才有大图。
-- **头像放 R2**：现在是压缩后的 data URI 存在 D1 里，量大了会撑大行宽；R2 更合适。
+- **大头像搬去 R2**：现在头像以 base64 存在 `users.avatar` 里，读的时候由 `/api/avatar/<uid>` 转成二进制
+  并长缓存（列表接口只回地址，不再内嵌）。还剩一个 789KB 的历史动图，作者重选一次就没了；
+  真要长期存大图/sticker，R2 仍然更合适。
+- **再压首屏**：`logo-mask.png` 55KB 只是当 CSS 遮罩用（显示尺寸 22px），降到 256px 或换 SVG 能省 ~40KB；
+  Google Fonts 那份 89KB 的中文字体 CSS 可以子集化（只留站内出现过的字）或改本地托管；
+  海报 59KB 还能转 AVIF（约 35KB，要多一条 fallback）。
 - **行为级渲染比对**：见上文「开发与自测」最后一段。

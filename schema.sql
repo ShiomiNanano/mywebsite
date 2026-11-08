@@ -107,6 +107,45 @@ CREATE TABLE IF NOT EXISTS pvp_moves (
   PRIMARY KEY (code, round_no, side, kind)
 );
 
+/* ---------- 小游戏与幻梦牌段位 ---------- */
+-- 一款游戏一个榜，取每个用户的最高分排前五
+CREATE TABLE IF NOT EXISTS scores (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  game       TEXT    NOT NULL,           -- memory / number …
+  user_id    INTEGER,
+  username   TEXT,
+  score      INTEGER NOT NULL,
+  created_at TEXT
+);
+
+-- 幻梦牌段位：每人一行，服务端保存（换设备也在）
+CREATE TABLE IF NOT EXISTS game_rank (
+  game       TEXT    NOT NULL,
+  user_id    INTEGER NOT NULL,
+  username   TEXT,
+  rating     INTEGER NOT NULL DEFAULT 0,
+  wins       INTEGER NOT NULL DEFAULT 0,
+  losses     INTEGER NOT NULL DEFAULT 0,
+  streak     INTEGER NOT NULL DEFAULT 0, -- 连胜（连胜奖励按它算）
+  updated_at TEXT,
+  PRIMARY KEY (game, user_id)
+);
+
+/* ---------- 编辑器上传的插图 ---------- */
+-- 正文里写 ![说明](/api/media/<id>)，图片本身以 base64 存在这里，由 Worker 解成二进制输出。
+-- 单张上限 700KB（见 [[route]].js 的 MAX_MEDIA）。项目没有 R2 / KV，量再大就该搬走。
+CREATE TABLE IF NOT EXISTS media (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER,
+  name       TEXT,
+  mime       TEXT    NOT NULL,
+  bytes      INTEGER NOT NULL,
+  width      INTEGER,
+  height     INTEGER,
+  data       TEXT    NOT NULL,           -- base64（不含 data: 前缀）
+  created_at TEXT
+);
+
 /* ---------- 索引 ---------- */
 -- 注意：user 唯一索引要求库里没有重名账号。先跑这条检查，有结果就先清理再建索引：
 --   SELECT username, COUNT(*) c FROM users GROUP BY username HAVING c > 1;
@@ -116,6 +155,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username    ON users(username);
 CREATE INDEX IF NOT EXISTS idx_comments_article ON comments(article_id, id);
 -- 注销用户时按 user_id 反查
 CREATE INDEX IF NOT EXISTS idx_comments_user    ON comments(user_id);
+-- 排行榜：按游戏取分数倒序
+CREATE INDEX IF NOT EXISTS idx_scores_game      ON scores(game, score DESC);
 
 -- 目录接口的排序
 CREATE INDEX IF NOT EXISTS idx_articles_order   ON articles(category, chapter_no, section_no, sort_order, id);
