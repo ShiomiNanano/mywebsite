@@ -3,51 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <!-- 手机地址栏颜色：由 js/theme-boot.js 按当前主题设定，切换主题时同步更新 -->
+  <!-- 鎵嬫満鍦板潃鏍忛鑹诧細鐢?js/theme-boot.js 鎸夊綋鍓嶄富棰樿瀹氾紝鍒囨崲涓婚鏃跺悓姝ユ洿鏂?-->
   <meta name="theme-color" content="#e8f0f6">
   <meta name="format-detection" content="telephone=no">
 
-  <title>白日梦咖啡馆 · 绘空事</title>
-  <meta name="description" content="汐凪岛上的白日梦咖啡馆，潮見柒乃与来客们的故事。一部正在连载的中文长篇小说：主线故事、个人章与世界设定。">
+  <title>鐧芥棩姊﹀挅鍟￠ 路 缁樼┖浜?/title>
+  <meta name="description" content="姹愬嚜宀涗笂鐨勭櫧鏃ユⅵ鍜栧暋棣嗭紝娼鏌掍箖涓庢潵瀹滑鐨勬晠浜嬨€備竴閮ㄦ鍦ㄨ繛杞界殑涓枃闀跨瘒灏忚锛氫富绾挎晠浜嬨€佷釜浜虹珷涓庝笘鐣岃瀹氥€?>
   <meta name="author" content="ShiomiNanano">
   <link rel="canonical" href="https://daydream7.pages.dev/">
 
-  <!-- 图标：内联 SVG，省一个请求 -->
+  <!-- 鍥炬爣锛氬唴鑱?SVG锛岀渷涓€涓姹?-->
   <link rel="icon" href="media/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="icon" href="media/favicon.png" sizes="180x180" type="image/png">
   <link rel="apple-touch-icon" href="media/favicon.png">
 
-  <!-- 分享卡片（微信 / QQ / Twitter 等）。有配图后把 og:image 指向一张 1200×630 的 PNG 效果最好 -->
+  <!-- 鍒嗕韩鍗＄墖锛堝井淇?/ QQ / Twitter 绛夛級銆傛湁閰嶅浘鍚庢妸 og:image 鎸囧悜涓€寮?1200脳630 鐨?PNG 鏁堟灉鏈€濂?-->
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="白日梦咖啡馆 · 绘空事">
-  <meta property="og:title" content="白日梦咖啡馆 · 绘空事">
-  <meta property="og:description" content="汐凪岛上的白日梦咖啡馆，潮見柒乃与来客们的故事。">
+  <meta property="og:site_name" content="鐧芥棩姊﹀挅鍟￠ 路 缁樼┖浜?>
+  <meta property="og:title" content="鐧芥棩姊﹀挅鍟￠ 路 缁樼┖浜?>
+  <meta property="og:description" content="姹愬嚜宀涗笂鐨勭櫧鏃ユⅵ鍜栧暋棣嗭紝娼鏌掍箖涓庢潵瀹滑鐨勬晠浜嬨€?>
   <meta property="og:url" content="https://daydream7.pages.dev/">
   <meta name="twitter:card" content="summary">
 
-  <!-- 主题引导：要在 CSS 之前执行，否则深色主题会闪一下白屏 -->
+  <!-- 涓婚寮曞锛氳鍦?CSS 涔嬪墠鎵ц锛屽惁鍒欐繁鑹蹭富棰樹細闂竴涓嬬櫧灞?-->
   <script src="js/theme-boot.js?v=20261028"></script>
 
-  <!-- 字体由 js/app.js 延后注入：正文用系统字体，装饰字体不阻塞首屏 -->
+  <!-- 瀛椾綋鐢?js/app.js 寤跺悗娉ㄥ叆锛氭鏂囩敤绯荤粺瀛椾綋锛岃楗板瓧浣撲笉闃诲棣栧睆 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- 壁纸配色（由 tools/make-wallpaper.py 依据壁纸生成，换壁纸后重跑脚本即可） -->
+  <!-- 澹佺焊閰嶈壊锛堢敱 tools/make-wallpaper.py 渚濇嵁澹佺焊鐢熸垚锛屾崲澹佺焊鍚庨噸璺戣剼鏈嵆鍙級 -->
   <link rel="stylesheet" href="media/wallpaper-palette.css">
-  <link rel="stylesheet" href="css/style.css?v=20261065">
+  <link rel="stylesheet" href="css/style.css?v=20261066">
 </head>
 <body>
   <div id="app"></div>
-  <!-- 加载遮罩：慢的时候给个交代。首屏就在，app.js 画完第一屏再收 -->
+  <!-- 鍔犺浇閬僵锛氭參鐨勬椂鍊欑粰涓氦浠ｃ€傞灞忓氨鍦紝app.js 鐢诲畬绗竴灞忓啀鏀?-->
   <div id="pageVeil" class="page-veil on" aria-hidden="true">
     <span class="veil-mark"></span>
     <span class="veil-ring"></span>
   </div>
   <noscript>
-    <p style="padding:24px;font-family:sans-serif">本站需要开启 JavaScript 才能阅读。</p>
+    <p style="padding:24px;font-family:sans-serif">鏈珯闇€瑕佸紑鍚?JavaScript 鎵嶈兘闃呰銆?/p>
   </noscript>
   <script src="js/api.js?v=20261028"></script>
   <script src="js/docx.js?v=20261028"></script>
   <script src="js/rich.js?v=20261036"></script>
-  <script src="js/app.js?v=20261081"></script>
+  <script src="js/app.js?v=20261082"></script>
 </body>
 </html>

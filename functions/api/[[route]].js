@@ -1481,7 +1481,7 @@ export async function onRequest(context) {
        PUT    /api/music/<id>   管理员改：{ title?, artist?, src?, sort? }
        DELETE /api/music/<id>   管理员删
        src 允许 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>（现解析，仅免费曲有效） */
-    const musicSrcOk = (v) => /^(https:\/\/|\/|netease:\d{3,})/i.test(String(v || '').trim());
+    const musicSrcOk = (v) => /^(https:\/\/|\/|netease(-dj)?:\d{3,})/i.test(String(v || '').trim());
     /* netease:<歌曲id>：匿名解析 music.163.com 的 outer/url，只对免费/非 VIP 曲有效；
        解析出的地址带签名且短时效，所以每次播放前现解析，不进列表、不落库 */
     const neteaseId = (v) => { const m = /^netease:(\d{3,})$/i.exec(String(v || '').trim()); return m ? m[1] : ''; };
@@ -1532,7 +1532,7 @@ export async function onRequest(context) {
       const artist = String(body.artist || '').trim().slice(0, 80);
       const src = String(body.src || '').trim().slice(0, 500);
       if (!title) return json({ error: '请填写曲名' }, 400);
-      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id> / netease-dj:<节目id>' }, 400);
       const top = await env.DB.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM music').first();
       const sort = (Number(top && top.s) || 0) + 10;
       const r = await env.DB.prepare(
@@ -1557,7 +1557,7 @@ export async function onRequest(context) {
       const src = body.src != null ? String(body.src).trim().slice(0, 500) : row.src;
       const sort = body.sort != null ? (parseInt(body.sort, 10) || 0) : row.sort;
       if (!title) return json({ error: '请填写曲名' }, 400);
-      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id> / netease-dj:<节目id>' }, 400);
       await env.DB.prepare('UPDATE music SET title=?, artist=?, src=?, sort=? WHERE id=?')
         .bind(title, artist || '', src, sort, id).run();
       return json({ ok: true });
