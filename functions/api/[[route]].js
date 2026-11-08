@@ -826,7 +826,8 @@ export async function onRequest(context) {
       // 注意：这里只取正文的前 400 字用来生成摘要，绝不把全文带进目录接口。
       // 否则每次打开书架都要下载整本小说。
       const rows = await env.DB.prepare(`SELECT a.id, a.category, a.chapter_no, a.chapter_title,
-        a.section_no, a.section_title, a.title, a.created_at,
+        a.section_no, a.section_title, a.title, a.created_at, a.updated_at,
+        LENGTH(a.content) AS chars,
         substr(a.content, 1, 400) AS head, a.summary, a.tags, a.chapter_title AS setting_type, a.locked,
         (SELECT COUNT(*) FROM comments c WHERE c.article_id = a.id) AS comment_count
         FROM articles a ORDER BY a.category, a.chapter_no, a.section_no, a.sort_order, a.id`).all();
@@ -845,6 +846,9 @@ export async function onRequest(context) {
           setting_type: a.setting_type || '',
           locked: Number(a.locked) ? 1 : 0,
           tags: a.tags || '',
+          created_at: a.created_at || '',
+          updated_at: a.updated_at || a.created_at || '',
+          chars: Number(a.chars) || 0,
           comment_count: Number(a.comment_count),
         };
         if (a.category === 'main') {

@@ -4138,3 +4138,95 @@ html[data-cloth="on"] .game-page {
   border-radius: var(--r-md) var(--r-md) 0 0;
 }
 .ws-grp-more { margin-left: auto; display: flex; align-items: center; }
+
+/* ================= 阅读页 2026-11-09：进度浮标 / 目录抽屉 / 结尾下一节 ================= */
+
+/* 右下角进度浮标：滚动时淡入，停下 2 秒淡出 */
+.reading-gauge {
+  position: fixed; right: 20px; bottom: calc(96px + var(--safe-bottom));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  padding: 7px 12px; border-radius: 12px;
+  background: rgba(14, 24, 33, .84); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  color: var(--ink-3); font-size: 11px; letter-spacing: .06em;
+  opacity: 0; transform: translateY(6px); pointer-events: none; z-index: 70;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.reading-gauge.on { opacity: 1; transform: none; }
+.reading-gauge b { font-family: var(--font-serif); font-size: 17px; font-weight: 600; color: var(--gold); line-height: 1.1; }
+
+/* 目录抽屉 */
+.toc { position: fixed; inset: 0; z-index: 120; pointer-events: none; }
+.toc.on { pointer-events: auto; }
+.toc-mask { position: absolute; inset: 0; background: rgba(6, 12, 17, .58); opacity: 0; transition: opacity .25s ease; }
+.toc.on .toc-mask { opacity: 1; }
+.toc-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(340px, 86vw);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border-left: 1px solid var(--line);
+  box-shadow: -24px 0 60px -34px rgba(0, 0, 0, .9);
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.2, .7, .3, 1);
+}
+.toc.on .toc-panel { transform: none; }
+.toc-head { display: flex; align-items: center; gap: 8px; padding: 16px 14px 10px; border-bottom: 1px solid var(--line); }
+.toc-title { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toc-all { flex: 0 0 auto; font-size: 12px; color: var(--gold); }
+.toc-x { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink-3); font-size: 12px; cursor: pointer; }
+.toc-x:hover { color: var(--ink); border-color: var(--gold-2); }
+.toc-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 8px 8px calc(24px + var(--safe-bottom)); list-style: none; }
+.toc-list a { display: flex; align-items: baseline; gap: 8px; padding: 9px 10px; border-radius: 9px; color: var(--ink-2); text-decoration: none; transition: background .16s, color .16s; }
+.toc-list a:hover { background: var(--surface-3); color: var(--ink); }
+.toc-list i { flex: 0 0 auto; min-width: 46px; font-style: normal; font-size: 11px; color: var(--ink-3); letter-spacing: .04em; }
+.toc-list b { flex: 1 1 auto; min-width: 0; font-weight: 500; font-size: 13.5px; line-height: 1.5; }
+.toc-list s { flex: 0 0 auto; text-decoration: none; font-size: 11px; color: var(--gold-2); }
+.toc-list em { flex: 0 0 auto; font-style: normal; font-size: 10px; letter-spacing: .1em; color: var(--badge-ink, #101c25); background: var(--gold); padding: 1px 6px; border-radius: 99px; }
+.toc-list li.is-on a { background: rgba(232, 207, 154, .1); color: var(--ink); }
+body.toc-open { overflow: hidden; }
+@media (max-width: 760px) {
+  .toc-panel { top: 10vh; width: 100%; border-left: 0; border-radius: 16px 16px 0 0; transform: translateY(100%); }
+  .reading-gauge { right: 14px; bottom: calc(86px + var(--safe-bottom)); }
+}
+
+/* 结尾：本节完 → 下一篇卡 → 小导航 */
+.reading-end { margin-top: var(--sp-6); }
+.reading-end-mark { margin: 0 0 var(--sp-4); text-align: center; font-size: 12px; letter-spacing: .3em; color: var(--ink-3); }
+.read-next {
+  display: flex; align-items: center; gap: 14px;
+  padding: 15px 16px; border: 1px solid var(--line); border-left: 3px solid var(--gold-2); border-radius: var(--r-md);
+  background: linear-gradient(120deg, rgba(232, 207, 154, .07), rgba(232, 207, 154, .015)),
+              linear-gradient(120deg, var(--surface-3), var(--surface-2));
+  text-decoration: none; color: inherit;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.read-next:hover { transform: translateY(-2px); border-color: rgba(232, 207, 154, .45); box-shadow: 0 14px 34px -20px rgba(0, 0, 0, .95); }
+.read-next-side { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.read-next-side i { font-style: normal; font-size: 11px; letter-spacing: .12em; color: var(--gold); }
+.read-next-side b { font-family: var(--font-serif); font-size: 16px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.read-next-go { flex: 0 0 auto; display: inline-block; font-size: 12.5px; letter-spacing: .06em; color: var(--gold); transition: transform .18s ease; }
+.read-next:hover .read-next-go { transform: translateX(4px); }
+.read-next-none { margin: var(--sp-3) 0 0; text-align: center; font-size: 12.5px; color: var(--ink-3); }
+.reading-nav-hole { display: inline-block; width: 1px; }
+
+/* 「回到上次位置」提示条 */
+.pos-back {
+  position: fixed; left: 50%; bottom: calc(84px + var(--safe-bottom));
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 99px;
+  background: rgba(14, 24, 33, .94); border: 1px solid var(--line);
+  color: var(--ink-2); font-size: 12px;
+  opacity: 0; transform: translate(-50%, 14px); pointer-events: none; z-index: 75;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.pos-back.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.pos-back button { border: 0; background: transparent; color: var(--gold); font-size: 12px; cursor: pointer; padding: 0; }
+
+/* 小节 / 个人章卡片上的那行小字（更新时间 · 字数 · 留言数），刻意压低存在感 */
+.section-body p { font-variant-numeric: tabular-nums; }
+.article-card .card-meta-sub {
+  display: block; margin-top: 6px;
+  font-size: 11px; letter-spacing: .02em; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.reading-gauge b { font-size: 16px; }

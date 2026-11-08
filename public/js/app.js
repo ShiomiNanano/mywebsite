@@ -596,6 +596,18 @@ const App = {
   },
 
   /* ---------- 通用片段 ---------- */
+  /* 小节 / 个人章卡片上的那行小字：更新时间 · 字数 · 留言数（故意做得很轻） */
+  cardMeta(it) {
+    const day = String(it.updated_at || it.created_at || '').slice(0, 10);
+    const chars = Number(it.chars) || 0;
+    const bits = [];
+    if (day) bits.push(day + ' 更新');
+    if (chars > 0) bits.push('约 ' + chars.toLocaleString('en-US') + ' 字');
+    const n = Number(it.comment_count) || 0;
+    bits.push(n + ' 条留言');
+    return bits.join(' · ');
+  },
+
   avatarHtml(user, size = 38) {
     const cls = `avatar size-${size}`;
     // 有人把头像删了、或者 /api/avatar/<id> 404 时，img 自己移除，露出下面的首字母
@@ -865,7 +877,7 @@ const App = {
             <span class="section-index">${String(s.section_no).padStart(2, '0')}</span>
             <div class="section-body">
               <h3>第 ${s.section_no} 节 · ${esc(s.section_title)}</h3>
-              <p>${s.comment_count} 条留言</p>
+              <p>${this.cardMeta(s)}</p>
             </div>
             <span class="section-arrow">→</span>
           </a>`).join('') : '<p class="empty-hint">这一章还没有小节。</p>'}
@@ -1542,7 +1554,7 @@ const App = {
             <div class="card-ico">✉</div>
             <h3>${esc(a.title)}</h3>
             <p>${esc(this.excerpt(a))}</p>
-            <span class="card-meta">${a.comment_count} 条留言</span>
+            <span class="card-meta-sub">${this.cardMeta(a)}</span>
           </a>`).join('') : '<p class="empty-hint">个人章还没有内容。</p>'}
       </div>
     </div>`;
@@ -1690,6 +1702,110 @@ const card = (x) => {
     try { rec.shown = true; sessionStorage.setItem('daydream-wiki-back', JSON.stringify(rec)); } catch (e) {}
     return `<p class="wiki-back"><a href="${esc(rec.hash)}" data-wikiback="1">← 回到《${esc(rec.title || '原文')}》</a></p>`;
   },
+  /* ---------- 阅读页：目录与结尾 ---------- */
+  // 目录数据全部取自本地缓存的 menu，不额外请求
+  tocData(a) {
+    const m = this.state.menu || {};
+    const wrap = (x, extra) => Object.assign({
+      id: x.id,
+      current: x.id === a.id,
+      read: x.id !== a.id && this.isRead(x.id),
+    }, extra || {});
+    if (a.category === 'main') {
+      const chs = m.main || [];
+      const ch = chs.find(c => c.chapter_no === a.chapter_no) || chs[0] || { sections: [] };
+      return {
+        title: ch.chapter_title || '本章目录',
+        href: '#/main/' + (a.chapter_no || 0),
+        items: (ch.sections || []).map(x => wrap(x, { label: '第 ' + x.section_no + ' 节', title: x.section_title })),
+      };
+    }
+    const isPersonal = a.category === 'personal';
+    const list = isPersonal ? (m.personal || []) : (m.settings || []);
+    return {
+      title: isPersonal ? '个人章' : '设定',
+      href: isPersonal ? '#/personal' : '#/settings',
+      items: list.map((x, i) => wrap(x, { label: String(i + 1).padStart(2, '0'), title: x.title })),
+    };
+  },
+
+  findAnywhere(id) {
+    if (!id) return null;
+    const m = this.state.menu || {};
+    const all = [];
+    (m.main || []).forEach(ch => (ch.sections || []).forEach(x => all.push(Object.assign({ category: 'main' }, x))));
+    (m.personal || []).forEach(x => all.push(Object.assign({ category: 'personal' }, x)));
+    (m.settings || []).forEach(x => all.push(Object.assign({ category: 'settings' }, x)));
+    return all.find(x => x.id === Number(id)) || null;
+  },
+
+  // 结尾：本节完 → 下一篇卡片 → 小导航（设定不写「本节完」）
+  readingEnd(a, prevId, nextId) {
+    const next = this.findAnywhere(nextId);
+    const prev = this.findAnywhere(prevId);
+    const endMark = a.category === 'settings' ? '' : '<p class="reading-end-mark">— 本节完 —</p>';
+    const nextSub = next ? (next.category === 'main' ? ('第 ' + next.section_no + ' 节') : (next.category === 'personal' ? '个人章' : '设定')) : '';
+    const card = next ? `<a class="read-next" href="#/read/${next.id}">
+        <span class="read-next-side">
+          <i>${esc(nextSub)}</i>
+          <b>${esc(next.section_title || next.title || '下一篇')}</b>
+        </span>
+        <span class="read-next-go">${a.category === 'main' ? '继续读 →' : '查看 →'}</span>
+      </a>` : '<p class="read-next-none">这一篇已经是最后一篇了。</p>';
+    return `<div class="reading-end">
+          ${endMark}
+          ${card}
+          <div class="reading-nav">
+            ${prev ? `<a class="btn btn-small btn-ghost" href="#/read/${prev.id}">← 上一篇</a>` : '<span class="reading-nav-hole"></span>'}
+            <button class="btn btn-small btn-ghost" id="openTocEnd" type="button">目录</button>
+          </div>
+        </div>
+        <p class="reading-swipe-hint">手机上左右滑动、电脑上按 ← → 可切换上一篇 / 下一篇</p>`;
+  },
+
+  openToc(a) {
+    let box = document.getElementById('tocDrawer');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'tocDrawer';
+      box.className = 'toc';
+      document.body.appendChild(box);
+    }
+    const data = this.tocData(a);
+    box.innerHTML = `<div class="toc-mask" data-toc-close></div>
+      <aside class="toc-panel" role="dialog" aria-label="本章目录">
+        <header class="toc-head">
+          <b class="toc-title">${esc(data.title)}</b>
+          <a class="toc-all" href="${data.href}">全部 →</a>
+          <button class="toc-x" type="button" data-toc-close aria-label="关闭">✕</button>
+        </header>
+        <ol class="toc-list">${data.items.map(it => `<li class="${it.current ? 'is-on' : ''}">
+          <a href="#/read/${it.id}">
+            <i>${esc(it.label)}</i>
+            <b>${esc(it.title || '')}</b>
+            ${it.read ? '<s title="读过">✓</s>' : ''}
+            ${it.current ? '<em>在读</em>' : ''}
+          </a></li>`).join('')}</ol>
+      </aside>`;
+    // 强制 reflow 再加 on，保证过渡能跑
+    void box.offsetWidth;
+    box.classList.add('on');
+    document.body.classList.add('toc-open');
+    const cur = box.querySelector('.toc-list .is-on');
+    if (cur) cur.scrollIntoView({ block: 'center' });
+    box.querySelectorAll('[data-toc-close]').forEach(el => { el.onclick = () => this.closeToc(); });
+    box.querySelectorAll('.toc-list a').forEach(el => { el.onclick = () => this.closeToc(); });
+    this._tocEsc = (e) => { if (e.key === 'Escape') this.closeToc(); };
+    document.addEventListener('keydown', this._tocEsc);
+  },
+
+  closeToc() {
+    const box = document.getElementById('tocDrawer');
+    if (box) box.classList.remove('on');
+    document.body.classList.remove('toc-open');
+    if (this._tocEsc) { document.removeEventListener('keydown', this._tocEsc); this._tocEsc = null; }
+  },
+
   async renderRead(id) {
     // 直接深链进来时目录还是空的，和正文并行加载，这样上下篇按钮不会消失
     const [article] = await Promise.all([
@@ -1721,34 +1837,28 @@ const card = (x) => {
     const plainLen = String(article.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
     // 进正文就算读过了（书架上的「已读」标记靠这个）
     this.markRead(article.id);
-    const articleChars = plainLen.toLocaleString('zh-CN');
     this.pageTitle = heading + ' · 白日梦咖啡馆';
     this.rememberRead(article);
+    this._readArticle = article;
 
     return `
     <div class="page">
       ${this.topbar()}
       <div class="breadcrumb">${this.catCrumb(article)}</div>
-      <article class="reading reading-cat-${article.category}" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
+      <article class="reading reading-cat-${article.category}" data-id="${article.id}" data-chars="${plainLen}" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
         <header class="reading-head">
-          <span class="eyebrow">${this.eyebrow(article)}</span>
           <h1>${esc(heading)}</h1>
-          <div class="reading-meta">${esc(formatTime(article.updated_at))} 更新 · 约 ${articleChars} 字</div>
           <div class="reading-divider"><span>❧</span></div>
         </header>
         <div class="reading-tools">
           <span class="reading-tools-label">字号</span>
           <button class="btn btn-small btn-ghost" id="fontSmaller" title="缩小字号">A－</button>
           <button class="btn btn-small btn-ghost" id="fontLarger" title="放大字号">A＋</button>
+          <button class="btn btn-small btn-ghost" id="openToc" title="本章目录">目录</button>
         </div>
         ${this.wikiBackBar(article)}
         <div class="reading-content">${article.content}</div>
-        <footer class="reading-foot"><span>— 全文完 —</span></footer>
-        <div class="reading-nav">
-          ${prev_id ? `<a class="btn btn-small btn-ghost" href="#/read/${prev_id}">← 上一篇</a>` : '<span></span>'}
-          ${next_id ? `<a class="btn btn-small btn-ghost" href="#/read/${next_id}">下一篇 →</a>` : '<span></span>'}
-        </div>
-        <p class="reading-swipe-hint">手机上左右滑动、电脑上按 ← → 可切换上一篇 / 下一篇</p>
+        ${this.readingEnd(article, prev_id, next_id)}
       </article>
 
       <section class="comments">
@@ -3522,6 +3632,10 @@ const card = (x) => {
     const readingEl = document.querySelector('.reading');
     bindSwipe(readingEl);
     this.updateReadingChrome(readingEl);
+    ['openToc', 'openTocEnd'].forEach((tid) => {
+      const b = document.getElementById(tid);
+      if (b) b.onclick = () => { if (this._readArticle) this.openToc(this._readArticle); };
+    });
     // 桌面端键盘翻页（用 onkeydown 赋值，避免每次渲染都往 document 上叠加监听）
     document.onkeydown = readingEl ? (e) => {
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -3572,6 +3686,23 @@ const card = (x) => {
       return;
     }
     chrome.bar.classList.add('on');
+
+    // 右下角的进度浮标：百分比 + 大约还剩几分钟（中文 350 字/分钟）
+    let gauge = document.getElementById('readingGauge');
+    if (!gauge) {
+      gauge = document.createElement('div');
+      gauge.id = 'readingGauge';
+      gauge.className = 'reading-gauge';
+      gauge.innerHTML = '<b>0%</b>';
+      document.body.appendChild(gauge);
+    }
+    const gaugeNum = gauge.querySelector('b');
+    const gaugeEta = gauge.querySelector('span');
+    const totalChars = Number(reading.dataset.chars || 0);
+    const articleId = Number(reading.dataset.id || 0);
+    let hideTimer = null;
+    let lastSave = 0;
+
     // 用 onscroll 赋值而不是 addEventListener，避免每次渲染都叠加监听
     const onScroll = () => {
       const doc = document.documentElement;
@@ -3580,9 +3711,58 @@ const card = (x) => {
       const p = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
       chrome.bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
       chrome.top.classList.toggle('on', y > 560);
+
+      const pct = Math.round(p * 100);
+      gaugeNum.textContent = pct + '%';
+      gauge.classList.add('on');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => gauge.classList.remove('on'), 2200);
+
+      // 位置记忆：离开再回来能落回原处（每篇单独存，最多留 200 篇）
+      const now = Date.now();
+      if (articleId && p > 0.02 && now - lastSave > 400) {
+        lastSave = now;
+        try {
+          const all = JSON.parse(localStorage.getItem('daydream-pos') || '{}');
+          all[articleId] = { p: Number(p.toFixed(4)), ts: now };
+          const keys = Object.keys(all);
+          if (keys.length > 200) {
+            keys.sort((a, b) => all[a].ts - all[b].ts).slice(0, keys.length - 200).forEach(k => delete all[k]);
+          }
+          localStorage.setItem('daydream-pos', JSON.stringify(all));
+        } catch (e) {}
+      }
     };
     window.onscroll = onScroll;
     onScroll();
+
+    // 落回上次的位置（只在同一篇、且位置不在开头时）
+    if (!this._posRestored || this._posRestored !== articleId) {
+      this._posRestored = articleId;
+      let saved = null;
+      try { saved = (JSON.parse(localStorage.getItem('daydream-pos') || '{}'))[articleId]; } catch (e) {}
+      if (saved && saved.p > 0.06 && saved.p < 0.985) {
+        requestAnimationFrame(() => {
+          const max = document.documentElement.scrollHeight - window.innerHeight;
+          window.scrollTo(0, Math.round(max * saved.p));
+          onScroll();
+          let hint = document.getElementById('posBack');
+          if (!hint) {
+            hint = document.createElement('div');
+            hint.id = 'posBack';
+            hint.className = 'pos-back';
+            hint.innerHTML = '<span>已回到上次读到的地方</span><button type="button">回到开头</button>';
+            document.body.appendChild(hint);
+          }
+          hint.querySelector('button').onclick = () => {
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+            hint.classList.remove('on');
+          };
+          hint.classList.add('on');
+          setTimeout(() => hint.classList.remove('on'), 6000);
+        });
+      }
+    }
   },
 
   /* ---------- 人机验证（仅在配置了 TURNSTILE_SITE_KEY 时启用） ---------- */
