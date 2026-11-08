@@ -750,7 +750,9 @@ export async function onRequest(context) {
   const method = request.method;
 
   try {
-    if (Number(request.headers.get('content-length') || 0) > MAX_BODY) {
+    /* 上传音频要走二进制、单首可到 20MB，不吃全局 1MB 的 JSON 上限 */
+    const isMusicUpload = method === 'POST' && path === '/music/upload';
+    if (!isMusicUpload && Number(request.headers.get('content-length') || 0) > MAX_BODY) {
       return json({ error: '请求体过大' }, 413);
     }
 
