@@ -164,3 +164,12 @@ CREATE INDEX IF NOT EXISTS idx_articles_order   ON articles(category, chapter_no
 -- 「我还没打完的房间」列表
 CREATE INDEX IF NOT EXISTS idx_pvp_host  ON pvp_rooms(host_id);
 CREATE INDEX IF NOT EXISTS idx_pvp_guest ON pvp_rooms(guest_id);
+
+CREATE TABLE IF NOT EXISTS music (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  artist TEXT DEFAULT '',
+  src TEXT NOT NULL,
+  sort INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

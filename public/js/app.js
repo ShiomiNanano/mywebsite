@@ -5,6 +5,19 @@ function esc(s) {
   ));
 }
 
+/* 音频地址归一化：网易云整条链接 → netease:<id> / netease-dj:<id>，其余原样 */
+function normalizeMusicSrc(raw) {
+  const v = String(raw == null ? '' : raw).trim();
+  if (!v) return '';
+  const s = v.replace(/\s+/g, '');
+  let m = /^netease-dj:(\d+)$/i.exec(s); if (m) return 'netease-dj:' + m[1];
+  m = /^netease:(\d+)$/i.exec(s); if (m) return 'netease:' + m[1];
+  m = /music\.163\.com\/(?:#\/)?dj\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease-dj:' + m[1];
+  m = /music\.163\.com\/(?:#\/)?(?:song|song\/media\/outer\/url)\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease:' + m[1];
+  m = /music\.163\.com\/program\?(?:[^#]*&)?id=(\d+)/i.exec(s); if (m) return 'netease-dj:' + m[1];
+  return v;
+}
+
 // 后端存的是 UTC 时间（YYYY-MM-DD HH:MM:SS），这里转成访客本地时间显示
 function formatTime(s) {
   if (!s) return '—';
@@ -185,6 +198,11 @@ const App = {
     document.addEventListener('click', (e) => {
       /* 点「幻梦牌」这类整页跳转的入口：浏览器要重新加载一整个页面，
          期间旧页面会一直停在原地 —— 先把遮罩盖上，别让人以为没点到。 */
+      /* 顶栏的音符按钮 / 八音盒面板里的按钮与列表 */
+      const mbBtn = e.target.closest && e.target.closest('#musicBtn');
+      if (mbBtn) { e.preventDefault(); this.mbTogglePanel(); return; }
+      const mbPick = e.target.closest && e.target.closest('.mb-panel [data-mbi]');
+      if (!mbPick && e.target.closest && e.target.closest('.mb-panel')) return; // 面板内部其它点击不冒泡到页面
       const jump = e.target.closest && e.target.closest('a.hub-card[href^="/games/"]');
       if (jump) { this.veilShow(true); return; }
       const card = e.target.closest && e.target.closest('.flip-card');
@@ -564,6 +582,7 @@ const App = {
   },
 
   async route() {
+    this.stopMusicTest();
     this.resetReadingChrome();
     this.cancelCoverTimer();   // 换了页面，封面那个延时跳转立刻作废（否则会顶掉登录页）
     this.veilShow();           // 90ms 内画完就不出现，慢才亮
@@ -595,6 +614,7 @@ const App = {
         if (sub === 'new') view = await this.renderAdminForm();
         else if (sub === 'edit') view = await this.renderAdminForm(parts[2]);
         else if (sub === 'users') view = await this.renderAdminUsers();
+        else if (sub === 'music') view = await this.renderAdminMusic();
         else view = await this.renderAdminArticles();
       }
       else view = this.renderLanding();
@@ -691,10 +711,17 @@ const App = {
       </a>
       <div class="topbar-right">
         ${u ? `
-          <a class="topbar-item topbar-hide-mobile" href="#/menu">书架</a>
+          <button class="topbar-item topbar-music" id="musicBtn" type="button" aria-label="柒乃的八音盒" aria-expanded="false" title="柒乃的八音盒">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M10 18.3a2.6 2.6 0 1 1-1.5-2.4V6.9l8.3-1.7v3l-6.3 1.3v8.8z" fill="currentColor"/></svg>
+            <span class="mb-eq" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
           ${u.role === 'admin' ? `<a class="topbar-item" href="#/admin/articles">管理</a>` : ''}
           <a href="#/profile" class="topbar-avatar" title="${esc(u.username)}">${this.avatarHtml(u, 38)}</a>
-        ` : `<a class="btn btn-small btn-ghost" href="#/login">登录</a>`}
+        ` : `<button class="topbar-item topbar-music" id="musicBtn" type="button" aria-label="柒乃的八音盒" aria-expanded="false" title="柒乃的八音盒">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M10 18.3a2.6 2.6 0 1 1-1.5-2.4V6.9l8.3-1.7v3l-6.3 1.3v8.8z" fill="currentColor"/></svg>
+            <span class="mb-eq" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
+          <a class="btn btn-small btn-ghost" href="#/login">登录</a>`}
       </div>
     </header>`;
   },
@@ -2102,6 +2129,7 @@ const card = (x) => {
       <div class="admin-nav-tabs">
         <a class="${active === 'articles' ? 'active' : ''}" href="#/admin/articles">文章管理</a>
         <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
+        <a class="${active === 'music' ? 'active' : ''}" href="#/admin/music">八音盒</a>
       </div>
       <div class="admin-nav-tools">
         <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP）</a>
@@ -2588,6 +2616,429 @@ const card = (x) => {
         </form>
       </div>
     </div>`;
+  },
+
+
+  /* ================= 柒乃的八音盒 =================
+     列表存在 D1 的 music 表（GET /api/music 公开读），播放器是一个挂在 body 上的
+     <audio>，不在 #app 里 —— 所以换页、点进文章、后退都不会打断播放。 */
+  mbEl() {
+    if (this._mbAudio && document.body.contains(this._mbAudio)) return this._mbAudio;
+    const a = document.createElement('audio');
+    a.id = 'mbAudio';
+    a.preload = 'none';
+    a.volume = Number(localStorage.getItem('daydream-music-vol') || 0.8);
+    document.body.appendChild(a);
+    a.addEventListener('timeupdate', () => this.mbPaint());
+    a.addEventListener('ended', () => this.mbStep(1, true));
+    a.addEventListener('play', () => this.mbPaint());
+    a.addEventListener('pause', () => this.mbPaint());
+    a.addEventListener('error', () => {
+      const m = this._mbList && this._mbList[this._mbIndex];
+      if (m) toast('这首曲子放不出来：' + (m.title || '') + '（地址可能失效）');
+      this._mbPlaying = false;
+      this.mbPaint();
+    });
+    this._mbAudio = a;
+    return a;
+  },
+
+  async mbLoad(force) {
+    if (this._mbList && !force) return this._mbList;
+    try {
+      const list = await API.get('/api/music');
+      this._mbList = Array.isArray(list) ? list : [];
+    } catch (e) {
+      this._mbList = this._mbList || [];
+    }
+    if (this._mbIndex == null || this._mbIndex >= this._mbList.length) this._mbIndex = 0;
+    return this._mbList;
+  },
+
+  /* netease:<歌曲id> → 现解析成可播的 https 直链（地址有时效，不能缓存进列表） */
+  async mbResolve(src) {
+    const raw = String(src).trim();
+    const isDj = /^netease-dj:/i.test(raw);
+    const id = raw.split(':')[1].trim();
+    if (!/^\d+$/.test(id)) throw new Error(isDj ? 'netease-dj: 后面要跟播客节目 id' : 'netease: 后面要跟数字 id');
+    const r = await API.get('/api/music/resolve?' + (isDj ? 'dj=' : 'id=') + id);
+    if (!r || !r.url) throw new Error((r && r.error) || '这首歌匿名拿不到，换成直链吧');
+    return r.url;
+  },
+
+  mbCurrent() {
+    const list = this._mbList || [];
+    return list[this._mbIndex] || null;
+  },
+
+  async mbPlay(i) {
+    const list = this._mbList || [];
+    if (!list.length) return;
+    if (typeof i === 'number') this._mbIndex = (i + list.length) % list.length;
+    const m = this.mbCurrent();
+    if (!m) return;
+    let url = m.src;
+    if (/^netease(-dj)?:/i.test(url)) {
+      try { url = await this.mbResolve(url); }
+      catch (err) { toast(err.message || '这首歌匿名拿不到', 'err'); this._mbPlaying = false; this.mbPaint(); return; }
+    }
+    const a = this.mbEl();
+    if (a.getAttribute('src') !== url) {
+      a.setAttribute('src', url);
+      a.load();
+    }
+    const pr = a.play();
+    if (pr && pr.catch) pr.catch(() => { this._mbPlaying = false; this.mbPaint(); });
+    this._mbPlaying = true;
+    this.mbPaint();
+  },
+
+  mbPause() {
+    const a = this.mbEl();
+    try { a.pause(); } catch (e) {}
+    this._mbPlaying = false;
+    this.mbPaint();
+  },
+
+  mbToggle() {
+    if (this._mbPlaying) this.mbPause();
+    else this.mbPlay();
+  },
+
+  mbStep(dir) {
+    const list = this._mbList || [];
+    if (list.length < 2) { this.mbPlay(this._mbIndex || 0); return; }
+    this.mbPlay((this._mbIndex || 0) + dir);
+  },
+
+  mbSeek(ratio) {
+    const a = this.mbEl();
+    if (!a.duration || !isFinite(a.duration)) return;
+    a.currentTime = Math.max(0, Math.min(1, ratio)) * a.duration;
+    this.mbPaint();
+  },
+
+  mbVolume(v) {
+    const a = this.mbEl();
+    a.volume = Math.max(0, Math.min(1, v));
+    try { localStorage.setItem('daydream-music-vol', String(a.volume)); } catch (e) {}
+    this.mbPaint();
+  },
+
+  mbFmt(sec) {
+    if (!sec || !isFinite(sec)) return '0:00';
+    const s = Math.max(0, Math.round(sec));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  },
+
+  mbPanel() {
+    let el = document.getElementById('mbPanel');
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'mb-panel';
+    el.id = 'mbPanel';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', '柒乃的八音盒');
+    el.innerHTML = `
+      <div class="mb-head"><b>柒乃的八音盒</b><span class="mb-count" id="mbCount"></span></div>
+      <div class="mb-now"><i class="mb-disc" aria-hidden="true"></i><div><b id="mbTitle">还没有曲子</b><span id="mbArtist"></span></div></div>
+      <div class="mb-progress" id="mbProgress" role="slider" tabindex="0" aria-label="播放进度"><i id="mbBar"></i></div>
+      <div class="mb-times"><span id="mbNow">0:00</span><span id="mbDur">0:00</span></div>
+      <div class="mb-ctl">
+        <button type="button" class="mb-btn" data-mb="prev" aria-label="上一首"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 6h2v12H8zm3.2 6 8-6v12z" fill="currentColor"/></svg></button>
+        <button type="button" class="mb-btn mb-play" data-mb="toggle" aria-label="播放或暂停"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path class="mb-i-play" d="M8 5.5 19 12 8 18.5z" fill="currentColor"/><g class="mb-i-pause"><rect x="7.5" y="6" width="3.2" height="12" rx="1" fill="currentColor"/><rect x="13.3" y="6" width="3.2" height="12" rx="1" fill="currentColor"/></g></svg></button>
+        <button type="button" class="mb-btn" data-mb="next" aria-label="下一首"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M14 6h2v12h-2zM4.8 6 12.8 12l-8 6z" fill="currentColor"/></svg></button>
+        <label class="mb-vol"><span aria-hidden="true">音量</span><input type="range" min="0" max="100" step="1" id="mbVol"></label>
+      </div>
+      <ol class="mb-list" id="mbList"></ol>
+    `;
+    document.body.appendChild(el);
+    el.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-mb]');
+      if (btn) {
+        const act = btn.getAttribute('data-mb');
+        if (act === 'toggle') this.mbToggle();
+        else if (act === 'prev') this.mbStep(-1);
+        else if (act === 'next') this.mbStep(1);
+        return;
+      }
+      const row = e.target.closest('[data-mbi]');
+      if (row) { this.mbPlay(Number(row.getAttribute('data-mbi'))); return; }
+    });
+    const prog = el.querySelector('#mbProgress');
+    prog.addEventListener('click', (e) => {
+      const r = prog.getBoundingClientRect();
+      this.mbSeek((e.clientX - r.left) / Math.max(1, r.width));
+    });
+    el.querySelector('#mbVol').addEventListener('input', (e) => this.mbVolume(Number(e.target.value) / 100));
+    return el;
+  },
+
+  async mbOpenPanel() {
+    await this.mbLoad();
+    const el = this.mbPanel();
+    el.classList.add('on');
+    const btn = document.getElementById('musicBtn');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    this.mbPaint();
+  },
+
+  mbClosePanel() {
+    const el = document.getElementById('mbPanel');
+    if (el) el.classList.remove('on');
+    const btn = document.getElementById('musicBtn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  },
+
+  mbTogglePanel() {
+    const el = document.getElementById('mbPanel');
+    if (el && el.classList.contains('on')) this.mbClosePanel();
+    else this.mbOpenPanel();
+  },
+
+  mbPaint() {
+    const list = this._mbList || [];
+    const m = this.mbCurrent();
+    const a = this._mbAudio;
+    const btn = document.getElementById('musicBtn');
+    if (btn) {
+      btn.classList.toggle('is-playing', !!this._mbPlaying);
+      if (!list.length) btn.classList.add('is-empty'); else btn.classList.remove('is-empty');
+    }
+    const el = document.getElementById('mbPanel');
+    if (!el) return;
+    const set = (id, txt) => { const n = el.querySelector('#' + id); if (n) n.textContent = txt; };
+    set('mbCount', list.length ? (this._mbIndex + 1) + ' / ' + list.length : '空列表');
+    set('mbTitle', m ? m.title : '还没有曲子');
+    set('mbArtist', m ? (m.artist || '柒乃') : (this.state.user && this.state.user.role === 'admin' ? '在「管理 · 八音盒」里添加' : ''));
+    const cur = a ? a.currentTime : 0;
+    const dur = a && isFinite(a.duration) ? a.duration : 0;
+    set('mbNow', this.mbFmt(cur));
+    set('mbDur', this.mbFmt(dur));
+    const bar = el.querySelector('#mbBar');
+    if (bar) bar.style.width = (dur ? Math.min(100, (cur / dur) * 100) : 0).toFixed(2) + '%';
+    el.classList.toggle('is-playing', !!this._mbPlaying);
+    const vol = el.querySelector('#mbVol');
+    if (vol && a) vol.value = String(Math.round(a.volume * 100));
+    const listEl = el.querySelector('#mbList');
+    if (listEl) {
+      listEl.innerHTML = list.length
+        ? list.map((x, i) => `<li data-mbi="${i}" class="${i === this._mbIndex ? 'on' : ''}"><b>${esc(x.title)}</b><span>${esc(x.artist || '柒乃')}</span></li>`).join('')
+        : '<li class="mb-empty">播放列表还是空的</li>';
+      const on = listEl.querySelector('li.on');
+      if (on && el.classList.contains('on')) on.scrollIntoView({ block: 'nearest' });
+    }
+  },
+
+  /* ---------- 后台：八音盒页 ---------- */
+  /* 后台列表里点「试听」：用一个独立的 audio 试，不动读者那边的播放器 */
+  async testMusic(id, src, btn) {
+    const old = document.getElementById('mbTestAudio');
+    const again = old && old.dataset.mid === String(id) && !old.paused;
+    this.stopMusicTest();
+    if (again) return;                       // 再点一次就是停
+    if (/^netease(-dj)?:/i.test(src)) {
+      try { src = await this.mbResolve(src); }
+      catch (err) { toast(err.message || '这首歌匿名拿不到', 'err'); return; }
+    }
+    const a = new Audio();
+    a.id = 'mbTestAudio';
+    a.dataset.mid = String(id);
+    a.preload = 'auto';
+    a.volume = 0.85;
+    a.src = src;
+    a.addEventListener('loadedmetadata', () => {
+      const d = a.duration;
+      if (!Number.isFinite(d) || d <= 0) return;
+      const mmss = Math.floor(d / 60) + ':' + String(Math.round(d % 60)).padStart(2, '0');
+      const row = btn.closest('[data-id]');
+      const tag = row && row.querySelector('.mr-dur');
+      if (tag) tag.textContent = ' · ' + mmss;
+    });
+    a.addEventListener('error', () => {
+      toast('这个地址放不出来，检查一下是不是直链', 'err');
+      this.stopMusicTest();
+    });
+    a.addEventListener('ended', () => this.stopMusicTest());
+    document.body.appendChild(a);
+    const start = () => {
+      btn.classList.add('is-on');
+      btn.textContent = '■ 停止';
+    };
+    a.play().then(start).catch((err) => {
+      // 区分「自动播放被拦」和「这个地址本来就放不出来」
+      const name = (err && err.name) || '';
+      toast(name === 'NotAllowedError'
+        ? '浏览器拦住了自动播放，再点一次「试听」'
+        : '这个地址放不出来，检查一下是不是直链', 'err');
+      this.stopMusicTest();
+    });
+  },
+
+  stopMusicTest() {
+    const a = document.getElementById('mbTestAudio');
+    if (a) { try { a.pause(); } catch (e) {} a.remove(); }
+    document.querySelectorAll('.music-test.is-on').forEach((b) => {
+      b.classList.remove('is-on');
+      b.textContent = '▶ 试听';
+    });
+  },
+
+  musicRowsHtml() {
+    const rows = this._musicRows || [];
+    if (!rows.length) return '<li class="music-empty">列表还是空的，上面加一首吧。</li>';
+    return rows.map((m, i) => `
+      <li class="music-row" data-id="${m.id}">
+        <span class="mr-i">${String(i + 1).padStart(2, '0')}</span>
+        <div class="mr-main"><b>${esc(m.title)}</b><span>${esc(m.artist || '柒乃')} · ${esc(m.src)}<em class="mr-dur" data-dur=""></em></span></div>
+        <div class="mr-act">
+          <button type="button" class="btn btn-small music-test" data-mbact="test" title="试听这一首">▶ 试听</button>
+          <button type="button" class="btn btn-small" data-mbact="up" ${i === 0 ? 'disabled' : ''} title="上移">↑</button>
+          <button type="button" class="btn btn-small" data-mbact="down" ${i === rows.length - 1 ? 'disabled' : ''} title="下移">↓</button>
+          <button type="button" class="btn btn-small btn-danger" data-mbact="del">删除</button>
+        </div>
+      </li>`).join('');
+  },
+
+  async renderAdminMusic() {
+    const u = this.state.user;
+    if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = '八音盒 · 白日梦咖啡馆';
+    let rows = [];
+    try { rows = await API.get('/api/music'); } catch (e) { rows = []; }
+    this._musicRows = Array.isArray(rows) ? rows : [];
+    return `
+    <div class="page admin-page">
+      ${this.topbar()}
+      ${this.adminNav('music')}
+      <div class="admin-shell">
+        <div class="admin-title">
+          <div class="admin-editor-head-main">
+            <h1>柒乃的八音盒</h1>
+            <p class="admin-sub">共 ${this._musicRows.length} 首 · 读者点顶栏那个音符按钮，就按这里的顺序播放</p>
+          </div>
+        </div>
+        <form class="music-form" id="musicForm">
+          <div class="mf-row">
+            <label>曲名<input name="title" maxlength="120" required placeholder="例：海边的咖啡馆"></label>
+            <label>歌手<input name="artist" maxlength="80" placeholder="例：柒乃"></label>
+          </div>
+          <label>音频地址<input name="src" maxlength="600" required placeholder="https://…/song.mp3　/ media/music/xxx.mp3　/ 直接粘网易云歌曲或播客链接"></label>
+          <div class="mf-quick">
+            <span>快捷：</span>
+            <button type="button" class="btn btn-small" data-mfill="netease:">网易云歌曲</button>
+            <button type="button" class="btn btn-small" data-mfill="netease-dj:">网易云播客</button>
+            <span class="mf-quick-tip">先点一下，再把 id 数字补在后面</span>
+          </div>
+          <div class="mf-actions">
+            <button class="btn btn-primary btn-small" type="submit">添加到列表</button>
+            <span class="mf-hint">支持 https 直链、站内 /media/…、<b>netease:&lt;歌曲id&gt;</b>、<b>netease-dj:&lt;节目id&gt;</b>；直接粘整条网易云链接会自动转好。可播格式：mp3 / m4a / ogg / wav</span>
+          </div>
+        </form>
+        <ul class="music-list" id="musicList">${this.musicRowsHtml()}</ul>
+        <p class="music-note">顺序就是读者那边的播放顺序。想换顺序就用 ↑ ↓ 挪。</p>
+      </div>
+    </div>`;
+  },
+
+  async refreshMusicList() {
+    try {
+      const rows = await API.get('/api/music');
+      this._musicRows = Array.isArray(rows) ? rows : [];
+    } catch (e) {}
+    const box = document.getElementById('musicList');
+    if (box) box.innerHTML = this.musicRowsHtml();
+    const sub = document.querySelector('.admin-sub');
+    if (sub) sub.textContent = '共 ' + (this._musicRows || []).length + ' 首 · 读者点顶栏那个音符按钮，就按这里的顺序播放';
+    this.mbLoad(true).then(() => this.mbPaint());
+  },
+
+  bindMusicAdmin() {
+    const mf = document.getElementById('musicForm');
+    if (mf) {
+      const inp = mf.querySelector('[name="src"]');
+      if (inp) {
+        inp.addEventListener('input', () => {
+          const v = normalizeMusicSrc(inp.value);
+          if (v !== inp.value) inp.value = v;
+        });
+        inp.addEventListener('paste', () => setTimeout(() => {
+          const v = normalizeMusicSrc(inp.value);
+          if (v !== inp.value) inp.value = v;
+        }, 0));
+      }
+      mf.addEventListener('submit', () => {
+        if (inp) inp.value = normalizeMusicSrc(inp.value);
+      }, true);
+      mf.querySelectorAll('[data-mfill]').forEach((b) => {
+        b.addEventListener('click', () => {
+          if (!inp) return;
+          const pre = b.getAttribute('data-mfill');
+          const m = /(\d+)/.exec(inp.value);
+          inp.value = pre + (m ? m[1] : '');
+          inp.focus();
+          inp.setSelectionRange(inp.value.length, inp.value.length);
+        });
+      });
+    }
+    const form = document.getElementById('musicForm');
+    if (form && !form.dataset.bound) {
+      form.dataset.bound = '1';
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const title = String(fd.get('title') || '').trim();
+        const artist = String(fd.get('artist') || '').trim();
+        const src = String(fd.get('src') || '').trim();
+        if (!title) return toast('先给它起个名字');
+        if (!/^(https:\/\/|\/|netease(-dj)?:\d{3,})/i.test(src)) return toast('地址要 https:// 开头、站内 /media/…，或者 netease:<歌曲id> / netease-dj:<节目id>');
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) btn.disabled = true;
+        try {
+          await API.post('/api/music', { title: title, artist: artist, src: src });
+          form.reset();
+          toast('已加入八音盒');
+          await this.refreshMusicList();
+        } catch (err) {
+          toast(err.message || '添加失败');
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      });
+    }
+    const list = document.getElementById('musicList');
+    if (list && !list.dataset.bound) {
+      list.dataset.bound = '1';
+      list.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-mbact]');
+        if (!btn) return;
+        const row = btn.closest('[data-id]');
+        if (!row) return;
+        const id = Number(row.getAttribute('data-id'));
+        const act = btn.getAttribute('data-mbact');
+        const rows = this._musicRows || [];
+        const idx = rows.findIndex((x) => x.id === id);
+        if (idx < 0) return;
+        if (act === 'test') { this.testMusic(id, rows[idx].src, btn); return; }
+        if (act === 'del') {
+          if (!confirm('把《' + rows[idx].title + '》从八音盒里删掉？')) return;
+          try { await API.del('/api/music/' + id); toast('已删除'); await this.refreshMusicList(); }
+          catch (err) { toast(err.message || '删除失败'); }
+          return;
+        }
+        const swapWith = act === 'up' ? idx - 1 : idx + 1;
+        if (swapWith < 0 || swapWith >= rows.length) return;
+        const a = rows[idx];
+        const b = rows[swapWith];
+        try {
+          await API.put('/api/music/' + a.id, { sort: b.sort });
+          await API.put('/api/music/' + b.id, { sort: a.sort });
+          await this.refreshMusicList();
+        } catch (err) {
+          toast(err.message || '调整顺序失败');
+        }
+      });
+    }
   },
 
   async renderAdminUsers() {
@@ -3535,6 +3986,8 @@ const card = (x) => {
 
   /* ---------- 事件绑定 ---------- */
   afterRender() {
+    this.bindMusicAdmin();
+
     /* 从互链跳走再点「回到原文」回来时，还原当时的滚动位置 ——
        否则读者会被弹回文章开头，还得自己往下找刚才读到哪 ✗。
        只在"回来的正是当初那篇文章"时生效一次，不影响正常翻页。 */

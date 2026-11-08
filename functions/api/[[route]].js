@@ -430,6 +430,15 @@ async function ensureSchema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS media (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, mime TEXT NOT NULL,
       bytes INTEGER NOT NULL, width INTEGER, height INTEGER, data TEXT NOT NULL, created_at TEXT)`),
+    /* 柒乃的八音盒：只存"指向"，音频本体不放数据库（D1 放不下几 MB 的音频） */
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS music (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL DEFAULT '',
+      src TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT ''
+    )`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pvp_host ON pvp_rooms (host_id)`),
     env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_pvp_guest ON pvp_rooms (guest_id)`),
   ]);
@@ -846,7 +855,6 @@ export async function onRequest(context) {
           setting_type: a.setting_type || '',
           locked: Number(a.locked) ? 1 : 0,
           tags: a.tags || '',
-          created_at: a.created_at || '',
           updated_at: a.updated_at || a.created_at || '',
           // 与前端阅读页的 plainLen 同一套算法：去掉标签、再去掉所有空白
           chars: String(a.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length,
@@ -1465,6 +1473,94 @@ export async function onRequest(context) {
         Number.isFinite(w) ? w : null, Number.isFinite(h) ? h : null, b64, nowStr()).run();
       const id = r.meta.last_row_id;
       return json({ id: id, url: '/api/media/' + id, bytes: bin.length }, 201);
+    }
+
+    /* ===== 柒乃的八音盒（播放列表） =====
+       GET    /api/music        公开：按 sort, id 排序
+       POST   /api/music        管理员新增：{ title, artist, src }
+       PUT    /api/music/<id>   管理员改：{ title?, artist?, src?, sort? }
+       DELETE /api/music/<id>   管理员删
+       src 允许 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>（现解析，仅免费曲有效） */
+    const musicSrcOk = (v) => /^(https:\/\/|\/|netease:\d{3,})/i.test(String(v || '').trim());
+    /* netease:<歌曲id>：匿名解析 music.163.com 的 outer/url，只对免费/非 VIP 曲有效；
+       解析出的地址带签名且短时效，所以每次播放前现解析，不进列表、不落库 */
+    const neteaseId = (v) => { const m = /^netease:(\d{3,})$/i.exec(String(v || '').trim()); return m ? m[1] : ''; };
+    if (method === 'GET' && path === '/music/resolve') {
+      let sid = url.searchParams.get('id') || '';
+      const dj = url.searchParams.get('dj') || '';
+      if (dj) {
+        /* 播客：/dj?id=<节目id> 的页面里内嵌 #program-data JSON，取出 mainSong.id 再走外链 */
+        if (!/^\d{3,}$/.test(dj)) return json({ error: '播客 id 不对' }, 400);
+        try {
+          const pg = await fetch('https://music.163.com/dj?id=' + dj, {
+            headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'referer': 'https://music.163.com/' },
+          });
+          const html = await pg.text();
+          const mm = /"mainSong":\{[^}]*?"id":(\d+)/.exec(html) || /"mainTrackId":(\d+)/.exec(html);
+          if (!mm) return json({ error: '这个播客页里找不到音轨（付费或已下架）' }, 404);
+          sid = mm[1];
+        } catch (e) {
+          return json({ error: '连不上网易云（播客页）' }, 502);
+        }
+      }
+      if (!/^\d{3,}$/.test(sid)) return json({ error: '歌曲 id 不对' }, 400);
+      let loc = '';
+      try {
+        const up = await fetch('https://music.163.com/song/media/outer/url?id=' + sid + '.mp3', {
+          redirect: 'manual',
+          headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'referer': 'https://music.163.com/' },
+        });
+        loc = up.headers.get('location') || '';
+        if (!loc && up.status === 200) { const ct = up.headers.get('content-type') || ''; if (ct.indexOf('audio') === 0) loc = up.url; }
+      } catch (e) {
+        return json({ error: '连不上网易云，稍后再试' }, 502);
+      }
+      if (!/music\.126\.net/i.test(loc)) return json({ error: '这首歌匿名拿不到（VIP/独家/地区限制），换成直链吧' }, 404);
+      return json({ url: loc.replace(/^http:\/\//i, 'https://'), id: sid });
+    }
+
+    if (method === 'GET' && path === '/music') {
+      const rows = await env.DB.prepare(
+        'SELECT id, title, artist, src, sort, created_at FROM music ORDER BY sort, id'
+      ).all();
+      return json(rows.results || []);
+    }
+    if (method === 'POST' && path === '/music') {
+      const e = needAdmin(); if (e) return e;
+      const body = await readBody(request);
+      const title = String(body.title || '').trim().slice(0, 120);
+      const artist = String(body.artist || '').trim().slice(0, 80);
+      const src = String(body.src || '').trim().slice(0, 500);
+      if (!title) return json({ error: '请填写曲名' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>' }, 400);
+      const top = await env.DB.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM music').first();
+      const sort = (Number(top && top.s) || 0) + 10;
+      const r = await env.DB.prepare(
+        'INSERT INTO music (title, artist, src, sort, created_at) VALUES (?,?,?,?,?)'
+      ).bind(title, artist, src, sort, nowStr()).run();
+      return json({ id: r.meta.last_row_id }, 201);
+    }
+    m = path.match(/^\/music\/(\d+)$/);
+    if (m && method === 'DELETE') {
+      const e = needAdmin(); if (e) return e;
+      await env.DB.prepare('DELETE FROM music WHERE id=?').bind(Number(m[1])).run();
+      return json({ ok: true });
+    }
+    if (m && method === 'PUT') {
+      const e = needAdmin(); if (e) return e;
+      const id = Number(m[1]);
+      const row = await env.DB.prepare('SELECT * FROM music WHERE id=?').bind(id).first();
+      if (!row) return json({ error: '这首曲子不在列表里' }, 404);
+      const body = await readBody(request);
+      const title = body.title != null ? String(body.title).trim().slice(0, 120) : row.title;
+      const artist = body.artist != null ? String(body.artist).trim().slice(0, 80) : row.artist;
+      const src = body.src != null ? String(body.src).trim().slice(0, 500) : row.src;
+      const sort = body.sort != null ? (parseInt(body.sort, 10) || 0) : row.sort;
+      if (!title) return json({ error: '请填写曲名' }, 400);
+      if (!musicSrcOk(src)) return json({ error: '音频地址要 https:// 直链、站内 /media/… 路径，或 netease:<歌曲id>' }, 400);
+      await env.DB.prepare('UPDATE music SET title=?, artist=?, src=?, sort=? WHERE id=?')
+        .bind(title, artist || '', src, sort, id).run();
+      return json({ ok: true });
     }
 
     // 后台编辑用：取标记原文（只有管理员拿得到，而且不缓存）。
