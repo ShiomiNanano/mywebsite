@@ -1957,16 +1957,16 @@ const card = (x) => {
     return `
     <div class="page">
       ${this.topbar()}
+      <div class="read-tools-float" role="group" aria-label="阅读工具">
+        <button class="btn btn-small btn-ghost" id="openReadSet" title="字号 / 行距 / 配色">阅读设置</button>
+        <button class="btn btn-small btn-ghost" id="openToc" title="本章目录">目录</button>
+      </div>
       <div class="breadcrumb">${this.catCrumb(article)}</div>
       <article class="reading reading-cat-${article.category}" data-id="${article.id}" data-chars="${plainLen}" data-prev="${prev_id || ''}" data-next="${next_id || ''}">
         <header class="reading-head">
           <h1>${esc(heading)}</h1>
           <div class="reading-divider"><span>❧</span></div>
         </header>
-        <div class="reading-tools">
-          <button class="btn btn-small btn-ghost" id="openReadSet" title="字号 / 行距 / 配色">Aa 阅读设置</button>
-          <button class="btn btn-small btn-ghost" id="openToc" title="本章目录">目录</button>
-        </div>
         ${this.wikiBackBar(article)}
         <div class="reading-content">${article.content}</div>
         ${this.readingEnd(article, prev_id, next_id)}

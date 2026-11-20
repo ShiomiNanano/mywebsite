@@ -825,13 +825,26 @@ html[data-wallpaper="on"] .resume-bar {
 .reading-divider::before { background: linear-gradient(90deg, transparent, var(--gold-2)); }
 .reading-divider::after { background: linear-gradient(90deg, var(--gold-2), transparent); }
 
-.reading-tools {
-  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
-  margin: var(--sp-4) 0 var(--sp-5);
-  font-size: var(--fs-xs); color: var(--ink-3);
+/* 阅读页右上角的浮动工具（2026-11-20 从正文标题下挪出来） */
+.read-tools-float {
+  position: fixed; z-index: 55;
+  top: calc(var(--topbar-h) + 10px + var(--safe-top, 0px));
+  right: clamp(12px, 2vw, 24px);
+  display: flex; align-items: center; gap: 8px;
 }
-.reading-tools-label { letter-spacing: .1em; }
-.reading-tools .btn { min-height: 30px; padding: 2px 12px; font-size: var(--fs-xs); }
+.read-tools-float .btn {
+  min-height: 28px; padding: 2px 11px; font-size: var(--fs-xs);
+  background: var(--topbar-bg); border-color: var(--line-2); color: var(--ink-2);
+  -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%);
+}
+.read-tools-float .btn:hover { color: var(--gold); border-color: var(--gold-3, var(--line-2)); }
+@media (max-width: 640px) {
+  .read-tools-float { top: calc(var(--topbar-h) + 6px + var(--safe-top, 0px)); right: 10px; gap: 6px; }
+  .read-tools-float .btn { min-height: 26px; padding: 1px 9px; font-size: 11px; }
+}
+/* 面包屑别顶到这排按钮底下 */
+.breadcrumb { padding-right: 170px; }
+@media (max-width: 640px) { .breadcrumb { padding-right: 152px; } }
 
 .reading-content { font-family: var(--font-serif); }
 .reading-content p {
@@ -1280,8 +1293,6 @@ body::after {
 .reading-cat-personal { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
 .reading-cat-settings { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
 .reading .eyebrow { color: var(--cat, var(--gold)); }
-.reading-tools .btn { border-color: var(--cat-soft, var(--line-2)); color: var(--cat, var(--accent)); }
-.reading-tools .btn:hover { border-color: var(--cat, var(--accent)); background: var(--cat-soft, var(--accent-soft)); }
 .reading-progress { background: linear-gradient(90deg, var(--cat, var(--accent)), var(--gold)); }
 
 /* ======================= 7. 入场动效（淡入 + 去模糊，错开） ======================= */
@@ -4313,6 +4324,7 @@ body.immersive .pos-back { bottom: calc(24px + var(--safe-bottom)); }
   margin: 0 !important; pointer-events: auto;
 }
 body.immersive .rv-float { bottom: calc(18px + var(--safe-bottom)); }
+body.immersive .read-tools-float { top: calc(10px + var(--safe-top, 0px)); }
 @media (max-width: 760px) {
   .readset { right: 12px; left: 12px; width: auto; top: calc(52px + var(--safe-top, 0px)); }
 }
