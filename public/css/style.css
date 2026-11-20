@@ -755,7 +755,6 @@ html[data-wallpaper="on"] .resume-bar {
 }
 .section-body { min-width: 0; }
 .section-body h3 { font-family: var(--font-serif); font-size: var(--fs-base); letter-spacing: .04em; }
-.section-body p { margin-top: 2px; font-size: var(--fs-xs); color: var(--ink-3); }
 .section-arrow { margin-left: auto; color: var(--ink-3); transition: var(--t); }
 .section-card:hover .section-arrow { color: var(--accent); transform: translateX(3px); }
 
@@ -816,7 +815,6 @@ html[data-wallpaper="on"] .resume-bar {
   font-family: var(--font-serif); font-size: var(--fs-2xl); font-weight: 600;
   letter-spacing: .1em; line-height: 1.4;
 }
-.reading-meta { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .04em; }
 .reading-divider {
   display: flex; align-items: center; justify-content: center; gap: var(--sp-3);
   margin: var(--sp-4) 0 0; color: var(--gold-2); font-size: 13px;
@@ -873,7 +871,7 @@ html[data-font="4"] .reading-content p { font-size: clamp(21.5px, 6.2vw, 23.5px)
   margin-top: var(--sp-5); padding-top: var(--sp-5); border-top: 1px solid var(--line);
 }
 .reading-nav > span { flex: 1; }
-.reading-swipe-hint { margin-top: var(--sp-4); text-align: center; font-size: var(--fs-xs); color: var(--ink-3); }
+.reading-foot-meta { margin-top: var(--sp-4); text-align: center; font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 
 /* ---------- 留言 ---------- */
 .comments { max-width: var(--maxw-read); margin: 0 auto; padding: var(--sp-6) var(--sp-4) 0; }
@@ -1282,7 +1280,6 @@ body::after {
 .reading-cat-personal { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
 .reading-cat-settings { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
 .reading .eyebrow { color: var(--cat, var(--gold)); }
-.reading-meta { color: var(--cat, var(--ink-3)); }
 .reading-tools .btn { border-color: var(--cat-soft, var(--line-2)); color: var(--cat, var(--accent)); }
 .reading-tools .btn:hover { border-color: var(--cat, var(--accent)); background: var(--cat-soft, var(--accent-soft)); }
 .reading-progress { background: linear-gradient(90deg, var(--cat, var(--accent)), var(--gold)); }
@@ -4230,12 +4227,6 @@ body.toc-open { overflow: hidden; }
 .pos-back button { border: 0; background: transparent; color: var(--gold); font-size: 12px; cursor: pointer; padding: 0; }
 
 /* 小节 / 个人章卡片上的那行小字（更新时间 · 字数 · 留言数），刻意压低存在感 */
-.section-body p { font-variant-numeric: tabular-nums; }
-.article-card .card-meta-sub {
-  display: block; margin-top: 6px;
-  font-size: 11px; letter-spacing: .02em; color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-}
 .reading-gauge b { font-size: 16px; }
 
 /* ================= 阅读设置（Aa）与沉浸阅读 2026-11-09 ================= */

@@ -677,7 +677,7 @@ const App = {
   },
 
   /* ---------- 通用片段 ---------- */
-  /* 小节 / 个人章卡片上的那行小字：更新时间 · 字数 · 留言数（故意做得很轻） */
+  /* 「更新时间 · 字数 · 留言数」这一行：列表页不放（2026-11-20 起挪到正文末尾） */
   cardMeta(it) {
     const day = String(it.updated_at || it.created_at || '').slice(0, 10);
     const chars = Number(it.chars) || 0;
@@ -965,7 +965,6 @@ const App = {
             <span class="section-index">${String(s.section_no).padStart(2, '0')}</span>
             <div class="section-body">
               <h3>第 ${s.section_no} 节 · ${esc(s.section_title)}</h3>
-              <p>${this.cardMeta(s)}</p>
             </div>
             <span class="section-arrow">→</span>
           </a>`).join('') : '<p class="empty-hint">这一章还没有小节。</p>'}
@@ -1647,7 +1646,7 @@ const App = {
             <div class="card-ico">✉</div>
             <h3>${esc(a.title)}</h3>
             <p>${esc(this.excerpt(a))}</p>
-            <span class="card-meta-sub">${this.cardMeta(a)}</span>
+            
           </a>`).join('') : '<p class="empty-hint">个人章还没有内容。</p>'}
       </div>
     </div>`;
@@ -1861,7 +1860,7 @@ const card = (x) => {
             <button class="btn btn-small btn-ghost" id="openTocEnd" type="button">目录</button>
           </div>
         </div>
-        <p class="reading-swipe-hint">手机上左右滑动、电脑上按 ← → 可切换上一篇 / 下一篇</p>`;
+        <p class="reading-foot-meta">${esc(this.cardMeta(a))}</p>`;
   },
 
   openToc(a) {
@@ -1945,6 +1944,10 @@ const card = (x) => {
     const heading = article.category === 'main' ? article.section_title : article.title;
     // 正文字数（去掉标签和空白），阅读页显示"约 N 字"
     const plainLen = String(article.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
+    // 正文末尾那行「更新时间 · 字数 · 留言数」用这一份（列表页从 2026-11-20 起不显示了）
+    article.chars = plainLen;
+    const menuRow = this.findAnywhere(article.id);
+    article.comment_count = Number((menuRow && menuRow.comment_count) || article.comment_count || 0);
     // 进正文就算读过了（书架上的「已读」标记靠这个）
     this.markRead(article.id);
     this.pageTitle = heading + ' · 白日梦咖啡馆';
@@ -2009,6 +2012,11 @@ const card = (x) => {
       const items = (data && data.items) || [];
       const countEl = document.getElementById('commentCount');
       if (countEl) countEl.textContent = (data && typeof data.total === 'number') ? data.total : items.length;
+      // 正文末尾那行也带着「N 条留言」，增删留言后一起更新
+      const metaEl = document.querySelector('.reading-foot-meta');
+      if (metaEl && data && typeof data.total === 'number') {
+        metaEl.textContent = metaEl.textContent.replace(/\d+ 条留言\s*$/, data.total + ' 条留言');
+      }
       listEl.innerHTML = items.length === 0
         ? '<p class="comments-empty">还没有留言，来占个位置吧。</p>'
         : items.map(c => this.commentHtml(c)).join('');
