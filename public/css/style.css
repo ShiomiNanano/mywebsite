@@ -831,6 +831,7 @@ html[data-wallpaper="on"] .resume-bar {
   top: calc(var(--topbar-h) + 10px + var(--safe-top, 0px));
   right: clamp(12px, 2vw, 24px);
   display: flex; align-items: center; gap: 8px;
+  transition: translate .26s ease, opacity .26s ease;
 }
 .read-tools-float .btn {
   min-height: 28px; padding: 2px 11px; font-size: var(--fs-xs);
@@ -4324,7 +4325,8 @@ body.immersive .pos-back { bottom: calc(24px + var(--safe-bottom)); }
   margin: 0 !important; pointer-events: auto;
 }
 body.immersive .rv-float { bottom: calc(18px + var(--safe-bottom)); }
-body.immersive .read-tools-float { top: calc(10px + var(--safe-top, 0px)); }
+body.immersive .read-tools-float { translate: 0 -160px; opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .read-tools-float { transition: none; } }
 @media (max-width: 760px) {
   .readset { right: 12px; left: 12px; width: auto; top: calc(52px + var(--safe-top, 0px)); }
 }
