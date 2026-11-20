@@ -2598,6 +2598,16 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .note-name { font-family: var(--font-serif); font-size: var(--fs-sm); letter-spacing: .04em; }
 .note-time { margin-left: auto; font-family: var(--font-body); font-size: var(--fs-xs); color: var(--note-ink-dim, #7a6a52); white-space: nowrap; }
 /* 便签上的「删除」：只在本人或管理员看到，做得很轻，不抢正文 */
+/* 文章留言上的「删除」：只给本人和管理员显示（权限后台再判一次） */
+.comment-del {
+  margin-left: auto; padding: 2px 9px; cursor: pointer;
+  font-family: var(--font-body); font-size: 11px; letter-spacing: .08em;
+  color: var(--ink-3, #8ea6b8); background: transparent;
+  border: 1px solid var(--line, rgba(255,255,255,.14)); border-radius: 999px;
+  transition: var(--t); opacity: .65;
+}
+.comment-del:hover { opacity: 1; color: var(--tint-red, #b4584f); border-color: var(--tint-red, #b4584f); }
+
 .note-del {
   margin-left: var(--sp-2); padding: 2px 9px; cursor: pointer;
   font-family: var(--font-body); font-size: 11px; letter-spacing: .08em;

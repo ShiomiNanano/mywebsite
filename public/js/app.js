@@ -271,7 +271,7 @@ const App = {
       }
     });
     document.addEventListener('click', async (e) => {
-      const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del, .set-tab');
+      const t = e.target.closest && e.target.closest('#bbEdit, #bbCancel, #bbSave, #boardSend, #boardMore, .note-del, .comment-del, .set-tab');
       if (!t) return;
       const id = t.id;
       try {
@@ -305,6 +305,14 @@ const App = {
           await API.del('/api/board/comments/' + noteId);
           toast('便签已撕掉');
           this.route();
+        } else if (t.classList.contains('comment-del')) {
+          const cid = Number(t.getAttribute('data-cid'));
+          const listEl = document.getElementById('commentList');
+          const artId = listEl ? Number(listEl.dataset.article) : 0;
+          if (!confirm('删掉这条留言？删了就找不回来了。')) return;
+          await API.del('/api/article/' + artId + '/comments/' + cid);
+          toast('留言已删除');
+          if (listEl) await this.loadCommentsAsync(artId, listEl);
         } else if (id === 'boardMore') {
           t.disabled = true;
           t.textContent = '加载中…';
@@ -1972,6 +1980,14 @@ const card = (x) => {
     </div>`;
   },
 
+  // 文章留言谁能删：本人或管理员。这里只决定按钮显不显示，
+  // 真正的权限由后端 DELETE /api/article/:id/comments/:cid 再判一次。
+  canDeleteComment(c) {
+    const u = this.state.user;
+    if (!u || !c) return false;
+    return u.role === 'admin' || c.user_id === u.id;
+  },
+
   commentHtml(c) {
     return `
       <div class="comment" data-id="${c.id}">
@@ -1980,6 +1996,7 @@ const card = (x) => {
           <div class="comment-head">
             <span class="comment-name">${esc(c.username)}</span>
             <span class="comment-time">${esc(formatTime(c.created_at))}</span>
+            ${this.canDeleteComment(c) ? `<button type="button" class="comment-del" data-cid="${c.id}" title="删掉这条留言">删除</button>` : ''}
           </div>
           <div class="comment-content">${esc(c.content)}</div>
         </div>

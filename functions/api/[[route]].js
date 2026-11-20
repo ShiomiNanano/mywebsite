@@ -999,6 +999,23 @@ export async function onRequest(context) {
       return json(Object.assign({}, c, { avatar: avatarURL(user.id) }), 201);
     }
 
+    /* 删掉一条文章留言：本人可以删自己的，管理员可以删任何一条。
+       （留言板那条 DELETE /board/comments/:id 只管 article_id = 0，
+        这里按文章收口，免得删到别处的留言。） */
+    m = path.match(/^\/article\/(\d+)\/comments\/(\d+)$/);
+    if (method === 'DELETE' && m) {
+      if (!user) return json({ error: '请先登录' }, 401);
+      const articleId = Number(m[1]);
+      const cid = Number(m[2]);
+      const row = await env.DB.prepare('SELECT id, user_id FROM comments WHERE id=? AND article_id=?').bind(cid, articleId).first();
+      if (!row) return json({ error: '留言不存在' }, 404);
+      if (!(user.role === 'admin' || row.user_id === user.id)) {
+        return json({ error: '只能删自己的留言' }, 403);
+      }
+      await env.DB.prepare('DELETE FROM comments WHERE id=?').bind(cid).run();
+      return json({ ok: true });
+    }
+
     /* ===== 留言板 =====
        复用 comments 表：article_id = 0 表示「留言板」。
        （真实文章 id 从 1 开始，所以不会撞上任何文章；目录接口里那个
