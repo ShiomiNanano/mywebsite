@@ -376,8 +376,44 @@ function looksRich(html) {
 }
 // 目录用的短摘要：先截断 HTML，再转纯文本，再截 42 字
 function makeExcerpt(head) {
-  const plain = htmlToPlain(String(head || '')).replace(/<[^>]*$/, '');
+  const plain = htmlToPlain(String(head || '')).replace(/<[^>]*$/, '')
+    .replace(/^[\s」』）】"'”’]+/, '');   // 别以右引号开头
   return plain.length > 42 ? plain.slice(0, 42) + '…' : plain;
+}
+
+/* 把正文切成「可以当引文的句子」。
+   正文用「」当双引号，句末标点后面经常紧跟一个 」——
+   要是直接在 。！？… 后面切，下一句就会以 」 开头，招牌上看着像个错字。
+   所以：句末标点后面紧跟右引号时不切，并把句子开头的右引号/标点洗掉。 */
+function quoteSentences(plain) {
+  const text = String(plain || '');
+  const END = '。！？…';
+  const CLOSE = '」』）】"\'”’';   // 引号/括号的右半边
+  const out = [];
+  let buf = '';
+  let depth = 0;                   // 「 的嵌套层数：>0 表示正处在一句对话里
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    buf += ch;
+    if (ch === '「' || ch === '『') depth++;
+    else if (ch === '」' || ch === '』') depth = Math.max(0, depth - 1);
+    // 一段对话刚好在这里收尾（……。」）也算一个完整的切点
+    if ((ch === '」' || ch === '』') && depth === 0 && END.indexOf(text[i - 1]) >= 0) {
+      while (i + 1 < text.length && CLOSE.indexOf(text[i + 1]) >= 0) { buf += text[++i]; }
+      out.push(buf);
+      buf = '';
+      continue;
+    }
+    if (depth > 0 || END.indexOf(ch) < 0) continue;
+    // 句末标点：把后面紧跟的右引号一起收进来再切，别让下一句以 」 开头
+    while (i + 1 < text.length && CLOSE.indexOf(text[i + 1]) >= 0) { buf += text[++i]; }
+    out.push(buf);
+    buf = '';
+  }
+  if (buf.trim()) out.push(buf);
+  return out
+    .map(s => s.replace(/^[\s」』）】"'”’，。！？…、；：]+/, '').trim())
+    .filter(s => s && !/^[」』）】"'”’，。！？…、；：]+$/.test(s));
 }
 
 /* ---------- 表结构：每个 isolate 只检查一次（不再是每个请求都建表） ---------- */
@@ -895,11 +931,11 @@ export async function onRequest(context) {
       ).first();
       if (!row) return json({ text: '', from: '' });
       const plain = htmlToPlain(row.content || '').replace(/\s+/g, ' ').trim();
-      const sentences = plain.split(/(?<=[。！？…])/).map(s => s.trim())
-        .filter(s => s.length >= 10 && s.length <= 48);
+      const all = quoteSentences(plain);
+      const sentences = all.filter(s => s.length >= 10 && s.length <= 48);
       const text = sentences.length
         ? sentences[Math.floor(Math.random() * sentences.length)]
-        : plain.slice(0, 32);
+        : (all[0] || plain).slice(0, 48);
       const from = row.chapter_title ? (row.chapter_title + ' · ' + row.section_title) : row.title;
       return jsonPublic({ text, from: from || '' }, 60);
     }
