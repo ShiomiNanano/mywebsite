@@ -575,10 +575,13 @@ const App = {
     this.veilShow();           // 90ms 内画完就不出现，慢才亮
     const hash = location.hash.replace(/^#/, '') || '/';
     const parts = hash.split('/').filter(Boolean);
-    // 需要加载数据的页面：回到顶部即可。
-    // 加载动画统一交给 #pageVeil（咖啡杯），不再插骨架屏 —— 两套动画一起闪很难看
+    // 需要加载数据的页面：这里**不能**提前 window.scrollTo(0, 0)。
+    // 早先这么写过，结果是数据还没回来就先把旧文章滚回顶部 —— 读到底点「下一篇」时，
+    // 看起来就是「先跳回本节开头 → 卡一下 → 再闪到下一节」。
+    // 现在：0ms 先把旧页面压暗（马上有反馈），真正的滚动放在新内容插进去的那一帧。
     const heavy = ['menu', 'main', 'personal', 'settings', 'read', 'admin'].includes(parts[0]);
-    if (heavy) window.scrollTo(0, 0);
+    const appEl = document.getElementById('app');
+    if (heavy && appEl) appEl.classList.add('is-busy');
     this.pageTitle = DEFAULT_TITLE;
     let view = '';
     try {
@@ -594,7 +597,7 @@ const App = {
       else if (parts[0] === 'settings') view = await this.renderSettings();
       else if (parts[0] === 'read') view = await this.renderRead(parts[1]);
       // 咖啡馆前台（AI 对话）已下线：老链接直接送回书架
-      else if (parts[0] === 'chat') { this.veilHide(); location.hash = '#/menu'; return ''; }
+      else if (parts[0] === 'chat') { if (appEl) appEl.classList.remove('is-busy'); this.veilHide(); location.hash = '#/menu'; return ''; }
       else if (parts[0] === 'profile') view = await this.renderProfile();
       else if (parts[0] === 'admin') {
         const sub = parts[1];
@@ -627,6 +630,7 @@ const App = {
     if (parts[0] === 'games' && parts[1] === 'memory') { this.startMemory(); }
     if (parts[0] === 'games' && parts[1] === 'number') { this.startNumber(); }
     document.title = this.pageTitle || DEFAULT_TITLE;
+    if (appEl) appEl.classList.remove('is-busy');   // 新内容已就位，压暗撤掉
     window.scrollTo(0, 0);
     this.afterRender();
     // 等这一帧真的画出来再收遮罩，否则会出现「遮罩没了但页面还是白的」

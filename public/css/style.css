@@ -3534,7 +3534,12 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
   transition: opacity .2s ease, visibility .2s ease;
   animation: veilFailsafe .45s ease 8s forwards;
 }
-.page-veil.on { opacity: 1; visibility: visible; transition: opacity .16s ease, visibility 0s; }
+.page-veil.on { opacity: 1; visibility: visible; transition: opacity .12s ease, visibility 0s; }
+
+/* 切页的第一反馈：0ms 就把旧页面压暗一下。
+   遮罩要等 90ms 才决定亮不亮，这 90ms 里如果什么都不变，读者会觉得「点了没反应」。 */
+#app { transition: opacity .18s ease; }
+#app.is-busy { opacity: var(--busy-dim, .3); transition: opacity .1s linear; pointer-events: none; }
 .veil-mark {
   width: 132px; height: 78px;
   background-image: linear-gradient(155deg, var(--wp-accent-2, #efdcb6), var(--wp-accent, #d6b678) 62%, var(--wp-accent-deep, #b08a4e));
