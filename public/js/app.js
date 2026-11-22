@@ -297,12 +297,14 @@ const App = {
           if (!content) { if (hint) hint.textContent = '写点什么再贴吧'; return; }
           if (hint) hint.textContent = '贴上去…';
           await API.post('/api/board/comments', { content });
+          this.clearApiCache('/api/board');   // 自己刚贴的，别让本地旧缓存顶上去
           toast('便签贴好了');
           this.route();
         } else if (t.classList.contains('note-del')) {
           const noteId = Number(t.getAttribute('data-note'));
           if (!confirm('删掉这张便签？删了就找不回来了。')) return;
           await API.del('/api/board/comments/' + noteId);
+          this.clearApiCache('/api/board');
           toast('便签已撕掉');
           this.route();
         } else if (t.classList.contains('comment-del')) {
@@ -311,6 +313,7 @@ const App = {
           const artId = listEl ? Number(listEl.dataset.article) : 0;
           if (!confirm('删掉这条留言？删了就找不回来了。')) return;
           await API.del('/api/article/' + artId + '/comments/' + cid);
+          this.clearApiCache('/api/board');
           toast('留言已删除');
           if (listEl) await this.loadCommentsAsync(artId, listEl);
         } else if (id === 'boardMore') {
@@ -786,22 +789,153 @@ const App = {
      所以留言板那条路径不缓存（下面白名单里没有它）。
      游戏榜在"玩完一局 / 管理员清榜"时会 clearCache() 立刻作废，不会出现分数对不上。 */
   getCached(url) {
-    const box = this._pre && this._pre[url];
+    this._pre = this._pre || {};
+    const box = this._pre[url];
     if (box && Date.now() - box.at < 120000) {
-      delete this._pre[url];
       return box.p ? box.p : Promise.resolve(box.data);
     }
     const canCache = String(url).indexOf('/api/games/scores') === 0;
     const hit = canCache && this._cache && this._cache[url];
     if (hit && Date.now() - hit.at < 25000) return Promise.resolve(hit.data);
-    return API.get(url).then((d) => {
+
+    const commit = (d, prevRaw) => {
+      this.diskSet(url, d);
+      this._pre[url] = { at: Date.now(), data: d };
       if (canCache) { this._cache = this._cache || {}; this._cache[url] = { at: Date.now(), data: d }; }
+      // 只有内容真的变了才重画，否则来回切页会不停刷新（频闪）
+      if (prevRaw !== undefined && JSON.stringify(d) === prevRaw) return d;
+      this.afterApiRefresh(url);
       return d;
-    });
+    };
+
+    // 本地还留着上次的：先把旧数据交给页面（点导航立刻有画面），同时后台换新
+    const disk = this.diskGet(url);
+    if (disk) {
+      const prevRaw = JSON.stringify(disk);
+      const p = API.get(url).then((d) => commit(d, prevRaw)).catch(() => disk);
+      this._pre[url] = { at: Date.now(), p };
+      p.catch(() => {});
+      return Promise.resolve(disk);
+    }
+    return API.get(url).then((d) => commit(d));
+  },
+
+  /* 接口数据的本地缓存：和书架目录一个思路 —— 先拿上次的顶上，后台再换新。
+     目的是「点导航立刻有画面」，而不是等 /api/board 那 0.9~1.2 秒。 */
+  diskKey(url) { return 'daydream-api:' + url; },
+  diskGet(url) {
+    try {
+      const b = JSON.parse(localStorage.getItem(this.diskKey(url)) || 'null');
+      if (!b || !b.data) return null;
+      if (Date.now() - (b.at || 0) > 86400000) return null;   // 超过一天的不要，免得看到上古内容
+      return b.data;
+    } catch (e) { return null; }
+  },
+  diskSet(url, data) {
+    try { localStorage.setItem(this.diskKey(url), JSON.stringify({ at: Date.now(), data })); } catch (e) {}
+  },
+  clearApiCache(url) {
+    try { localStorage.removeItem(this.diskKey(url)); } catch (e) {}
+    if (this._pre) delete this._pre[url];
+    if (this._cache) delete this._cache[url];
+  },
+  // 正文单独一套缓存：命中最先出画面、后台不自动重画（免得读到一半被刷新），
+  // 管理员改完文章时会清掉对应 id 的缓存。
+  articleKey(id) { return 'daydream-article:' + id; },
+  articlePeek(id) {
+    try {
+      const b = JSON.parse(localStorage.getItem(this.articleKey(id)) || 'null');
+      if (!b || !b.data) return null;
+      if (Date.now() - (b.at || 0) > 2592000000) return null;   // 30 天
+      return b.data;
+    } catch (e) { return null; }
+  },
+  articlePut(id, data) {
+    try { localStorage.setItem(this.articleKey(id), JSON.stringify({ at: Date.now(), data })); } catch (e) {}
+  },
+  clearArticleCache(id) {
+    try { localStorage.removeItem(this.articleKey(id)); } catch (e) {}
+    if (this._art) delete this._art[id];
+  },
+  // 正文读取：内存 → 磁盘 → 网络；网络拿到后落盘
+  async articleGet(id) {
+    this._art = this._art || {};
+    const key = String(id);
+    if (this._art[key]) return this._art[key];
+    const hit = this.articlePeek(key);
+    if (hit) { this._art[key] = hit; return hit; }
+    const data = await API.get('/api/article/' + key);
+    if (data) { this._art[key] = data; this.articlePut(key, data); }
+    return data;
+  },
+  // 预热：悬停/触摸到任何 #/read/<id> 链接时先把正文拉下来（在飞时复用同一个请求）
+  prefetchArticle(id) {
+    const key = String(id);
+    this._art = this._art || {};
+    if (this._art[key] || this.articlePeek(key)) return;
+    if (this._prefArt && this._prefArt[key]) return;
+    this._prefArt = this._prefArt || {};
+    this._prefArt[key] = true;
+    API.get('/api/article/' + key)
+      .then((d) => { if (d) { this._art[key] = d; this.articlePut(key, d); } })
+      .catch(() => {})
+      .then(() => { if (this._prefArt) delete this._prefArt[key]; });
+  },
+  // 悬停/触摸到任何指向正文的链接时提前把正文拉下来（章节行、下一篇卡片、正文里的互链都算）
+  bindArticlePrefetch() {
+    if (this._prefBound) return;
+    this._prefBound = true;
+    const pick = (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      const a = t.closest('a[href^="#/read/"]');
+      if (a) {
+        const id = (a.getAttribute('href') || '').replace(/^#\/read\//, '').split(/[?&#]/)[0];
+        if (id) this.prefetchArticle(id);
+        return;
+      }
+      // 互链：[[词条]] 会先跳到 #/wiki/<词>，再按目录找到对应正文。
+      // 悬停时就把词条翻成 id 预取，点下去同样是秒开。
+      const w = t.closest('a.wiki[href^="#/wiki/"]');
+      if (!w || !this.state.menu) return;
+      let term = '';
+      try { term = decodeURIComponent((w.getAttribute('href') || '').replace(/^#\/wiki\//, '')); } catch (e) { return; }
+      const hit = (this.state.menu.settings || []).find((x) => String(x.title || '').trim() === term.trim());
+      if (hit && hit.id) this.prefetchArticle(hit.id);
+    };
+    document.addEventListener('pointerover', pick, { passive: true });
+    document.addEventListener('touchstart', pick, { passive: true });
+    document.addEventListener('focusin', pick);
+  },
+  // 后台换到新数据后：只在还停在这个页面、没往下滚、没遮罩时静默重画一次
+  afterApiRefresh(url) {
+    const map = {
+      '/api/board': '#/board', '/api/links': '#/board',
+      '/api/games/scores?game=memory': '#/games', '/api/games/scores?game=number': '#/games',
+    };
+    const want = map[url];
+    if (!want) return;
+    if ((location.hash || '#/menu') !== want) return;
+    if ((window.scrollY || 0) > 160) return;
+    if (document.querySelector('#pageVeil.on')) return;
+    this._refreshAt = this._refreshAt || {};
+    if (Date.now() - (this._refreshAt[want] || 0) < 1500) return;
+    this._refreshAt[want] = Date.now();
+    this.route();
   },
 
   // 数据变了（玩完一局、清榜）就把短时缓存整锅倒掉
-  clearCache() { this._cache = {}; },
+  clearCache() {
+    this._cache = {};
+    // 游戏相关的内存/磁盘缓存一起清（打完一局、清榜之后要立刻看到新分数）
+    try {
+      this.clearApiCache('/api/games/rank');
+      this.clearApiCache('/api/games/rank/tops');
+      Object.keys(localStorage)
+        .filter((k) => k.indexOf('daydream-api:/api/games/scores') === 0)
+        .forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
+  },
   async ensureMenu(force) {
     // 没有内存里的目录时，先用上次存本地的（冷启动能立刻出书架），再后台换新
     if (!force && !this.state.menu) {
@@ -1341,11 +1475,8 @@ const App = {
     // 幻梦牌的段位榜（公开接口，没登录也能看；取不到就退成空状态）
     let rankTops = [];
     try {
-      const res3 = await fetch('/api/games/rank/tops', { headers: { accept: 'application/json' }, cache: 'no-store' });
-      if (res3.ok) {
-        const data3 = await res3.json();
-        rankTops = (data3 && data3.tops) || [];
-      }
+      const data3 = await this.getCached('/api/games/rank/tops');
+      rankTops = (data3 && data3.tops) || [];
     } catch (e) { rankTops = []; }
     return `
     <div class="page game-page">
@@ -1987,7 +2118,7 @@ const card = (x) => {
   async renderRead(id) {
     // 直接深链进来时目录还是空的，和正文并行加载，这样上下篇按钮不会消失
     const [article] = await Promise.all([
-      API.get('/api/article/' + id),
+      this.articleGet(id),
       this.ensureMenu().catch(() => null),
     ]);
     if (!article) return `<div class="page">${this.topbar()}<div class="notfound">文章不存在。</div></div>`;
@@ -2024,6 +2155,11 @@ const card = (x) => {
     this.pageTitle = heading + ' · 白日梦咖啡馆';
     this.rememberRead(article);
     this._readArticle = article;
+    // 正文已经出来了，空闲时把「上一篇 / 下一篇」也先拉好，点过去就不用再等
+    if (next_id || prev_id) {
+      const warm = () => { if (next_id) this.prefetchArticle(next_id); if (prev_id) this.prefetchArticle(prev_id); };
+      if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 1200 }); else setTimeout(warm, 400);
+    }
 
     return `
     <div class="page">
@@ -2154,8 +2290,7 @@ const card = (x) => {
       const [mem, num, rankRes] = await Promise.all([
         this.getCached('/api/games/scores?game=memory'),
         this.getCached('/api/games/scores?game=number'),
-        fetch('/api/games/rank', { headers: { accept: 'application/json' }, cache: 'no-store' })
-          .then(r => (r.ok ? r.json() : null)).catch(() => null),
+        this.getCached('/api/games/rank').catch(() => null),
       ]);
       if (rankRes && typeof rankRes.rating === 'number') myRank = rankRes;
       const pick = (label, res) => {
@@ -4159,6 +4294,7 @@ const card = (x) => {
   afterRender() {
     this.bindMusicAdmin();
     this.bindLinkAdmin();
+    this.bindArticlePrefetch();
 
     /* 从互链跳走再点「回到原文」回来时，还原当时的滚动位置 ——
        否则读者会被弹回文章开头，还得自己往下找刚才读到哪 ✗。
@@ -4852,6 +4988,7 @@ const card = (x) => {
       if (id) { await API.put('/api/admin/articles/' + id, payload); toast('文章已更新'); }
       else { await API.post('/api/admin/articles', payload); toast('文章已发布'); }
       this.state.menu = null;   // 目录变了，重新拉一次
+      if (id) this.clearArticleCache(id);   // 正文缓存也要作废，否则读者会看到旧文字
       location.hash = '#/admin/articles';
     } catch (err) { toast(err.message, 'err'); }
   },
@@ -4869,6 +5006,7 @@ document.addEventListener('click', async (e) => {
       try {
         await API.del('/api/admin/articles/' + id);
         App.state.menu = null;
+        App.clearArticleCache(id);
         toast('已删除');
         location.hash = '#/admin/articles';
       } catch (err) { toast(err.message, 'err'); }
