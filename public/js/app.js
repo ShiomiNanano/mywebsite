@@ -2633,12 +2633,15 @@ const card = (x) => {
   },
 
   initEditorChrome() {
+    // 工具栏到底有几种插入：按实际按钮数写，加了按钮不用再手改文案
+    const actHint = document.getElementById('actHint');
+    if (actHint) actHint.textContent = document.querySelectorAll('#adminForm [data-act]').length + ' 种插入';
     const bar = document.getElementById('editorToolbar');
     const more = document.getElementById('wsMore');
     const grip = document.getElementById('wsGrip');
     const work = document.getElementById('wsWork');
     const pane = document.getElementById('wsPane');
-    /* 「更多」是一层抽屉：常驻按钮只留一行，其余按格式 / 结构 / 互动 / 链接分组。
+    /* 「更多」是一层抽屉：常驻按钮只留一行，其余按格式 / 结构 / 对白 / 纸面 / 氛围 / 链接分组。
        面板用 position:fixed（.ws 是 overflow:hidden，放里面会被裁掉），
        所以打开时按工具栏的 rect 定位，滚动与改窗口时重新贴上去。 */
     if (bar && more) {
@@ -2646,10 +2649,15 @@ const card = (x) => {
       const place = () => {
         if (!panel || panel.hidden) return;
         const r = bar.getBoundingClientRect();
-        const w = Math.min(620, Math.max(280, r.width - 16));
+        // 手机上一行放不下几组，干脆铺成整屏浮层：宽度拉满，从顶上排，能一次看完七组
+        const narrow = window.innerWidth < 640;
+        const w = narrow ? window.innerWidth - 16 : Math.min(620, Math.max(280, r.width - 16));
         panel.style.width = w + 'px';
-        panel.style.left = Math.max(8, Math.min(r.left + 8, window.innerWidth - w - 8)) + 'px';
-        panel.style.top = Math.max(8, r.bottom + 6) + 'px';
+        panel.style.left = (narrow ? 8 : Math.max(8, Math.min(r.left + 8, window.innerWidth - w - 8))) + 'px';
+        const top = narrow ? 8 : Math.max(8, r.bottom + 6);
+        panel.style.top = top + 'px';
+        // 屏幕矮的时候别让浮层顶出可视区：按剩余高度收短，内部自己滚
+        panel.style.maxHeight = Math.max(180, window.innerHeight - top - (narrow ? 16 : 12)) + 'px';
       };
       const setOpen = (open) => {
         if (!panel) return;
@@ -2912,7 +2920,7 @@ const card = (x) => {
               <div class="form-row ws-field">
                 <div class="field-head">
                   <label for="wsText">正文</label>
-                  <span class="field-hint" title="一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默">一行一段 · 35 种插入</span>
+                  <span class="field-hint" title="一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默、消息、日志、黑板、广播、梦">一行一段 · <span id="actHint">39 种插入</span></span>
                 </div>
                 <div class="ws" id="wsWork">
                   <div class="ws-main">
@@ -2948,11 +2956,15 @@ const card = (x) => {
                       </div>
                       <div class="ws-more-grp">
                         <p class="ws-more-cap">颜色</p>
-                        <div class="ws-more-row">
+                        <div class="ws-more-row ws-swatch-row">
                           <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
+                          <button type="button" class="et-btn et-color c-orange" data-act="c-o" title="橙色">橙</button>
                           <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
-                          <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
                           <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
+                          <button type="button" class="et-btn et-color c-cyan" data-act="c-c" title="青色">青</button>
+                          <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
+                          <button type="button" class="et-btn et-color c-purple" data-act="c-p" title="紫色">紫</button>
+                          <button type="button" class="et-btn et-color c-mute" data-act="c-m" title="灰色：旁白 / 回忆">灰</button>
                         </div>
                       </div>
                       <div class="ws-more-grp">
@@ -2966,14 +2978,30 @@ const card = (x) => {
                         </div>
                       </div>
                       <div class="ws-more-grp">
-                        <p class="ws-more-cap">互动</p>
+                        <p class="ws-more-cap">对白</p>
                         <div class="ws-more-row">
-                          <button type="button" class="et-btn" data-act="say" title="对白">对白</button>
-                          <button type="button" class="et-btn" data-act="letter" title="书信">书信</button>
+                          <button type="button" class="et-btn" data-act="say" title="对白：一行一句台词，名字后面可以加 | 旁注">对白</button>
+                          <button type="button" class="et-btn" data-act="whisper" title="低语：小一号、发灰的轻话">低语</button>
+                          <button type="button" class="et-btn" data-act="msg" title="消息：一来一回的气泡。「名字：内容」一行一条；- 开头的一行是系统提示">消息</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">纸面</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn" data-act="letter" title="书信：信纸，最后一行可以写 | 落款">书信</button>
                           <button type="button" class="et-btn" data-act="doc" title="档案：一张米色纸片（调研说明 / 报告 / 通缉）">档案</button>
                           <button type="button" class="et-btn" data-act="memo" title="便签：斜贴的一张黄纸（菜单 / 留言）">便签</button>
-                          <button type="button" class="et-btn" data-act="whisper" title="低语：小一号、发灰的轻话">低语</button>
                           <button type="button" class="et-btn" data-act="seal" title="印章：斜盖上去的一方红印">印章</button>
+                          <button type="button" class="et-btn" data-act="redact" title="涂黑：读的时候点一下才显形">涂黑</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">氛围</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn" data-act="log" title="日志：监控 / 系统记录，行首的时间会自动对齐">日志</button>
+                          <button type="button" class="et-btn" data-act="board" title="黑板：店门口那一块，粉笔字">黑板</button>
+                          <button type="button" class="et-btn" data-act="broadcast" title="广播：城里到处都在响的那种公告">广播</button>
+                          <button type="button" class="et-btn" data-act="dream" title="梦：镜面海、泡影之类的一段">梦</button>
                         </div>
                       </div>
                       <div class="ws-more-grp">
@@ -4232,6 +4260,12 @@ const card = (x) => {
       else if (act === 'memo') R.insertBlock(box, ':::memo 便签标题\n一行一行写上去。\n:::', 8, 13);
       else if (act === 'whisper') R.insertBlock(box, ':::whisper\n声音很轻的一句话。\n:::', 11, 19);
       else if (act === 'seal') R.insertBlock(box, ':::seal 驳回\n:::', 8, 11);
+      else if (act === 'msg') R.insertBlock(box, ":::msg 我\n对方：在吗。\n我：在。\n- 已读状态：未读\n:::", 7, 8);
+      else if (act === 'log') R.insertBlock(box, ":::log 走廊 · 监控\n03:41 摄像头自己转了一个角度。\n03:44 消防通道的门开着。\n:::", 7, 14);
+      else if (act === 'board') R.insertBlock(box, ":::board 今日黑板\n晚潮\n:::", 9, 13);
+      else if (act === 'broadcast') R.insertBlock(box, ":::broadcast 城市广播\n今日 18:00 起，全域进入静默。\n:::", 13, 17);
+      else if (act === 'dream') R.insertBlock(box, ":::dream\n船没有开，只是浮在海面上。\n:::", 9, 22);
+      else if (act === 'redact') R.surround(box, '%%', '%%', '被涂掉的字');
       else if (act === 'note') R.insertBlock(box, ':::note 提示标题\n写在这里\n:::', 8, 12);
       else if (act === 'image') {
         // 本地上传：选文件 → 压到长边 1400 → 传到 /api/media → 插入 ![](/api/media/<id>)

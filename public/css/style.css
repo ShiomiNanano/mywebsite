@@ -2488,6 +2488,157 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   text-indent: 0; letter-spacing: .5em; opacity: .75;
 }
 
+/* ============================================================================
+   2026-11 新增的「互动」块：消息 / 日志 / 黑板 / 广播 / 梦境 + 涂黑 + 落款
+   ----------------------------------------------------------------------------
+   都是从正文里挑出来的、这个世界里真会出现的东西：教授不回的短信、逃出那一晚
+   的监控日志、门口写着「晚潮」的小黑板、天枢城里到处在响的广播、镜面海上的梦。
+   颜色一律写成 var(名, 兜底)，跟壁纸配色走。
+   ============================================================================ */
+
+/* ---------- 消息：一来一回的气泡，标了名字的那一方靠左 ---------- */
+.reading-content .rc-msg {
+  display: flex; flex-direction: column; gap: 9px;
+  margin: var(--sp-5) 0;
+}
+.reading-content .rc-msg-row {
+  display: flex; flex-direction: column; align-items: flex-start;
+  max-width: 84%;
+}
+.reading-content .rc-msg-row.is-me { align-self: flex-end; align-items: flex-end; }
+.reading-content .rc-msg-who {
+  margin: 0 0 4px 3px;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .12em; color: var(--ink-3);
+}
+.reading-content .rc-msg-b {
+  padding: 8px 14px; border-radius: 14px 14px 14px 4px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  font-size: var(--fs-sm); line-height: 1.85; color: var(--ink);
+  letter-spacing: .02em; word-break: break-word;
+}
+.reading-content .rc-msg-row.is-me .rc-msg-b {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--gold-soft); border-color: var(--frame-line);
+}
+.reading-content .rc-msg-sys {
+  align-self: center; margin: 2px 0;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .12em; color: var(--ink-3); opacity: .85;
+}
+
+/* ---------- 日志：监控 / 系统记录，行首时间自动对齐 ---------- */
+.reading-content .rc-log {
+  margin: var(--sp-5) 0; padding: 14px 16px 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.reading-content .rc-log-head {
+  margin-bottom: 9px; padding-bottom: 7px;
+  border-bottom: 1px dashed var(--line);
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .24em; color: var(--gold);
+}
+.reading-content .rc-log-line {
+  display: flex; gap: 12px; align-items: baseline;
+  margin: 0 0 4px; text-indent: 0;
+  font-size: var(--fs-sm); line-height: 1.95; color: var(--ink-2);
+}
+.reading-content .rc-log-line:last-child { margin-bottom: 0; }
+.reading-content .rc-log-t {
+  flex: none; min-width: 4.2em;
+  color: var(--gold); opacity: .85; font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 黑板：店门口那一块，粉笔字 ---------- */
+.reading-content .rc-board {
+  margin: var(--sp-6) auto; padding: 26px 26px 24px;
+  max-width: 30em; border-radius: 4px;
+  background:
+    radial-gradient(120% 90% at 20% 0%, rgba(232, 228, 210, .07), transparent 60%),
+    radial-gradient(90% 80% at 90% 100%, rgba(232, 228, 210, .05), transparent 55%),
+    linear-gradient(165deg, var(--board-1, #22302c), var(--board-2, #16211e));
+  border: 7px solid var(--board-frame, #4a3a2a);
+  box-shadow: 0 18px 30px -22px rgba(0, 0, 0, .95), inset 0 0 40px rgba(0, 0, 0, .35);
+}
+.reading-content .rc-board-head {
+  margin-bottom: 12px; text-align: center;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .3em; color: var(--board-chalk, #cfc9b6); opacity: .7;
+}
+.reading-content .rc-board p {
+  text-indent: 0; margin: 0 0 .55em; text-align: center;
+  font-family: var(--font-hand); font-size: clamp(20px, 5.6vw, 24px);
+  line-height: 1.85; color: var(--board-chalk, #e2ddcb);
+  text-shadow: 0 0 1px rgba(255, 255, 255, .35), 0 0 18px rgba(232, 228, 210, .16);
+}
+.reading-content .rc-board p:last-child { margin-bottom: 0; }
+
+/* ---------- 广播：城市里到处都在响的那种 ---------- */
+.reading-content .rc-broadcast {
+  margin: var(--sp-5) 0; padding: 12px 16px 12px 18px;
+  border-left: 3px solid var(--gold);
+  background: var(--gold-soft);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.reading-content .rc-broadcast-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 7px;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .24em; color: var(--gold);
+}
+.reading-content .rc-broadcast-head::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 3px rgba(214, 182, 120, .18);
+}
+.reading-content .rc-broadcast p {
+  text-indent: 0; margin: 0 0 .45em;
+  font-size: var(--fs-sm); line-height: 1.95; color: var(--ink-2); letter-spacing: .04em;
+}
+.reading-content .rc-broadcast p:last-child { margin-bottom: 0; }
+
+/* ---------- 梦境：镜面海上那一段 ---------- */
+.reading-content .rc-dream {
+  margin: var(--sp-6) 0; padding: var(--sp-4) var(--sp-2); text-align: center;
+}
+.reading-content .rc-dream::before {
+  content: "\263E"; display: block; margin-bottom: var(--sp-3);
+  font-size: 21px; color: var(--gold); opacity: .62; letter-spacing: 0;
+}
+.reading-content .rc-dream p {
+  text-indent: 0; margin: 0 auto .5em; max-width: 26em;
+  font-family: var(--font-serif); font-size: var(--fs-md); line-height: 2.15;
+  color: var(--ink-2); letter-spacing: .08em;
+  text-shadow: 0 0 26px rgba(214, 182, 120, .16);
+}
+.reading-content .rc-dream p:last-child { margin-bottom: 0; }
+
+/* ---------- 涂黑：读的时候点一下才显形 ---------- */
+.reading-content .rc-redact {
+  padding: 0 .16em; border-radius: 2px;
+  background: var(--redact, #060a0d); color: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  cursor: pointer; transition: color .18s ease, background-color .18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.reading-content .rc-redact:hover,
+.reading-content .rc-redact:focus {
+  color: var(--ink); background: var(--redact-open, rgba(214, 182, 120, .16));
+  outline: none;
+}
+
+/* ---------- 书信落款 / 对白旁注 ---------- */
+.reading-content .rc-letter-sign {
+  margin-top: var(--sp-4); text-align: right;
+  font-family: var(--font-hand); font-size: clamp(18px, 5vw, 21px);
+  color: var(--gold-2); letter-spacing: .08em;
+}
+.reading-content .rc-say-note {
+  margin-left: 8px;
+  font-family: var(--font-body); font-size: var(--fs-xs);
+  letter-spacing: .1em; color: var(--ink-3);
+}
+
 /* ---------- 行内：高亮 / 划掉 ---------- */
 .reading-content mark.hl {
   background: var(--hl, rgba(214, 182, 120, .26));
@@ -2500,11 +2651,15 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   text-decoration-thickness: 1px;
 }
 
-/* 四种字体颜色：偏柔和的色值，深色纸上不刺眼 */
+/* 八种字体颜色：偏柔和的色值，深色纸上不刺眼 */
 .reading-content .t-red, .reading-content .t-red * { color: var(--tint-red, #e89a9a); }
+.reading-content .t-orange, .reading-content .t-orange * { color: var(--tint-orange, #e8b48a); }
 .reading-content .t-yellow, .reading-content .t-yellow * { color: var(--tint-yellow, var(--gold, #e8cf9a)); }
-.reading-content .t-blue, .reading-content .t-blue * { color: var(--tint-blue, #9ac4e8); }
 .reading-content .t-green, .reading-content .t-green * { color: var(--tint-green, #9ad8b0); }
+.reading-content .t-cyan, .reading-content .t-cyan * { color: var(--tint-cyan, #8fd0d6); }
+.reading-content .t-blue, .reading-content .t-blue * { color: var(--tint-blue, #9ac4e8); }
+.reading-content .t-purple, .reading-content .t-purple * { color: var(--tint-purple, #c3a8e0); }
+.reading-content .t-mute, .reading-content .t-mute * { color: var(--tint-mute, #9aa7b0); }
 
 /* 工具栏上的颜色按钮：名字旁边点一小块颜色，一眼知道是哪个色 */
 .et-color { position: relative; padding-left: 20px; }
@@ -2513,9 +2668,13 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
   width: 8px; height: 8px; border-radius: 50%;
 }
 .et-color.c-red::before { background: var(--tint-red, #e89a9a); }
+.et-color.c-orange::before { background: var(--tint-orange, #e8b48a); }
 .et-color.c-yellow::before { background: var(--tint-yellow, var(--gold, #e8cf9a)); }
-.et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
 .et-color.c-green::before { background: var(--tint-green, #9ad8b0); }
+.et-color.c-cyan::before { background: var(--tint-cyan, #8fd0d6); }
+.et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
+.et-color.c-purple::before { background: var(--tint-purple, #c3a8e0); }
+.et-color.c-mute::before { background: var(--tint-mute, #9aa7b0); }
 
 /* ============================================================================
    留言板：顶部一块黑板（只有管理员能改）+ 下面一堆便签纸
@@ -4168,7 +4327,7 @@ html[data-cloth="on"] .game-page {
    浮层是 position:fixed —— .ws 有 overflow:hidden，放里面会被裁掉。 */
 .ws-more {
   position: fixed; z-index: 92;
-  max-height: min(62vh, 460px); overflow: auto;
+  max-height: min(74vh, 620px); overflow: auto;
   padding: 12px 14px;
   background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-md);
   box-shadow: 0 16px 40px rgba(4, 9, 13, .5);
@@ -4177,6 +4336,9 @@ html[data-cloth="on"] .game-page {
 .ws-more-grp + .ws-more-grp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .ws-more-cap { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .18em; color: var(--ink-3); }
 .ws-more-row { display: flex; flex-wrap: wrap; gap: 4px; }
+/* 颜色那组固定四列：八个色一眼能数清，不会挤成六加二 */
+.ws-more-row.ws-swatch-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ws-swatch-row .et-btn { justify-content: center; }
 .et-more { color: var(--gold); border-color: var(--line); }
 .et-more.is-on { color: var(--accent-ink); background: var(--gold); border-color: var(--gold); }
 .ws-grp-more { margin-left: auto; display: flex; align-items: center; }

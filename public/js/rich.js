@@ -29,12 +29,12 @@ window.Rich = (function () {
   }
 
   // 行内标记。先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签。
-    var COLOR_NAME = { r: 'red', y: 'yellow', b: 'blue', g: 'green' };
+    var COLOR_NAME = { r: 'red', o: 'orange', y: 'yellow', g: 'green', c: 'cyan', b: 'blue', p: 'purple', m: 'mute' };
 
   function inline(s) {
     return esc(String(s == null ? '' : s))
-      // 字体颜色：{{r|文字}} 红 / {{y|}} 黄 / {{b|}} 蓝 / {{g|}} 绿
-      .replace(/\{\{([rybg])\|([^{}]+)\}\}/g, function (m, k, t) {
+      // 字体颜色：{{r|文字}} 红 / {{o|}} 橙 / {{y|}} 黄 / {{g|}} 绿 / {{c|}} 青 / {{b|}} 蓝 / {{p|}} 紫 / {{m|}} 灰
+      .replace(/\{\{([rybgocpm])\|([^{}]+)\}\}/g, function (m, k, t) {
         return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
       })
             .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, function (m, target, label) {
@@ -45,6 +45,8 @@ window.Rich = (function () {
       // 高亮：==文字==（像用荧光笔划了一道）/ 划掉：~~文字~~
       .replace(/==([^=\n]+)==/g, '<mark class="hl">$1</mark>')
       .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
+      // 涂黑：%%文字%%（读的时候点一下才显形）
+      .replace(/%%([^%\n]+)%%/g, '<span class="rc-redact" tabindex="0" title="点一下显形">$1</span>')
       // 相对放大：^^文字^^（比正文大一号，正文是 17px，这里是 1.16 倍）
       .replace(/\^\^([^^\n]+)\^\^/g, '<span class="fs-up">$1</span>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -133,11 +135,17 @@ window.Rich = (function () {
         while (i < lines.length && lines[i].trim() !== ':::') { buf4.push(lines[i]); i++; }
         i++;
         if (kind4 === 'say') {
-          out.push('<div class="rc-say">' + (head4 ? '<span class="rc-say-who">' + inline(head4) + '</span>' : '')
+          var sp4 = head4.split('|');
+          var who4 = (sp4[0] || '').trim(), note4 = (sp4[1] || '').trim();
+          out.push('<div class="rc-say">' + (who4 ? '<span class="rc-say-who">' + inline(who4) + '</span>' : '')
+            + (note4 ? '<span class="rc-say-note">' + inline(note4) + '</span>' : '')
             + '<div class="rc-say-body">' + paras(buf4) + '</div></div>');
         } else if (kind4 === 'letter') {
-          out.push('<div class="rc-letter">' + (head4 ? '<div class="rc-letter-head">' + inline(head4) + '</div>' : '')
-            + '<div class="rc-letter-body">' + paras(buf4) + '</div></div>');
+          var lp4 = head4.split('|');
+          var lh4 = (lp4[0] || '').trim(), ls4 = (lp4[1] || '').trim();
+          out.push('<div class="rc-letter">' + (lh4 ? '<div class="rc-letter-head">' + inline(lh4) + '</div>' : '')
+            + '<div class="rc-letter-body">' + paras(buf4) + '</div>'
+            + (ls4 ? '<div class="rc-letter-sign">' + inline(ls4) + '</div>' : '') + '</div>');
         } else {
           out.push('<details class="rc-spoiler"><summary>' + (head4 ? inline(head4) : '剧透预警')
             + '</summary><div class="rc-spoiler-body">' + paras(buf4) + '</div></details>');
@@ -163,6 +171,48 @@ window.Rich = (function () {
           out.push('<div class="rc-whisper">' + paras(buf5) + '</div>');
         } else {
           out.push('<div class="rc-seal"><span>' + inline(head5 || buf5.join(' ') || '印') + '</span></div>');
+        }
+        continue;
+      }
+      // 消息 / 日志 / 黑板 / 广播 / 梦境：都有 ::: 收尾
+      var blk7 = /^:::(msg|log|board|broadcast|dream)\s*(.*)$/.exec(t);
+      if (blk7) {
+        var kind7 = blk7[1], head7 = blk7[2].trim(), buf7 = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ':::') { buf7.push(lines[i]); i++; }
+        i++;
+        // 空块（点了按钮又把内容删光）不留空壳
+        if (!buf7.some(function (line) { return String(line).trim(); })) continue;
+        if (kind7 === 'msg') {
+          var msgRows = buf7.map(function (line) {
+            var s7 = String(line).trim();
+            if (!s7) return '';
+            var m7 = /^([^：:]{1,12})[：:]\s*(.*)$/.exec(s7);
+            var sys7 = /^[-·]\s*(.*)$/.exec(s7);
+            if (sys7) return '<div class="rc-msg-sys">' + inline(sys7[1]) + '</div>';
+            if (!m7) return '<div class="rc-msg-sys">' + inline(s7) + '</div>';
+            var who7 = m7[1].trim(), body7 = m7[2].trim(), mine7 = !!head7 && who7 === head7;
+            return '<div class="rc-msg-row' + (mine7 ? ' is-me' : '') + '">'
+              + (mine7 ? '' : '<span class="rc-msg-who">' + inline(who7) + '</span>')
+              + '<div class="rc-msg-b">' + inline(body7) + '</div></div>';
+          }).join('');
+          out.push('<div class="rc-msg">' + msgRows + '</div>');
+        } else if (kind7 === 'log') {
+          var logRows = buf7.map(function (line) {
+            var s7 = String(line).trim();
+            if (!s7) return '';
+            var m7 = /^(\d{1,2}:\d{2}(?::\d{2})?)\s*(.*)$/.exec(s7);
+            return '<p class="rc-log-line">' + (m7
+              ? '<span class="rc-log-t">' + m7[1] + '</span>' + inline(m7[2])
+              : '<span class="rc-log-t">·</span>' + inline(s7)) + '</p>';
+          }).join('');
+          out.push('<div class="rc-log">' + (head7 ? '<div class="rc-log-head">' + inline(head7) + '</div>' : '') + logRows + '</div>');
+        } else if (kind7 === 'board') {
+          out.push('<div class="rc-board">' + (head7 ? '<div class="rc-board-head">' + inline(head7) + '</div>' : '') + paras(buf7) + '</div>');
+        } else if (kind7 === 'broadcast') {
+          out.push('<div class="rc-broadcast">' + (head7 ? '<div class="rc-broadcast-head">' + inline(head7) + '</div>' : '') + paras(buf7) + '</div>');
+        } else {
+          out.push('<div class="rc-dream">' + paras(buf7) + '</div>');
         }
         continue;
       }
