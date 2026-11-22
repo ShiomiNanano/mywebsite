@@ -631,7 +631,8 @@ const App = {
     // 给导航增删格子时，记得同时改这里，否则新格子点了不会亮。
     // settings 已经没有对应的格子了（设定页仍可从书架进入），所以从列表里去掉。
     const active = !showNav ? '' : (['menu', 'board', 'games', 'profile'].includes(parts[0]) ? parts[0] : '');
-    document.getElementById('app').innerHTML = view + (showNav ? this.bottomNav(active) : '');
+    document.getElementById('app').innerHTML = view;
+    this.syncBottomNav(active, showNav);
     this.markWiki();   // 正文渲染完，把没收录的名词标成红链
     this.prefetchTabs();   // 顺手把几个页签要用的数据预热好
     // 游戏页的棋盘要等 HTML 插进去之后才能画（上面那步先渲染，这里再开局）
@@ -645,6 +646,30 @@ const App = {
     // 直接收（内部用 setTimeout 排程，天然在绘制之后）。
     // 别放 rAF：遮罩是不透明的静态层，没有重绘需求时 rAF 会被饿死，遮罩就一直挂着。
     this.veilHide();
+  },
+
+  // 底栏挂在 #app 外面，切页时不跟着重建 —— 重建会让整块玻璃层重新栅格化，
+  // 用户看到的就是「点导航时闪一下、顿一下」。这里第一次写进去，之后只同步 active。
+  syncBottomNav(active, show) {
+    const el = document.getElementById('bottomNav');
+    if (!el) return;
+    if (!el.dataset.mounted) {
+      // bottomNav() 返回的是整块 <nav>…</nav>，这里只取里面的格子，避免 nav 套 nav
+      const tmp = document.createElement('div');
+      tmp.innerHTML = this.bottomNav(active);
+      const inner = tmp.querySelector('.bottom-nav');
+      el.innerHTML = inner ? inner.innerHTML : tmp.innerHTML;
+      el.dataset.mounted = '1';
+      el.hidden = !show;
+      return;
+    }
+    el.hidden = !show;
+    el.querySelectorAll('.bn-item').forEach((a) => {
+      const key = (a.getAttribute('href') || '').replace(/^#\//, '');
+      const on = !!active && key === active;
+      a.classList.toggle('active', on);
+      if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
   },
 
   bottomNav(active) {
@@ -695,7 +720,7 @@ const App = {
     if (user && user.avatar) {
       const initial = esc((user.username || '?').charAt(0));
       return `<span class="${cls} avatar-initial">${initial}`
-        + `<img src="${esc(user.avatar)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+        + `<img src="${esc(user.avatar)}" alt="" width="38" height="38" loading="lazy" decoding="async" onerror="this.remove()"></span>`;
     }
     const initial = user ? (user.username || '?').charAt(0) : '?';
     return `<div class="${cls} avatar-initial">${esc(initial)}</div>`;
@@ -738,10 +763,13 @@ const App = {
     if (this._prefetched) return;
     this._prefetched = true;
     const run = () => {
-      const urls = ['/api/board', '/api/games/scores?game=memory', '/api/games/scores?game=number'];
+      const urls = ['/api/board', '/api/links', '/api/games/scores?game=memory', '/api/games/scores?game=number'];
       urls.forEach((u) => {
         // 单条失败不影响别的；这里是"顺手预热"，出错就当没做过
-        API.get(u).then((d) => { this._pre = this._pre || {}; this._pre[u] = { at: Date.now(), data: d }; }).catch(() => {});
+        // 存 promise 而不是结果：请求还在飞的时候点进页面，也能复用同一趟请求，不会发两遍
+        this._pre = this._pre || {};
+        this._pre[u] = { at: Date.now(), p: API.get(u) };
+        this._pre[u].p.catch(() => { if (this._pre) delete this._pre[u]; });
       });
     };
     // 浏览器不支持 requestIdleCallback 时退化成延迟执行（预览的测试沙箱也没有它）
@@ -759,7 +787,10 @@ const App = {
      游戏榜在"玩完一局 / 管理员清榜"时会 clearCache() 立刻作废，不会出现分数对不上。 */
   getCached(url) {
     const box = this._pre && this._pre[url];
-    if (box && Date.now() - box.at < 120000) { delete this._pre[url]; return Promise.resolve(box.data); }
+    if (box && Date.now() - box.at < 120000) {
+      delete this._pre[url];
+      return box.p ? box.p : Promise.resolve(box.data);
+    }
     const canCache = String(url).indexOf('/api/games/scores') === 0;
     const hit = canCache && this._cache && this._cache[url];
     if (hit && Date.now() - hit.at < 25000) return Promise.resolve(hit.data);
@@ -772,14 +803,47 @@ const App = {
   // 数据变了（玩完一局、清榜）就把短时缓存整锅倒掉
   clearCache() { this._cache = {}; },
   async ensureMenu(force) {
+    // 没有内存里的目录时，先用上次存本地的（冷启动能立刻出书架），再后台换新
+    if (!force && !this.state.menu) {
+      const cachedMenu = this.menuCached();
+      if (cachedMenu) { this.state.menu = cachedMenu; this._menuStale = true; }
+    }
     if (force || !this.state.menu) {
       const m = await API.get('/api/menu');
+      // 落一份目录到本地，下次冷启动先用它画书架
+      this.saveMenu({ main: m.main || [], personal: m.personal || [], settings: m.settings || [], latest: m.latest || null });
       this.state.menu = {
         main: m.main || [], personal: m.personal || [], settings: m.settings || [],
         latest: m.latest || null,   // 各分类最新一篇的时间，书架上的 New! 靠它判断
       };
+      this._menuStale = false;
+      this.saveMenu(this.state.menu);
+    } else if (this._menuStale) {
+      this._menuStale = false;
+      setTimeout(() => this.refreshMenuSoon(), 0);
     }
     return this.state.menu;
+  },
+
+  /* 书架目录的本地缓存：先画上次的目录，再静默换新。
+     为什么：冷启动 /api/menu 要 600ms 左右，这段时间书架是空的、只有遮罩。 */
+  MENU_KEY: 'daydream-menu-v1',
+  saveMenu(m) {
+    try { localStorage.setItem(this.MENU_KEY, JSON.stringify({ at: Date.now(), data: m })); } catch (e) {}
+  },
+  menuCached() {
+    try {
+      const box = JSON.parse(localStorage.getItem(this.MENU_KEY) || 'null');
+      if (!box || !box.data || !Array.isArray(box.data.main)) return null;
+      return box.data;
+    } catch (e) { return null; }
+  },
+  // 缓存先上屏后，后台换新；只在还停在书架、且没往下滚时重画，避免打断
+  refreshMenuSoon() {
+    this.ensureMenu(true).then(() => {
+      const h = location.hash || '';
+      if ((h === '' || h === '#/' || h === '#/menu') && (window.scrollY || 0) < 160) this.route();
+    }).catch(() => {});
   },
 
   // 摘要由后端生成（目录接口不再返回全文）
@@ -865,7 +929,13 @@ const App = {
   /* ---------- 3. 书架（三大入口 + 与柒乃聊聊） ---------- */
   async renderMenu() {
     try { sessionStorage.removeItem('daydream-wiki-back'); } catch (e) {}   // 回到书架时清掉互链出处
+    if (!this.state.menu) {
+      // 冷启动：先用上次缓存的目录把书架画出来，不等 600ms 的 /api/menu
+      const cachedMenu = this.menuCached();
+      if (cachedMenu) { this.state.menu = cachedMenu; this._menuStale = true; }
+    }
     const m = await this.ensureMenu();
+    if (this._menuStale) { this._menuStale = false; setTimeout(() => this.refreshMenuSoon(), 0); }
     const u = this.state.user;
     // 第一次来先静默记下当前进度（不弹 New!），之后靠时间戳比较决定要不要提示
     if (!this.mainSeenTs()) this.markMainSeen();
@@ -1543,7 +1613,8 @@ const App = {
     const rawNote = String(data.note || '');
     const friends = this.boardFriends(rawNote);
     let siteLinks = [];
-    try { siteLinks = await API.get('/api/links'); } catch (e) { siteLinks = []; }
+    // 走 getCached：闲置时已经预热过（prefetchTabs），直接命中就不必再等 500ms
+    try { siteLinks = await this.getCached('/api/links'); } catch (e) { siteLinks = []; }
     const links = (Array.isArray(siteLinks) ? siteLinks : []).map((l) => ({ name: l.name, url: l.url }));
     friends.links.forEach((l) => { if (!links.some((x) => x.url === l.url)) links.push(l); });
     if (!links.length) { /* 没有友链就什么都不显示 */ }

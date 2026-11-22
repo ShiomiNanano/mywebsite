@@ -1541,7 +1541,8 @@ export async function onRequest(context) {
     )`).run();
     if (method === 'GET' && path === '/links') {
       const rows = await env.DB.prepare('SELECT id, name, url, sort, created_at FROM links ORDER BY sort, id').all();
-      return json(rows.results || []);
+      // 友链很少变；给 30 秒公共缓存，省掉每次进留言板都要现拉一次（线上实测 500ms）
+      return jsonPublic(rows.results || [], 30);
     }
     if (method === 'POST' && path === '/links') {
       const e = needAdmin(); if (e) return e;

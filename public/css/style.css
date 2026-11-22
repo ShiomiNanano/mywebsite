@@ -3557,8 +3557,18 @@ html[data-wallpaper="on"] .login-card .login-error { color: #ffe0c4; }
 
 /* 切页的第一反馈：0ms 就把旧页面压暗一下。
    遮罩要等 90ms 才决定亮不亮，这 90ms 里如果什么都不变，读者会觉得「点了没反应」。 */
-#app { transition: opacity .18s ease; }
-#app.is-busy { opacity: var(--busy-dim, .3); transition: opacity .1s linear; pointer-events: none; }
+/* 切页时的「压暗」不再改 #app 的 opacity —— 那等于把整页（含几十个 backdrop-filter 层）
+   每帧重新合成，弱一点的显卡会明显卡。改成一个固定遮罩铺在最上面，代价接近 0。 */
+#app.is-busy { pointer-events: none; }
+#app.is-busy::after {
+  content: ''; position: fixed; inset: 0; z-index: 70; pointer-events: none;
+  background: rgba(8, 13, 18, .7);
+  animation: busyDim .1s linear both;
+}
+@keyframes busyDim { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #app.is-busy::after { animation: none; } }
+/* 底栏搬出 #app 后自己带一层底，避免和页面内容叠在一起的观感变化 */
+#bottomNav[hidden] { display: none; }
 .veil-mark {
   width: 132px; height: 78px;
   background-image: linear-gradient(155deg, var(--wp-accent-2, #efdcb6), var(--wp-accent, #d6b678) 62%, var(--wp-accent-deep, #b08a4e));
