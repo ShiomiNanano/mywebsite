@@ -161,6 +161,59 @@ const App = {
   pendingAvatar: null,
   pageTitle: DEFAULT_TITLE,
 
+  /* 「数码」那一档要先把几个字换成乱码再抖一下 —— CSS 换不了文字，只有这里能做。
+     只处理纯文本节点，只跑在可视区里的，系统要求减少动态时整段跳过。 */
+  initSpecialFx() {
+    if (this._fxOn) return;
+    this._fxOn = true;
+    try {
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    } catch (e) { return; }
+    // 换字守两条：① 替身也占一个汉字宽（全角），行宽不变；
+    // ② 只在「汉字/假名」「数字」之间换，标点一律不动 —— 否则断行位置会变，整段会重排。
+    const kana = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン";
+    const rnd = (s) => s.charAt(Math.floor(Math.random() * s.length));
+    const mark = (el) => {
+      if (el.children.length) return;
+      if (el.getAttribute("data-fx-orig") == null) el.setAttribute("data-fx-orig", el.textContent);
+    };
+    const scramble = (el) => {
+      const orig = el.getAttribute("data-fx-orig") || "";
+      if (!orig) return;
+      const chars = Array.from(orig);
+      let frames = 0;
+      const step = () => {
+        if (frames >= 6) { el.textContent = orig; el.style.textShadow = ""; return; }
+        const next = chars.slice();
+        chars.forEach((ch, k) => {
+          // 只换汉字/假名：换成的假名也是全角、跟汉字同宽，行宽和断行位置都不变；
+          // 标点、数字、英文一律不动（它们宽度不同，换了整段就会重排）。
+          if (Math.random() >= .62) return;
+          if (/[\u4e00-\u9fff\u3040-\u30ff]/.test(ch)) next[k] = rnd(kana);
+        });
+        el.textContent = next.join("");
+        el.style.textShadow = "3px 0 0 rgba(226, 102, 168, .75), -3px 0 0 rgba(104, 214, 232, .7)";
+        frames += 1;
+        setTimeout(step, 60);
+      };
+      step();
+    };
+    const tick = () => {
+      if (document.hidden) return;
+      const list = document.querySelectorAll(".t-digital");
+      const live = [];
+      for (let i = 0; i < list.length; i++) {
+        const el = list[i];
+        mark(el);
+        const r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > (window.innerHeight || 0)) continue;
+        live.push(el);
+      }
+      live.forEach((el, i) => setTimeout(() => scramble(el), i * 80));
+    };
+    this._fxTimer = setInterval(tick, 2400);
+  },
+
   async init() {
     /* 路由监听必须在任何 await 之前挂上 ——
        否则 init() 还在等 /api/me 与 /api/config 的那一两秒里，
@@ -171,6 +224,7 @@ const App = {
       this.cancelCoverTimer();
       this.route();
     });
+    this.initSpecialFx();
 
     // 主题固定为「夜读」，已由 js/theme-boot.js 在首屏绘制前设好；这里只是兜底
     if (!document.documentElement.getAttribute('data-theme')) {
@@ -2964,7 +3018,18 @@ const card = (x) => {
                           <button type="button" class="et-btn et-color c-cyan" data-act="c-c" title="青色">青</button>
                           <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
                           <button type="button" class="et-btn et-color c-purple" data-act="c-p" title="紫色">紫</button>
-                          <button type="button" class="et-btn et-color c-mute" data-act="c-m" title="灰色：旁白 / 回忆">灰</button>
+                                                    <button type="button" class="et-btn et-color c-mute" data-act="c-m" title="灰色：旁白 / 回忆">灰</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">特殊</p>
+                        <div class="ws-more-row ws-swatch-row ws-special-row">
+                          <button type="button" class="et-btn et-color c-shine" data-act="c-s" title="流金：关键设定出场，字面有光走过去">流金</button>
+                          <button type="button" class="et-btn et-color c-abyss" data-act="c-a" title="深渊：神明之名，暗红呼吸，压迫感">深渊</button>
+                          <button type="button" class="et-btn et-color c-digital" data-act="c-d" title="数码：隐世众之名，青色残影与轻微抖动">数码</button>
+                          <button type="button" class="et-btn et-color c-veil" data-act="c-v" title="幽影：梦与回忆，紫色薄雾">幽影</button>
+                          <button type="button" class="et-btn et-color c-whisper" data-act="c-w" title="呓语：听不清的低语，字会断续发虚">呓语</button>
+                          <button type="button" class="et-btn et-color c-corrupt" data-act="c-x" title="崩坏：信号坏了，字会被切错位">崩坏</button>
                         </div>
                       </div>
                       <div class="ws-more-grp">

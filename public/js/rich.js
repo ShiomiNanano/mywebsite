@@ -29,12 +29,12 @@ window.Rich = (function () {
   }
 
   // 行内标记。先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签。
-    var COLOR_NAME = { r: 'red', o: 'orange', y: 'yellow', g: 'green', c: 'cyan', b: 'blue', p: 'purple', m: 'mute' };
+    var COLOR_NAME = { r: 'red', o: 'orange', y: 'yellow', g: 'green', c: 'cyan', b: 'blue', p: 'purple', m: 'mute', s: 'shine', a: 'abyss', d: 'digital', v: 'veil', w: 'whisper', x: 'corrupt' };
 
   function inline(s) {
     return esc(String(s == null ? '' : s))
       // 字体颜色：{{r|文字}} 红 / {{o|}} 橙 / {{y|}} 黄 / {{g|}} 绿 / {{c|}} 青 / {{b|}} 蓝 / {{p|}} 紫 / {{m|}} 灰
-      .replace(/\{\{([rybgocpm])\|([^{}]+)\}\}/g, function (m, k, t) {
+      .replace(/\{\{([rybgocpmsadvwx])\|([^{}]+)\}\}/g, function (m, k, t) {
         return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
       })
             .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, function (m, target, label) {

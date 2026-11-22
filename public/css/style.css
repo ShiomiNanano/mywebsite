@@ -2661,6 +2661,184 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .reading-content .t-purple, .reading-content .t-purple * { color: var(--tint-purple, #c3a8e0); }
 .reading-content .t-mute, .reading-content .t-mute * { color: var(--tint-mute, #9aa7b0); }
 
+/* 流金：关键设定出场时才用。字面走一条金色光带，
+   不动的时候停在偏暖的金上，不会跳。 */
+.reading-content .t-shine { color: var(--tint-shine, #f0dca8); }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .reading-content .t-shine {
+    background-image: linear-gradient(100deg,
+      var(--shine-a, #d9ab5e) 0%,
+      var(--shine-a, #d9ab5e) 33%,
+      var(--shine-b, #fffefa) 43%,
+      var(--shine-a, #d9ab5e) 53%,
+      var(--shine-c, #ffe9b8) 72%,
+      var(--shine-a, #d9ab5e) 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: rc-shine 4.2s linear infinite, rc-shine-glow 4.2s ease-in-out infinite;
+  }
+}
+@keyframes rc-shine {
+  from { background-position: 140% 50%; }
+  to { background-position: -120% 50%; }
+}
+/* 短词看不到光带走过去的时候，靠这层呼吸让它还在“亮着” */
+@keyframes rc-shine-glow {
+  0%, 100% {
+    text-shadow: 0 0 3px rgba(226, 190, 120, .22);
+    filter: drop-shadow(0 0 2px rgba(232, 202, 148, .12));
+  }
+  50% {
+    text-shadow: 0 0 6px rgba(255, 240, 190, .9);
+    filter: drop-shadow(0 0 12px rgba(255, 226, 160, .72)) drop-shadow(0 0 24px rgba(255, 190, 90, .42));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-content .t-shine { animation: none; background-position: 46% 50%; filter: none; }
+}
+
+/* 特殊颜色：只给“关键设定 / 人名”用的动态字色。
+   深渊给神明，数码给隐世众，幽影给梦与回忆 —— 一段里别超过一两处。 */
+.reading-content .t-abyss, .reading-content .t-abyss * {
+  color: var(--tint-abyss, #d2463d);
+  animation: rc-abyss 5.2s cubic-bezier(.25, .8, .3, 1) infinite;
+}
+/* 深渊：先慢慢被往下拽（字面越来越暗），到最深处猛地涨一次红光 —— 那一帧是“被攥住”的瞬间，
+   之后再缓缓退回去。深色靠的是 260% 高的竖渐变，闪光是三层 drop-shadow 同时撑开。 */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .reading-content .t-abyss {
+    position: relative;
+    background-image: linear-gradient(180deg,
+      var(--abyss-hi, #ffdbd0) 0%,
+      var(--abyss-mid, #d64a40) 44%,
+      var(--abyss-lo, #8a1a20) 100%);
+    background-size: 100% 260%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+@keyframes rc-abyss {
+  0% {
+    background-position: 50% 0%;
+    text-shadow: 0 0 3px rgba(120, 10, 14, .45);
+    filter: drop-shadow(0 0 3px rgba(140, 20, 26, .34));
+  }
+  44% {
+    background-position: 50% 62%;
+    top: 0;
+    text-shadow: 0 1px 4px rgba(88, 4, 8, .62);
+    filter: drop-shadow(0 0 5px rgba(120, 12, 16, .45)) brightness(.9) blur(.25px);
+  }
+  48.6% {
+    background-position: 50% 88%;
+    top: 0;
+    text-shadow: 0 1px 4px rgba(80, 3, 7, .66);
+    filter: drop-shadow(0 0 4px rgba(110, 10, 14, .4)) brightness(.86) blur(.3px);
+  }
+  50% {
+    background-position: 50% 6%;
+    top: 1.5px;
+    text-shadow: 0 2px 14px rgba(255, 54, 48, 1), 0 0 3px rgba(255, 120, 110, .9);
+    filter: drop-shadow(0 0 18px rgba(245, 38, 32, 1)) drop-shadow(0 0 40px rgba(120, 0, 6, .85)) drop-shadow(0 0 70px rgba(70, 0, 4, .6)) brightness(1.78);
+  }
+  52.4% {
+    background-position: 50% 14%;
+    top: 1px;
+    text-shadow: 0 2px 12px rgba(255, 50, 44, .95), 0 0 3px rgba(255, 140, 128, .85);
+    filter: drop-shadow(0 0 15px rgba(240, 32, 28, .95)) drop-shadow(0 0 34px rgba(120, 0, 6, .8)) brightness(1.55);
+  }
+  56% {
+    background-position: 50% 82%;
+    top: 0;
+    text-shadow: 0 1px 6px rgba(220, 34, 30, .7);
+    filter: drop-shadow(0 0 9px rgba(200, 26, 24, .7)) brightness(1.12);
+  }
+  62% {
+    background-position: 50% 70%;
+    top: 0;
+    text-shadow: 0 1px 5px rgba(190, 28, 26, .55);
+    filter: drop-shadow(0 0 7px rgba(180, 22, 22, .55)) brightness(1.04);
+  }
+  100% {
+    background-position: 50% 0%;
+    text-shadow: 0 0 3px rgba(120, 10, 14, .45);
+    filter: drop-shadow(0 0 3px rgba(140, 20, 26, .34));
+  }
+}
+
+.reading-content .t-digital, .reading-content .t-digital * {
+  color: var(--tint-digital, #a9e9f2);
+  text-shadow: 1.5px 0 0 rgba(226, 102, 168, .45), -1.5px 0 0 rgba(104, 214, 232, .4);
+  animation: rc-digital 1.8s steps(1, end) infinite;
+}
+@keyframes rc-digital {
+  0%, 88%, 100% { text-shadow: 1.5px 0 0 rgba(226, 102, 168, .45), -1.5px 0 0 rgba(104, 214, 232, .4); }
+  89% { text-shadow: 3px 0 0 rgba(226, 102, 168, .7), -3px 0 0 rgba(104, 214, 232, .6); }
+  91% { text-shadow: 0 0 0 rgba(226, 102, 168, 0), 0 0 0 rgba(104, 214, 232, 0); }
+  93% { text-shadow: 2px 0 0 rgba(226, 102, 168, .6), -2px 0 0 rgba(104, 214, 232, .55); }
+}
+
+.reading-content .t-veil, .reading-content .t-veil * {
+  color: var(--tint-veil, #cbb6ea);
+  position: relative;
+  animation: rc-veil 7s ease-in-out infinite;
+}
+/* 幽影不呼吸，是慢慢左右飘、边飘边淡下去 */
+@keyframes rc-veil {
+  0%, 100% {
+    left: -1.8px;
+    opacity: .62;
+    text-shadow: 0 0 4px rgba(150, 110, 210, .22);
+    filter: blur(.15px);
+  }
+  50% {
+    left: 1.8px;
+    opacity: 1;
+    text-shadow: 0 0 6px rgba(206, 170, 255, .9);
+    filter: blur(0) drop-shadow(0 0 12px rgba(170, 120, 230, .7));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-content .t-abyss, .reading-content .t-digital, .reading-content .t-veil { animation: none; }
+}
+
+/* 呓语：断续、发虚，像隔着门听见的一句话 */
+.reading-content .t-whisper, .reading-content .t-whisper * {
+  color: var(--tint-whisper, #b9b2c8);
+  animation: rc-whisper 9s linear infinite;
+}
+@keyframes rc-whisper {
+  0%, 5%, 11%, 29%, 37%, 100% { opacity: .9; filter: blur(.18px); }
+  6%, 10% { opacity: .38; filter: blur(.55px); }
+  31%, 35% { opacity: .52; filter: blur(.4px); }
+  62% { opacity: .95; filter: blur(.1px); }
+}
+
+/* 崩坏：整块错位、被切掉一道，像信号坏了 */
+.reading-content .t-corrupt, .reading-content .t-corrupt * {
+  color: var(--tint-corrupt, #e2bccb);
+  text-shadow: 1px 0 rgba(226, 96, 140, .5), -1px 0 rgba(96, 200, 232, .45);
+  position: relative;
+  animation: rc-corrupt 2.8s steps(1, end) infinite;
+}
+@keyframes rc-corrupt {
+  0%, 80%, 100% { left: 0; clip-path: none; }
+  82% { left: -2.5px; clip-path: inset(34% 0 38% 0); }
+  84% { left: 2.5px; clip-path: inset(0 0 46% 0); }
+  86% { left: -1px; clip-path: none; }
+  88% { left: 0; clip-path: inset(58% 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-content .t-whisper, .reading-content .t-corrupt { animation: none; }
+}
+
 /* 工具栏上的颜色按钮：名字旁边点一小块颜色，一眼知道是哪个色 */
 .et-color { position: relative; padding-left: 20px; }
 .et-color::before {
@@ -2675,6 +2853,13 @@ html[data-wallpaper="on"] .menu-cards > .menu-card:nth-child(3) {
 .et-color.c-blue::before { background: var(--tint-blue, #9ac4e8); }
 .et-color.c-purple::before { background: var(--tint-purple, #c3a8e0); }
 .et-color.c-mute::before { background: var(--tint-mute, #9aa7b0); }
+/* 流金按钮：色点也是同一条渐变，跟正文里的光带对上 */
+.et-color.c-shine::before { background: linear-gradient(110deg, var(--shine-a, #ddb471), var(--shine-b, #fffdf2) 46%, var(--shine-a, #ddb471)); }
+.et-color.c-abyss::before { background: radial-gradient(circle at 50% 45%, var(--tint-abyss-hot, #f7cfc9), var(--tint-abyss, #e8a5a0) 45%, #7a1a22); }
+.et-color.c-digital::before { background: linear-gradient(90deg, rgba(226, 102, 168, .9), rgba(104, 214, 232, .95)); }
+.et-color.c-veil::before { background: radial-gradient(circle at 50% 45%, #e6d8f8, var(--tint-veil, #cbb6ea) 55%, rgba(150, 110, 210, .6)); }
+.et-color.c-whisper::before { background: radial-gradient(circle at 50% 45%, #ddd6e8, var(--tint-whisper, #b9b2c8) 55%, rgba(120, 112, 140, .7)); }
+.et-color.c-corrupt::before { background: linear-gradient(90deg, rgba(226, 96, 140, .95), rgba(96, 200, 232, .95)); }
 
 /* ============================================================================
    留言板：顶部一块黑板（只有管理员能改）+ 下面一堆便签纸
@@ -4328,16 +4513,20 @@ html[data-cloth="on"] .game-page {
 .ws-more {
   position: fixed; z-index: 92;
   max-height: min(74vh, 620px); overflow: auto;
-  padding: 12px 14px;
+  padding: 10px 14px;
   background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-md);
   box-shadow: 0 16px 40px rgba(4, 9, 13, .5);
 }
 .ws-more[hidden] { display: none; }
-.ws-more-grp + .ws-more-grp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.ws-more-cap { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .18em; color: var(--ink-3); }
+.ws-more-grp + .ws-more-grp { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line); }
+.ws-more-cap { line-height: 1.25; margin: 0 0 3px; font-size: 10.5px; letter-spacing: .18em; color: var(--ink-3); }
 .ws-more-row { display: flex; flex-wrap: wrap; gap: 4px; }
 /* 颜色那组固定四列：八个色一眼能数清，不会挤成六加二 */
 .ws-more-row.ws-swatch-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ws-more-row.ws-special-row { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+@media (max-width: 600px) {
+  .ws-more-row.ws-special-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .ws-swatch-row .et-btn { justify-content: center; }
 .et-more { color: var(--gold); border-color: var(--line); }
 .et-more.is-on { color: var(--accent-ink); background: var(--gold); border-color: var(--gold); }
