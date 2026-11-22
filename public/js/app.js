@@ -133,6 +133,28 @@ function bindSwipe(el) {
 const DEFAULT_TITLE = '白日梦咖啡馆 · 绘空事';
 
 /* =================================================== 应用主体 */
+/* ---- 设定别名：tags 里除「类型」以外的词，都能当 [[互链]] 的名字 ---- */
+function settingAliasList(s) {
+  const type = String((s && (s.setting_type || s.chapter_title)) || '').trim();
+  const title = String((s && s.title) || '').trim();
+  const out = [];
+  String((s && s.tags) || '').split(/[,，、;；]+/).forEach((raw) => {
+    const t = String(raw || '').trim();
+    if (!t || t === type || t === title || out.indexOf(t) >= 0) return;
+    out.push(t);
+  });
+  return out;
+}
+
+/* 名字 → 设定条目：标题优先，其次才是别名（别名撞车时先到先得）。 */
+function settingNameIndex(settings) {
+  const idx = new Map();
+  const list = settings || [];
+  list.forEach((s) => { const t = String((s && s.title) || '').trim(); if (t && !idx.has(t)) idx.set(t, s); });
+  list.forEach((s) => { settingAliasList(s).forEach((a) => { if (!idx.has(a)) idx.set(a, s); }); });
+  return idx;
+}
+
 const App = {
   state: { user: null, menu: null, config: { turnstile_site_key: '' } },
   authMode: 'login',
@@ -216,12 +238,7 @@ const App = {
       /* 切换分类时，让对应的字段行立刻显隐 ——
          主线要章号/节号，其它分类要标题，设定还要类型与标签。 */
       if (e.target && e.target.id === 'articleCategory') {
-        const v = e.target.value;
-        const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
-        show('mainFields', v === 'main');
-        show('sectionFields', v === 'main');   // 节号/节标题只有主线用得上（设定填了也会被丢掉）
-        show('titleRow', v !== 'main');
-        show('settingFields', v === 'settings');
+        this.syncEditorFields(e.target.value);
         return;
       }
       /* 头像设置平时收起来，点「更换头像」才展开 —— 见 renderProfile 的注释。 */
@@ -900,7 +917,7 @@ const App = {
       if (!w || !this.state.menu) return;
       let term = '';
       try { term = decodeURIComponent((w.getAttribute('href') || '').replace(/^#\/wiki\//, '')); } catch (e) { return; }
-      const hit = (this.state.menu.settings || []).find((x) => String(x.title || '').trim() === term.trim());
+      const hit = settingNameIndex(this.state.menu.settings).get(term.trim());
       if (hit && hit.id) this.prefetchArticle(hit.id);
     };
     document.addEventListener('pointerover', pick, { passive: true });
@@ -1915,7 +1932,7 @@ const card = (x) => {
   async renderWiki(name) {
     const m = await this.ensureMenu();
     const want = String(name || '').trim();
-    const hit = (m.settings || []).find(x => String(x.title || '').trim() === want);
+    const hit = settingNameIndex(m.settings).get(want);
     if (hit) { location.hash = '#/read/' + hit.id; return ''; }
     const u = this.state.user;
     const isAdmin = !!(u && u.role === 'admin');
@@ -1947,14 +1964,13 @@ const card = (x) => {
       this.ensureMenu().then(() => this.markWiki(box)).catch(() => {});
       return;
     }
-    const names = {};
-    m.settings.forEach(x => { names[String(x.title || '').trim()] = true; });
+    const names = settingNameIndex(m.settings);
     box.querySelectorAll('a.wiki').forEach(a => {
       const href = a.getAttribute('href') || '';
       const raw = href.replace(/^#\/wiki\//, '');
       let name = raw;
       try { name = decodeURIComponent(raw); } catch (e) {}
-      a.classList.toggle('is-missing', !names[String(name).trim()]);
+      a.classList.toggle('is-missing', !names.has(String(name).trim()));
     });
   },
 
@@ -2152,6 +2168,10 @@ const card = (x) => {
     }
 
     const heading = article.category === 'main' ? article.section_title : article.title;
+    // 词条别名：正文里已经写到的不再重复显示（有的卡片自己在正文里写了罗马音）
+    const aliases = article.category === 'settings'
+      ? settingAliasList(article).filter((a) => String(article.content || '').indexOf(a) < 0)
+      : [];
     // 正文字数（去掉标签和空白），阅读页显示"约 N 字"
     const plainLen = String(article.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
     // 正文末尾那行「更新时间 · 字数 · 留言数」用这一份（列表页从 2026-11-20 起不显示了）
@@ -2181,6 +2201,9 @@ const card = (x) => {
         <header class="reading-head">
           <h1>${esc(heading)}</h1>
           <div class="reading-divider"><span>❧</span></div>
+          ${aliases.length
+            ? `<p class="reading-alias" aria-label="别名">${aliases.map((a) => `<span>${esc(a)}</span>`).join('')}</p>`
+            : ''}
         </header>
         ${this.wikiBackBar(article)}
         <div class="reading-content">${article.content}</div>
@@ -2615,17 +2638,51 @@ const card = (x) => {
     const grip = document.getElementById('wsGrip');
     const work = document.getElementById('wsWork');
     const pane = document.getElementById('wsPane');
+    /* 「更多」是一层抽屉：常驻按钮只留一行，其余按格式 / 结构 / 互动 / 链接分组。
+       面板用 position:fixed（.ws 是 overflow:hidden，放里面会被裁掉），
+       所以打开时按工具栏的 rect 定位，滚动与改窗口时重新贴上去。 */
     if (bar && more) {
-      const KEY = 'daydream-toolbar-compact';
-      const apply = (compact) => {
-        bar.classList.toggle('is-compact', compact);
-        more.textContent = compact ? '更多 ▾' : '收起 ▴';
-        try { localStorage.setItem(KEY, compact ? '1' : '0'); } catch (e) {}
+      const panel = document.getElementById('wsMorePanel');
+      const place = () => {
+        if (!panel || panel.hidden) return;
+        const r = bar.getBoundingClientRect();
+        const w = Math.min(620, Math.max(280, r.width - 16));
+        panel.style.width = w + 'px';
+        panel.style.left = Math.max(8, Math.min(r.left + 8, window.innerWidth - w - 8)) + 'px';
+        panel.style.top = Math.max(8, r.bottom + 6) + 'px';
       };
-      let saved = '1';
-      try { saved = localStorage.getItem(KEY) || '1'; } catch (e) {}
-      apply(saved === '1');
-      more.addEventListener('click', () => apply(!bar.classList.contains('is-compact')));
+      const setOpen = (open) => {
+        if (!panel) return;
+        panel.hidden = !open;
+        more.classList.toggle('is-on', open);
+        more.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) place();
+      };
+      App.wsMorePlace = place;
+      more.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        setOpen(!!panel && panel.hidden);
+      });
+      if (panel && !App.wsMoreBound) {
+        App.wsMoreBound = true;
+        const close = () => {
+          const p = document.getElementById('wsMorePanel');
+          if (!p || p.hidden) return;
+          p.hidden = true;
+          const b = document.getElementById('wsMore');
+          if (b) { b.classList.remove('is-on'); b.setAttribute('aria-expanded', 'false'); }
+        };
+        document.addEventListener('click', (ev) => {
+          const p = document.getElementById('wsMorePanel');
+          const b = document.getElementById('wsMore');
+          if (!p || p.hidden) return;
+          if (p.contains(ev.target) || (b && b.contains(ev.target))) return;
+          close();
+        });
+        document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') close(); });
+        window.addEventListener('resize', () => { if (App.wsMorePlace) App.wsMorePlace(); });
+        window.addEventListener('scroll', () => { if (App.wsMorePlace) App.wsMorePlace(); }, true);
+      }
     }
     if (grip && pane && work) {
       let dragging = false;
@@ -2658,6 +2715,153 @@ const card = (x) => {
       grip.addEventListener('pointerup', stop);
       grip.addEventListener('pointercancel', stop);
     }
+
+    /* 分类分段按钮 */
+    const catSeg = document.getElementById('catSeg');
+    if (catSeg) {
+      catSeg.addEventListener('click', (ev) => {
+        const b = ev.target.closest('.cat-seg-btn');
+        if (!b) return;
+        this.syncEditorFields(b.dataset.cat);
+        if (this.docImport) {
+          this.applyDocToForm(this.docImport);
+          this.renderDocSummary();
+          this.updateParaHint();
+        }
+      });
+    }
+
+    /* 节号步进器 */
+    document.querySelectorAll('.step-btn[data-step]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const box = document.getElementById('sectionNo');
+        if (!box) return;
+        const cur = parseInt(box.value, 10);
+        const d = parseInt(b.dataset.step, 10) || 0;
+        box.value = Math.max(1, (Number.isFinite(cur) && cur > 0 ? cur : 0) + d);
+        if (this._refreshInfo) this._refreshInfo();
+      });
+    });
+
+    /* 章：从现有章节里选，允许新开一章 */
+    const chSel = document.getElementById('chapterPick');
+    if (chSel) {
+      this.fillChapterOptions(chSel);
+      chSel.addEventListener('change', () => {
+        const newRow = document.getElementById('newChapterRow');
+        if (chSel.value === '__new') {
+          if (newRow) newRow.hidden = false;
+          const ni = document.getElementById('newChapterNo');
+          if (ni) { ni.value = ''; ni.focus(); }
+          return;
+        }
+        if (newRow) newRow.hidden = true;
+        const ch = (this._chapters || []).find((c) => String(c.chapter_no) === String(chSel.value));
+        const ct = document.querySelector('#adminForm [name="chapter_title"]');
+        if (ct && ch && !ct.value) ct.value = ch.chapter_title || '';
+        const sn = document.getElementById('sectionNo');
+        if (sn && !sn.value && this.state.menu) sn.value = this.nextSectionNo(chSel.value, this.state.menu);
+        if (this._refreshInfo) this._refreshInfo();
+      });
+      const newNo = document.getElementById('newChapterNo');
+      if (newNo) {
+        newNo.addEventListener('input', () => {
+          const n = parseInt(newNo.value, 10);
+          if (!Number.isFinite(n) || n < 0) return;
+          this.setChapterNo(chSel, n, true);
+          if (this._refreshInfo) this._refreshInfo();
+        });
+      }
+    }
+
+    /* 卡片简介字数 */
+    const sumBox = document.getElementById('cardSummary');
+    const sumCount = document.getElementById('sumCount');
+    if (sumBox && sumCount) {
+      const upd = () => { sumCount.textContent = sumBox.value.length + ' / 300'; };
+      sumBox.addEventListener('input', upd);
+      upd();
+    }
+
+    /* 进页面先按当前分类把字段摆正 */
+    const catEl = document.getElementById('articleCategory');
+    if (catEl) this.syncEditorFields(catEl.value);
+  },
+
+  /* 分类联动：主线要章 / 节，其它分类要标题，设定还要类型与标签。
+     分段按钮、深链（#/admin/new?setting=X）、导入识别都走这一个口子。 */
+  syncEditorFields(cat) {
+    const form = document.getElementById('adminForm');
+    const hidden = document.getElementById('articleCategory');
+    let v = cat;
+    if (!v) v = hidden ? hidden.value : 'main';
+    if (hidden) hidden.value = v;
+    const show = (id, on) => { const el = document.getElementById(id); if (el) el.hidden = !on; };
+    show('mainFields', v === 'main');
+    show('sectionFields', v === 'main');
+    show('settingFields', v === 'settings');
+    show('secTitleRow', v === 'main');
+    show('titleRow', v !== 'main');
+    document.querySelectorAll('#catSeg .cat-seg-btn').forEach((b) => {
+      const on = b.dataset.cat === v;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const note = document.getElementById('catNote');
+    if (note) note.textContent = v === 'main' ? '按章分节' : (v === 'personal' ? '单篇' : '词条');
+    const tnote = document.getElementById('titleNote');
+    if (tnote) tnote.textContent = v === 'main' ? '节 · 篇' : '篇名';
+    if (form) form.dataset.cat = v;
+    if (form && form.isConnected && this._refreshInfo) this._refreshInfo();
+  },
+
+  // 章下拉：用目录里的现有章节，末尾永远留一个「新的一章」
+  async fillChapterOptions(sel) {
+    if (!sel) return;
+    const keep = sel.value;
+    let menu = this.state.menu;
+    if (!menu) { try { menu = await this.ensureMenu(false); } catch (e) { menu = null; } }
+    const chs = ((menu && menu.main) || []).slice().sort((x, y) => Number(x.chapter_no) - Number(y.chapter_no));
+    this._chapters = chs;
+    const seen = {};
+    const rows = [];
+    if (!keep) rows.push('<option value="" selected>选择章…</option>');
+    const push = (no, title) => {
+      const key = String(no);
+      if (seen[key]) return;
+      seen[key] = 1;
+      const label = Number(no) === 0 ? '序章' : ('第 ' + no + ' 章' + (title ? ' · ' + title : ''));
+      rows.push('<option value="' + esc(key) + '">' + esc(label) + '</option>');
+    };
+    chs.forEach((c) => { if (c && c.chapter_no !== undefined && c.chapter_no !== null) push(c.chapter_no, c.chapter_title); });
+    if (keep && keep !== '__new' && !seen[String(keep)]) push(keep, '');
+    rows.push('<option value="__new">＋ 新的一章…</option>');
+    sel.innerHTML = rows.join('');
+    if (keep) sel.value = keep;
+    if (sel.value !== keep) sel.value = '';
+  },
+
+  // 把任意章号放进下拉：没有就造一个，避免导入的章号被静默丢掉
+  setChapterNo(sel, no, selectIt) {
+    if (!sel) return;
+    const v = String(no);
+    // 真实 <select> 就走 DOM；单元测试里传的是 { value } 假节点，直接写值即可
+    const isDom = typeof sel.querySelector === 'function';
+    if (isDom) {
+      let opt = sel.querySelector('option[value="' + v + '"]');
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = Number(v) === 0 ? '序章' : ('第 ' + v + ' 章（新）');
+        const anchor = sel.querySelector('option[value="__new"]');
+        if (anchor) sel.insertBefore(opt, anchor); else sel.appendChild(opt);
+      }
+    }
+    if (selectIt) {
+      sel.value = no;
+      const nr = document.getElementById('newChapterRow');
+      if (nr) nr.hidden = true;
+    }
   },
 
   async renderAdminForm(id) {
@@ -2671,190 +2875,239 @@ const card = (x) => {
     const isMain = category === 'main';
     const rich = false;   // 原始 HTML 模式已移除：一律先给纯文本，标记原文随后异步覆盖
     const body = a ? (rich ? a.content : a.content_text) : '';
+    return this.adminFormHtml({ id: id, a: a, category: category, body: body });
+  },
+
+  /* 新增 / 编辑文章：写作台占左边，右栏三张卡（归属 / 标题 / 导入），
+     分类用分段按钮，章从现有章节里选 —— 2026-11-22 改版。 */
+  adminFormHtml(v) {
+    const id = v.id;
+    const a = v.a;
+    const category = v.category;
+    const isMain = category === 'main';
+    const body = v.body;
+    const catText = isMain ? '主线' : (category === 'personal' ? '个人章' : '设定');
+    const typeOpts = ['地点', '人物', '组织', '名词', '其它']
+      .map((t) => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('');
     return `
     <div class="page admin-page">
       ${this.topbar()}
-      <div class="breadcrumb"><a href="#/admin/articles">管理后台</a> / ${id ? '编辑文章' : '新增文章'}</div>
       <div class="admin-form-wrap">
         <form id="adminForm" data-id="${id || ''}" class="admin-form">
+          <div class="breadcrumb"><a href="#/admin/articles">管理后台</a> / ${id ? '编辑文章' : '新增文章'}</div>
           <header class="admin-editor-head">
             <div class="admin-editor-head-main">
               <h2>${id ? '编辑文章' : '新增文章'}</h2>
-              <p class="admin-sub" id="edSub">${isMain ? '主线 · 第 ' + (a ? a.chapter_no : '?') + ' 章 · 第 ' + (a ? a.section_no : '?') + ' 节' : (category === 'personal' ? '个人章' : '设定词条')}</p>
+              <p class="admin-sub" id="edSub">${isMain ? ('主线' + (a ? ' · 第 ' + a.chapter_no + ' 章 · 第 ' + a.section_no + ' 节' : '')) : (category === 'personal' ? '个人章' : '设定词条')}</p>
             </div>
             <div class="admin-editor-head-side">
-              <span class="admin-savebar-state" id="edState">${id ? '编辑中' : '新文章'}</span>
-            </div>
-          </header>
-          <div class="admin-editor-shell">
-            <section class="admin-editor-main">
-          <div class="form-row">
-            <label>正文内容 <span class="hint">（一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默）</span></label>
-            <div class="ws" id="wsWork">
-              <div class="ws-main">
-                <div class="ws-info" id="wsInfo"></div>
-                <div id="wsRestore"></div>
-                <div class="ws-bar editor-toolbar" id="editorToolbar">
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
-                    <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
-                    <button type="button" class="et-btn" data-act="hl" title="高亮：像用荧光笔划一道">高亮</button>
-                    <button type="button" class="et-btn" data-act="del" title="划掉：表示作废 / 删去的字">划掉</button>
-                    <button type="button" class="et-btn" data-act="zoom" title="相对放大：选中的这几个字比正文大一号">字大</button>
-                  </div>
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn" data-act="h2">小标题</button>
-                    <button type="button" class="et-btn" data-act="h3">次级标题</button>
-                    <button type="button" class="et-btn" data-act="quote">引用</button>
-                    <button type="button" class="et-btn" data-act="hr">分隔线</button>
-                    <button type="button" class="et-btn" data-act="scene" title="章节内换场的一行分隔">场景</button>
-                  </div>
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn et-key" data-act="epi" title="题记：放在章首的一句引文">题记</button>
-                    <button type="button" class="et-btn et-key" data-act="say" title="对白">对白</button>
-                    <button type="button" class="et-btn et-key" data-act="letter" title="书信">书信</button>
-                    <button type="button" class="et-btn et-key" data-act="doc" title="档案：一张米色纸片（调研说明 / 报告 / 通缉）">档案</button>
-                    <button type="button" class="et-btn et-key" data-act="memo" title="便签：斜贴的一张黄纸（菜单 / 留言）">便签</button>
-                    <button type="button" class="et-btn et-key" data-act="whisper" title="低语：小一号、发灰的轻话">低语</button>
-                    <button type="button" class="et-btn" data-act="seal" title="印章：斜盖上去的一方红印">印章</button>
-                    <button type="button" class="et-btn" data-act="time" title="时间 / 场景标">时间标</button>
-                    <button type="button" class="et-btn" data-act="beat" title="静默：留白里只放一个点">静默</button>
-                  </div>
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn et-key" data-act="center" title="这一块整体居中">居中</button>
-                    <button type="button" class="et-btn" data-act="big" title="这一块整体放大一号">放大</button>
-                    <button type="button" class="et-btn" data-act="small" title="这一块整体缩小一号（像注解）">缩小</button>
-                    <button type="button" class="et-btn et-key" data-act="hw" title="手写体 / 书信体：信、便条、题字">手写</button>
-                    <button type="button" class="et-btn" data-act="kai" title="楷体：比正文更古雅一点">楷体</button>
-                  </div>
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn" data-act="card">人物卡</button>
-                    <button type="button" class="et-btn et-wiki" data-act="wiki" title="插入指向某个设定的互链（写 [[名字]]）">互链</button>
-                    <button type="button" class="et-btn et-wiki" data-act="wiki-alias" title="别名互链：显示成别的文字，但指向那个设定">别名</button>
-                    <button type="button" class="et-btn" data-act="note">提示块</button>
-                    <button type="button" class="et-btn" data-act="image">图片</button>
-                    <button type="button" class="et-btn" data-act="spoiler">剧透</button>
-                  </div>
-                  <div class="ws-grp">
-                    <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
-                    <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
-                    <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
-                    <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
-                  </div>
-                  <div class="ws-grp ws-grp-more">
-                    <button type="button" class="et-btn et-more" id="wsMore" title="展开 / 收起不常用的按钮">更多 ▾</button>
-                  </div>
-                </div>
-                <textarea name="content" id="wsText" class="ws-text" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
-                <div class="ws-foot">
-                  <span id="wsPos">第 1 段</span>
-                  <span id="wsCount">0 字</span>
-                  <span id="paraHint">正文还是空的</span>
-                  <span id="wsSaved" class="is-clean">未改动</span>
-                </div>
-              </div>
-              <aside class="ws-pane" id="wsPane">
-                <span class="ws-grip" id="wsGrip" role="separator" aria-orientation="vertical" title="拖动调整预览宽度"></span>
-                <div class="ws-tabs" id="wsTabs">
-                  <button type="button" class="ws-tab is-on" data-panel="preview">预览</button>
-                  <button type="button" class="ws-tab" data-panel="check">检查<em id="wsCheckNum" hidden></em></button>
-                  <button type="button" class="ws-tab" data-panel="hist">版本</button>
-                </div>
-                <div class="ws-panel is-on" id="wsPanel-preview"><div class="reading-content editor-preview" id="editorPreview"></div></div>
-                <div class="ws-panel" id="wsPanel-check"><ul class="ws-checks" id="wsChecks"></ul></div>
-                <div class="ws-panel" id="wsPanel-hist"><ul class="ws-hist" id="wsHist"></ul></div>
-              </aside>
-            </div>
-          </div>
-          </section>
-            <aside class="admin-editor-side">
-              <div class="admin-side-card">
-                <p class="admin-side-title">位置</p>
-          <div class="form-row">
-            <label>分类</label>
-            <select name="category" id="articleCategory">
-              <option value="main" ${isMain ? 'selected' : ''}>主线</option>
-              <option value="personal" ${category === 'personal' ? 'selected' : ''}>个人章</option>
-              <option value="settings" ${category === 'settings' ? 'selected' : ''}>设定</option>
-            </select>
-          </div>
-          </div>
-          <div class="form-row inline" id="mainFields" ${isMain ? '' : 'style="display:none"'}>
-            <div>
-              <label>章号</label>
-              <input name="chapter_no" type="number" min="0" placeholder="0 = 序章" value="${a ? a.chapter_no : ''}">
-            </div>
-            <div>
-              <label>章节标题</label>
-              <input name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
-            </div>
-          </div>
-          <div class="form-row inline" id="sectionFields" ${isMain ? '' : 'style="display:none"'}>
-            <div>
-              <label>节号</label>
-              <input name="section_no" type="number" min="1" placeholder="如 1" value="${a ? a.section_no : ''}">
-            </div>
-            <div>
-              <label>节标题</label>
-              <input name="section_title" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
-            </div>
-          </div>
-          <div class="form-row inline set-only" id="settingFields" ${category === 'settings' ? '' : 'style="display:none"'}>
-            <div>
-              <label>类型 <span class="hint">（设定用：地点 / 人物 / 组织 / 名词 / 其它）</span></label>
-              <select name="setting_type">
-                ${['地点', '人物', '组织', '名词', '其它'].map(t => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label>标签 <span class="hint">（逗号分隔，如：汐凪岛,咖啡）</span></label>
-              <input name="tags" placeholder="逗号分隔" value="${a && a.tags ? esc(a.tags) : ''}">
-            </div>
-              <div>
-              <label>公开性 <span class="hint">（锁定后：别人只看得到名字和胶囊，点不开）</span></label>
-              <select name="locked">
-              <option value="0" ${a && Number(a.locked) ? '' : 'selected'}>公开</option>
-              <option value="1" ${a && Number(a.locked) ? 'selected' : ''}>锁定</option>
-              </select>
-              </div>
-          </div>
-          <div class="form-row" id="titleRow" ${isMain ? 'style="display:none"' : ''}>
-            <label>标题</label>
-            <input name="title" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
-          </div>
-              <div class="admin-side-card">
-                <p class="admin-side-title">卡片</p>
-<div class="form-row">
-            <label>卡片简介 <span class="hint">（可不填：留空就自动截取正文开头；在这里写就不会剧透正文）</span></label>
-            <input type="text" name="summary" maxlength="300" placeholder="一句话概括这一节/这一篇，显示在卡片上" value="${a && a.summary ? esc(a.summary) : ''}">
-          </div>
-              </div>
-              <div class="admin-side-card">
-                <p class="admin-side-title">导入</p>
-<div class="form-row">
-            <label>从文件导入 <span class="hint">（Word 的 .docx，或 .txt / .md）</span></label>
-            <div class="doc-import">
-              <label class="btn btn-small btn-ghost btn-file">选择文件<input type="file" id="docFile" accept=".docx,.txt,.md,.doc" hidden></label>
-              <span class="doc-import-state" id="docState">也可以把文件直接拖到下面任意位置；旧的 .doc 请先在 Word 里另存为 .docx</span>
-            </div>
-            <div class="doc-summary" id="docSummary" hidden></div>
-              </div>
-              </div>
-            </aside>
-          </div>
-          <div class="admin-savebar">
-            <span class="admin-savebar-state">${id ? '编辑中' : '新文章'}</span>
-            <div class="admin-savebar-actions">
+              <span class="admin-head-state" id="edState">${id ? '编辑中' : '新文章'}</span>
               ${id ? `<a class="btn btn-small btn-ghost" href="#/read/${id}" target="_blank" rel="noopener">在站内看</a>` : ''}
               <a class="btn btn-small btn-ghost" href="#/admin/articles">取消</a>
               <button class="btn btn-primary" type="submit">${id ? '保存修改' : '发布文章'}</button>
             </div>
+          </header>
+          <div class="admin-editor-shell">
+            <section class="admin-editor-main">
+              <div class="form-row ws-field">
+                <div class="field-head">
+                  <label for="wsText">正文</label>
+                  <span class="field-hint" title="一行就是一段；工具栏除了人物卡 / 图片 / 互链，还能插题记、档案、便签、低语、印章、时间标、静默">一行一段 · 35 种插入</span>
+                </div>
+                <div class="ws" id="wsWork">
+                  <div class="ws-main">
+                    <div class="ws-info" id="wsInfo"></div>
+                    <div id="wsRestore"></div>
+                    <div class="ws-bar editor-toolbar" id="editorToolbar">
+                      <div class="ws-grp">
+                        <button type="button" class="et-btn" data-act="bold" title="加粗（Ctrl+B）"><b>B</b></button>
+                        <button type="button" class="et-btn" data-act="h2" title="小标题">小标题</button>
+                        <button type="button" class="et-btn" data-act="quote" title="引用">引用</button>
+                        <button type="button" class="et-btn" data-act="hr" title="分隔线">分隔线</button>
+                        <button type="button" class="et-btn" data-act="card" title="人物卡：一张人物小卡">人物卡</button>
+                        <button type="button" class="et-btn" data-act="image" title="图片：插入图片地址">图片</button>
+                      </div>
+                      <div class="ws-grp ws-grp-more">
+                        <button type="button" class="et-btn et-more" id="wsMore" aria-expanded="false" aria-controls="wsMorePanel" title="其余插入能力，按类分组">更多 ▾</button>
+                      </div>
+                    </div>
+                    <div class="ws-more" id="wsMorePanel" hidden>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">格式</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn" data-act="italic" title="斜体（Ctrl+I）"><i>I</i></button>
+                          <button type="button" class="et-btn" data-act="hl" title="高亮：像用荧光笔划一道">高亮</button>
+                          <button type="button" class="et-btn" data-act="del" title="划掉：表示作废 / 删去的字">划掉</button>
+                          <button type="button" class="et-btn" data-act="zoom" title="相对放大：选中的这几个字比正文大一号">字大</button>
+                          <button type="button" class="et-btn" data-act="center" title="这一块整体居中">居中</button>
+                          <button type="button" class="et-btn" data-act="big" title="这一块整体放大一号">放大</button>
+                          <button type="button" class="et-btn" data-act="small" title="这一块整体缩小一号（像注解）">缩小</button>
+                          <button type="button" class="et-btn" data-act="hw" title="手写体 / 书信体：信、便条、题字">手写</button>
+                          <button type="button" class="et-btn" data-act="kai" title="楷体：比正文更古雅一点">楷体</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">颜色</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn et-color c-red" data-act="c-r" title="红色">红</button>
+                          <button type="button" class="et-btn et-color c-yellow" data-act="c-y" title="黄色">黄</button>
+                          <button type="button" class="et-btn et-color c-blue" data-act="c-b" title="蓝色">蓝</button>
+                          <button type="button" class="et-btn et-color c-green" data-act="c-g" title="绿色">绿</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">结构</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn" data-act="h3" title="次级标题">次级标题</button>
+                          <button type="button" class="et-btn" data-act="scene" title="章节内换场的一行分隔">场景</button>
+                          <button type="button" class="et-btn" data-act="epi" title="题记：放在章首的一句引文">题记</button>
+                          <button type="button" class="et-btn" data-act="time" title="时间 / 场景标">时间标</button>
+                          <button type="button" class="et-btn" data-act="beat" title="静默：留白里只放一个点">静默</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">互动</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn" data-act="say" title="对白">对白</button>
+                          <button type="button" class="et-btn" data-act="letter" title="书信">书信</button>
+                          <button type="button" class="et-btn" data-act="doc" title="档案：一张米色纸片（调研说明 / 报告 / 通缉）">档案</button>
+                          <button type="button" class="et-btn" data-act="memo" title="便签：斜贴的一张黄纸（菜单 / 留言）">便签</button>
+                          <button type="button" class="et-btn" data-act="whisper" title="低语：小一号、发灰的轻话">低语</button>
+                          <button type="button" class="et-btn" data-act="seal" title="印章：斜盖上去的一方红印">印章</button>
+                        </div>
+                      </div>
+                      <div class="ws-more-grp">
+                        <p class="ws-more-cap">链接与提示</p>
+                        <div class="ws-more-row">
+                          <button type="button" class="et-btn et-wiki" data-act="wiki" title="插入指向某个设定的互链（写 [[名字]]）">互链</button>
+                          <button type="button" class="et-btn et-wiki" data-act="wiki-alias" title="别名互链：显示成别的文字，但指向那个设定">别名</button>
+                          <button type="button" class="et-btn" data-act="note">提示块</button>
+                          <button type="button" class="et-btn" data-act="spoiler">剧透</button>
+                        </div>
+                      </div>
+                    </div>
+                    <textarea name="content" id="wsText" class="ws-text" rows="18" placeholder="在此写正文……">${a ? esc(body) : ''}</textarea>
+                    <div class="ws-foot">
+                      <span id="wsPos">第 1 段</span>
+                      <span id="wsCount">0 字</span>
+                      <span id="paraHint">正文还是空的</span>
+                      <span id="wsSaved" class="is-clean">未改动</span>
+                    </div>
+                  </div>
+                  <aside class="ws-pane" id="wsPane">
+                    <span class="ws-grip" id="wsGrip" role="separator" aria-orientation="vertical" title="拖动调整预览宽度"></span>
+                    <div class="ws-tabs" id="wsTabs">
+                      <button type="button" class="ws-tab is-on" data-panel="preview">预览</button>
+                      <button type="button" class="ws-tab" data-panel="check">检查<em id="wsCheckNum" hidden></em></button>
+                      <button type="button" class="ws-tab" data-panel="hist">版本</button>
+                    </div>
+                    <div class="ws-panel is-on" id="wsPanel-preview"><div class="reading-content editor-preview" id="editorPreview"></div></div>
+                    <div class="ws-panel" id="wsPanel-check"><ul class="ws-checks" id="wsChecks"></ul></div>
+                    <div class="ws-panel" id="wsPanel-hist"><ul class="ws-hist" id="wsHist"></ul></div>
+                  </aside>
+                </div>
+              </div>
+            </section>
+            <aside class="admin-editor-side">
+              <section class="admin-side-card">
+                <div class="asc-head">
+                  <h3 class="admin-side-title">归属</h3>
+                  <span class="asc-note" id="catNote">${catText}</span>
+                </div>
+                <div class="cat-seg" id="catSeg" role="group" aria-label="文章分类">
+                  <button type="button" class="cat-seg-btn" data-cat="main" aria-pressed="${isMain ? 'true' : 'false'}">主线</button>
+                  <button type="button" class="cat-seg-btn" data-cat="personal" aria-pressed="${category === 'personal' ? 'true' : 'false'}">个人章</button>
+                  <button type="button" class="cat-seg-btn" data-cat="settings" aria-pressed="${category === 'settings' ? 'true' : 'false'}">设定</button>
+                </div>
+                <input type="hidden" name="category" id="articleCategory" value="${category}">
+                <div class="asc-body">
+                  <div id="mainFields" ${isMain ? '' : 'hidden'}>
+                    <div class="field-list">
+                      <div class="field">
+                        <label for="chapterPick">章</label>
+                        <select name="chapter_no" id="chapterPick">
+                          ${a ? `<option value="${a.chapter_no}" selected>第 ${a.chapter_no} 章</option>` : '<option value="" selected>选择章…</option>'}
+                          <option value="__new">＋ 新的一章…</option>
+                        </select>
+                      </div>
+                      <div class="field" id="newChapterRow" hidden>
+                        <label for="newChapterNo">新章号</label>
+                        <input id="newChapterNo" type="number" min="0" step="1" placeholder="如 5；0 是序章">
+                      </div>
+                      <div class="field">
+                        <label for="chapterTitle">章节标题</label>
+                        <input id="chapterTitle" name="chapter_title" placeholder="如：如暖阳般和煦" value="${a ? esc(a.chapter_title) : ''}">
+                      </div>
+                      <div class="field" id="sectionFields">
+                        <label for="sectionNo">节号</label>
+                        <div class="stepper">
+                          <button type="button" class="step-btn" data-step="-1" aria-label="节号减一">−</button>
+                          <input id="sectionNo" name="section_no" type="number" min="1" step="1" placeholder="1" value="${a ? a.section_no : ''}">
+                          <button type="button" class="step-btn" data-step="1" aria-label="节号加一">＋</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="settingFields" ${category === 'settings' ? '' : 'hidden'}>
+                    <div class="field-list">
+                      <div class="field">
+                        <label for="settingType">类型</label>
+                        <select id="settingType" name="setting_type">${typeOpts}</select>
+                      </div>
+                      <div class="field">
+                        <label for="settingTags">标签 <span class="field-hint">别名 · 逗号分隔</span></label>
+                        <input id="settingTags" name="tags" placeholder="奥国大,AUREA" value="${a && a.tags ? esc(a.tags) : ''}">
+            <p class="field-hint set-tags-hint">填了别名，正文里 [[别名]] 也能连回来</p>
+                      </div>
+                      <div class="field">
+                        <label for="settingLock">公开性</label>
+                        <select id="settingLock" name="locked">
+                          <option value="0" ${a && Number(a.locked) ? '' : 'selected'}>公开</option>
+                          <option value="1" ${a && Number(a.locked) ? 'selected' : ''}>锁定</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="admin-side-card">
+                <div class="asc-head">
+                  <h3 class="admin-side-title">标题</h3>
+                  <span class="asc-note" id="titleNote">${isMain ? '节 · 篇' : '篇名'}</span>
+                </div>
+                <div class="form-row field-lg" id="secTitleRow" ${isMain ? '' : 'hidden'}>
+                  <label for="sectionTitle">节标题</label>
+                  <input id="sectionTitle" name="section_title" class="input-lg" placeholder="如：新港来的青年" value="${a ? esc(a.section_title) : ''}">
+                </div>
+                <div class="form-row field-lg" id="titleRow" ${isMain ? 'hidden' : ''}>
+                  <label for="articleTitle">标题</label>
+                  <input id="articleTitle" name="title" class="input-lg" placeholder="请输入文章标题" value="${a ? esc(a.title) : ''}">
+                </div>
+                <div class="form-row">
+                  <label for="cardSummary">卡片简介</label>
+                  <textarea id="cardSummary" name="summary" rows="3" maxlength="300" placeholder="一句话概括这一节 / 这一篇，显示在书架上">${a && a.summary ? esc(a.summary) : ''}</textarea>
+                  <div class="field-foot"><span>留空自动截取正文开头</span><span id="sumCount">0 / 300</span></div>
+                </div>
+              </section>
+              <details class="admin-side-card side-fold" id="importCard">
+                <summary class="asc-head">
+                  <span class="admin-side-title">导入</span>
+                  <span class="asc-note">docx / txt / md</span>
+                </summary>
+                <div class="form-row">
+                  <div class="doc-import">
+                    <label class="btn btn-small btn-ghost btn-file">选择文件<input type="file" id="docFile" accept=".docx,.txt,.md,.doc" hidden></label>
+                    <span class="doc-import-state" id="docState">也可以把文件直接拖到这个页面</span>
+                  </div>
+                  <div class="doc-summary" id="docSummary" hidden></div>
+                </div>
+              </details>
+            </aside>
           </div>
         </form>
       </div>
     </div>`;
   },
-
 
   /* ================= 柒乃的八音盒 =================
      列表存在 D1 的 music 表（GET /api/music 公开读），播放器是一个挂在 body 上的
@@ -3716,7 +3969,7 @@ const card = (x) => {
     /* ---------- 预览 ---------- */
     const paint = () => {
       const html = R.render(box.value);
-      pane.innerHTML = html || '<p class="ph">（还没有内容，左边写完这里就会实时显示）</p>';
+      pane.innerHTML = html || '<p class="ph">（写完左边，这里就会出现）</p>';
       this.markWiki(pane);
     };
     let paintTimer = 0;
@@ -4003,16 +4256,23 @@ const card = (x) => {
       lazySave();
     };
 
-    bar.addEventListener('click', (ev) => {
+    const onToolAct = (ev) => {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
       ev.preventDefault();
       const st = box.scrollTop, sl = box.scrollLeft;   // 记住视野，别让长文跳回顶部
+      const panel = document.getElementById('wsMorePanel');
+      if (panel) panel.hidden = true;
+      const mb = document.getElementById('wsMore');
+      if (mb) { mb.classList.remove('is-on'); mb.setAttribute('aria-expanded', 'false'); }
       doAct(btn.dataset.act);
       box.focus();
       box.scrollTop = st;
       box.scrollLeft = sl;
-    });
+    };
+    bar.addEventListener('click', onToolAct);
+    const morePanel = document.getElementById('wsMorePanel');
+    if (morePanel) morePanel.addEventListener('click', onToolAct);
 
     tabs && tabs.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-panel]');
@@ -4083,17 +4343,22 @@ const card = (x) => {
 
     /* ---------- 设定名（给 [[ 补全 用，结构树已经去掉） ---------- */
     API.get('/api/menu').then((m) => {
-      wikiNames = ((m && m.settings) || []).map((s) => s.title).filter(Boolean);
+      const seen = {};
+      const list = ((m && m.settings) || []);
+      const names = [];
+      list.forEach((s) => { const t = String(s.title || '').trim(); if (t && !seen[t]) { seen[t] = 1; names.push(t); } });
+      list.forEach((s) => { settingAliasList(s).forEach((a) => { if (!seen[a]) { seen[a] = 1; names.push(a); } }); });
+      wikiNames = names;
     }).catch(() => {});
 
     /* ---------- 顶部信息条 ---------- */
     const refreshInfo = () => {
       if (!info) return;
-      const cat = document.querySelector('#adminForm select[name="category"]');
-      const chNo = document.querySelector('#adminForm input[name="chapter_no"]');
-      const chTitle = document.querySelector('#adminForm input[name="chapter_title"]');
-      const secNo = document.querySelector('#adminForm input[name="section_no"]');
-      const secTitle = document.querySelector('#adminForm input[name="section_title"]');
+      const cat = document.querySelector('#adminForm [name="category"]');
+      const chNo = document.querySelector('#adminForm [name="chapter_no"]');
+      const chTitle = document.querySelector('#adminForm [name="chapter_title"]');
+      const secNo = document.querySelector('#adminForm [name="section_no"]');
+      const secTitle = document.querySelector('#adminForm [name="section_title"]');
       const bits = [];
       if (cat && cat.value === 'main') {
         if (chNo && chNo.value !== '') bits.push(this.chapterLabel(chNo.value, chTitle && chTitle.value));
@@ -4114,6 +4379,7 @@ const card = (x) => {
       if (el) el.addEventListener('input', refreshInfo);
       if (el) el.addEventListener('change', refreshInfo);
     });
+    this._refreshInfo = refreshInfo;
 
     /* ---------- 老文章：异步取回标记原文 ---------- */
     const m = location.hash.match(/admin\/edit\/(\d+)/);
@@ -4394,15 +4660,8 @@ const card = (x) => {
       const catSel = document.getElementById('articleCategory');
       const titleBox = document.querySelector('#adminForm input[name="title"]');
       if (name && catSel && titleBox && !titleBox.value) {
-        catSel.value = 'settings';
         titleBox.value = name;
-        ['mainFields', 'sectionFields', 'titleRow', 'settingFields'].forEach((id) => {
-          const el = document.getElementById(id);
-          if (!el) return;
-          el.style.display = (id === 'mainFields') ? 'none' : '';
-        });
-        const tf = document.getElementById('titleRow');
-        if (tf) tf.style.display = '';
+        this.syncEditorFields('settings');
       }
     }
     const avatarFile = document.getElementById('avatarFile');
@@ -4431,15 +4690,7 @@ const card = (x) => {
         if (f) this.handleDocFile(f);
       };
     }
-    const catSelect = document.getElementById('articleCategory');
-    if (catSelect) {
-      catSelect.onchange = () => {
-        const isMain = catSelect.value === 'main';
-        document.getElementById('mainFields').style.display = isMain ? '' : 'none';
-        document.getElementById('titleRow').style.display = isMain ? 'none' : '';
-        if (this.docImport) { this.applyDocToForm(this.docImport); this.renderDocSummary(); this.updateParaHint(); }
-      };
-    }
+    // 分类切换由右栏的分段按钮驱动（见 initEditorChrome 里的 #catSeg）。
 
     const readingEl = document.querySelector('.reading');
     bindSwipe(readingEl);
@@ -4873,8 +5124,8 @@ const card = (x) => {
     if (form.category.value === 'main') {
       if (!form.chapter_no.value) {
         // 标题是序章/楔子/引子的，章号自动填 0；否则用文件名里解析到的章号
-        if (this.isPrologueTitle(m.chapter_title)) form.chapter_no.value = 0;
-        else if (m.chapter_no) form.chapter_no.value = m.chapter_no;
+        if (this.isPrologueTitle(m.chapter_title)) this.setChapterNo(form.chapter_no, 0, true);
+        else if (m.chapter_no) this.setChapterNo(form.chapter_no, m.chapter_no, true);
       }
       if (m.chapter_title && !form.chapter_title.value) form.chapter_title.value = m.chapter_title;
       if (m.section_no && !form.section_no.value) form.section_no.value = m.section_no;
@@ -4947,6 +5198,12 @@ const card = (x) => {
     const form = e.target;
     const id = form.dataset.id || null;
     const category = form.category.value;
+    if (category === 'main' && (!form.chapter_no.value || !form.section_no.value)) {
+      toast('先选好章、填上节号，再发布');
+      if (!form.chapter_no.value) form.chapter_no.focus();
+      else form.section_no.focus();
+      return;
+    }
     // 从文件导入、并且勾了「按节拆分」→ 走批量发布
     const splitBox = document.getElementById('docSplit');
     if (!id && category === 'main' && splitBox && splitBox.checked && this.docImport) {

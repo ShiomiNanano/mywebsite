@@ -824,6 +824,16 @@ html[data-wallpaper="on"] .resume-bar {
 }
 .reading-divider::before { background: linear-gradient(90deg, transparent, var(--gold-2)); }
 .reading-divider::after { background: linear-gradient(90deg, var(--gold-2), transparent); }
+/* 词条的别名（tags 里除类型以外的词）：KiriYu/Yuu、奥国大、AUREA… */
+.reading-alias {
+  margin-top: var(--sp-3); display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: center; gap: 6px;
+  font-size: var(--fs-xs); letter-spacing: .06em; color: var(--ink-3);
+}
+.reading-alias span {
+  padding: 1px 8px; border: 1px solid var(--line); border-radius: var(--r-full);
+  color: var(--ink-2); letter-spacing: .04em;
+}
 
 /* 阅读页右上角的浮动工具（2026-11-20 从正文标题下挪出来） */
 .read-tools-float {
@@ -1772,8 +1782,8 @@ html[data-wallpaper="on"] .menu-continue {
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-md); overflow: hidden;
 }
-/* 手机/桌面的底部导航是 fixed 的，会盖住最后一屏，给写作台留出空档 */
-#wsWork { margin-bottom: 72px; }
+/* 底部导航是 fixed 的，留白交给编辑页的 form 容器统一处理 */
+#wsWork { margin-bottom: 0; }
 .ws-main { display: flex; flex-direction: column; min-width: 0; }
 .ws-info {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px;
@@ -1881,19 +1891,10 @@ html[data-wallpaper="on"] .menu-continue {
 }
 .ws-hint-bar button.ghost { color: var(--ink-3); background: none; border-color: var(--line); }
 
-/* 宽屏时写作台比表单宽：表单是阅读宽度（约 620px），三栏挤在里头会把中栏压没。
-   用 margin-left 把它从表单里撑出去并居中，不改动表单自身宽度。 */
-@media (min-width: 1100px) {
-  #wsWork {
-    width: min(1180px, 96vw);
-    margin-left: calc(50% - min(590px, 48vw));
-  }
-}
 @media (min-width: 1000px) {
   .ws { grid-template-columns: minmax(0, 1fr) 384px; align-items: stretch; }
   .ws-pane { border-top: 0; border-left: 1px solid var(--line); }
   .ws-text { min-height: 52vh; }
-  .ws-bar { flex-wrap: wrap; overflow: visible; }
 }
 @media (min-width: 760px) and (max-width: 999px) {
   .ws-text { min-height: 50vh; }
@@ -4024,25 +4025,15 @@ html[data-cloth="on"] .game-page {
 .admin-empty-title { font-family: var(--font-serif); font-size: var(--fs-md); color: var(--ink-2); }
 .admin-empty-hint { margin: var(--sp-2) 0 var(--sp-4); font-size: var(--fs-sm); color: var(--ink-3); }
 
-/* 编辑器底部固定操作条：长表单不用再滚到底找「保存」 */
-.admin-form { padding-bottom: var(--sp-5); }
-.admin-savebar {
-  position: sticky; bottom: 0; z-index: 5;
-  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap;
-  margin: var(--sp-5) calc(var(--sp-5) * -1) calc(var(--sp-6) * -1);
-  padding: 10px var(--sp-5);
-  background: linear-gradient(180deg, rgba(19,33,44,.86), var(--surface));
-  border-top: 1px solid var(--line); backdrop-filter: blur(6px);
-}
-.admin-savebar-state { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
-.admin-savebar-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+/* 编辑器的操作按钮在页头（.admin-editor-head-side），这里只剩状态小字 */
+.admin-form { padding-bottom: var(--sp-3); }
+.admin-head-state { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
 
 @media (max-width: 760px) {
   .admin-shell { padding-left: var(--sp-3); padding-right: var(--sp-3); }
   .admin-bar-tail { margin-left: 0; width: 100%; justify-content: space-between; }
   .admin-row { grid-template-columns: 1.8rem minmax(0, 1fr); row-gap: 8px; padding: 12px; }
   .admin-row-actions { grid-column: 1 / -1; justify-content: flex-start; }
-  .admin-savebar { margin-left: calc(var(--sp-5) * -1); margin-right: calc(var(--sp-5) * -1); }
 }
 
 /* 后台：整页压暗罩，行与分组标题不再落在壁纸花上 */
@@ -4059,12 +4050,7 @@ html[data-cloth="on"] .game-page {
 .admin-page > * { position: relative; z-index: 1; }
 .admin-page .admin-shell { max-width: 1080px; margin: 0 auto; }
 
-/* 底部保存条要抬到底栏（58px + 安全区）之上，否则被 .bottom-nav 盖住 */
-.admin-savebar {
-  position: sticky;
-  bottom: calc(58px + var(--safe-bottom));
-  z-index: 61;
-}
+/* 保存条现在是右下角的胶囊（见「编辑页」一节），这里不再重复定位。 */
 
 .admin-active {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -4083,65 +4069,122 @@ html[data-cloth="on"] .game-page {
 .admin-title-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .admin-row-user { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .04em; }
 
-/* ================= 编辑页 2026-11-09：左边写、右边填，标题顶在上面 ================= */
-.admin-form-wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--sp-4) calc(84px + var(--safe-bottom)); }
+/* ================= 编辑页 2026-11-22：写作台占主栏，右栏三张卡 =================
+   主栏是写作台，右栏依次是「归属 / 标题 / 导入」；分类用分段按钮，
+   章从已有章节里选（新开一章留了口子），导入折叠在最后一张卡里。 */
+.admin-form-wrap { max-width: 1360px; margin: 0 auto; padding: 0 24px calc(96px + var(--safe-bottom)); }
+#adminForm { padding: 0; }
+.admin-form > .breadcrumb { max-width: none; margin: 0; padding: 0 0 10px; font-size: var(--fs-xs); }
 .admin-editor-head {
   display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-3);
   margin: var(--sp-3) 0 var(--sp-4);
 }
 .admin-editor-head h2 { font-family: var(--font-serif); font-size: var(--fs-xl); letter-spacing: .04em; color: var(--ink); }
 .admin-editor-head .admin-sub { margin-top: 4px; }
-.admin-editor-head-side { display: flex; align-items: center; gap: var(--sp-2); }
+.admin-editor-head-main { min-width: 0; }
+.admin-editor-head-side { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-bottom: 3px; }
+.admin-editor-head-side .btn { white-space: nowrap; }
 
 .admin-editor-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 332px;
-  gap: var(--sp-4);
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
   align-items: start;
 }
 .admin-editor-main { min-width: 0; }
 .admin-editor-side { align-self: start; display: flex; flex-direction: column; gap: var(--sp-3); }
+
+/* 右栏卡片 */
 .admin-side-card {
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--surface-2); padding: var(--sp-3);
 }
-.admin-side-title {
-  margin: 0 0 var(--sp-2); font-size: var(--fs-xs); letter-spacing: .18em;
-  color: var(--ink-3); text-transform: none;
-}
-.admin-editor-side .form-row { margin: 0 0 var(--sp-3); }
-.admin-editor-side .form-row:last-child { margin-bottom: 0; }
-.admin-editor-side .form-row.inline { flex-direction: column; gap: var(--sp-2); }
-.admin-editor-side .form-row.inline > div { width: 100%; }
-.admin-editor-side input, .admin-editor-side select { width: 100%; }
-.admin-editor-side .doc-import { flex-direction: column; align-items: flex-start; gap: 6px; }
-.admin-editor-side .doc-import-state { font-size: var(--fs-xs); line-height: 1.5; }
+.admin-side-title { margin: 0 0 var(--sp-2); font-size: var(--fs-xs); letter-spacing: .18em; color: var(--ink-3); }
+.asc-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.asc-head .admin-side-title { margin: 0; }
+.asc-note { font-size: 11px; color: var(--ink-3); letter-spacing: .04em; white-space: nowrap; }
+.asc-body { margin-top: var(--sp-3); }
 
-/* 主编辑区：占满高度，工具栏贴着正文 */
+/* 分类分段按钮 */
+.cat-seg {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px;
+  padding: 3px; background: var(--surface-3);
+  border: 1px solid var(--line); border-radius: var(--r-full);
+}
+.cat-seg-btn {
+  padding: 7px 4px; border: 0; border-radius: var(--r-full); background: none; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--fs-xs); letter-spacing: .04em;
+  color: var(--ink-3); white-space: nowrap; transition: var(--t);
+}
+.cat-seg-btn:hover { color: var(--ink); background: var(--surface); }
+.cat-seg-btn.is-on { color: var(--accent-ink); background: var(--gold); font-weight: 600; }
+
+/* 卡片里的字段 */
+.field-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field > label { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
+.field-hint { font-size: 11px; color: var(--ink-3); font-weight: 400; letter-spacing: 0; }
+.set-tags-hint { margin: 0; line-height: 1.5; }
+.field-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: 4px; font-size: 11px; color: var(--ink-3); }
+.field-lg > label { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .06em; }
+.admin-editor-side input.input-lg { font-size: var(--fs-md); padding: 11px 12px; }
+
+/* 节号步进器 */
+.stepper { display: flex; align-items: stretch; }
+.stepper input {
+  flex: 1 1 auto; width: auto; min-width: 0; text-align: center;
+  border-radius: 0; border-left: 0; border-right: 0;
+}
+.step-btn {
+  flex: 0 0 auto; width: 36px; cursor: pointer;
+  font-size: var(--fs-sm); color: var(--ink-2);
+  background: var(--surface-3); border: 1px solid var(--line);
+  transition: var(--t);
+}
+.step-btn:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.step-btn:last-child { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.step-btn:hover { color: var(--ink); background: var(--surface); border-color: var(--line-2); }
+
+/* 导入卡默认折起来 */
+.side-fold { padding: 0; }
+.side-fold > summary.asc-head { margin: 0; padding: var(--sp-3); cursor: pointer; list-style: none; }
+.side-fold > summary::-webkit-details-marker { display: none; }
+.side-fold > summary.asc-head::after { content: "▾"; font-size: 11px; color: var(--ink-3); transition: transform .18s; }
+.side-fold[open] > summary.asc-head::after { transform: rotate(180deg); }
+.side-fold > .form-row { margin: 0; padding: 0 var(--sp-3) var(--sp-3); }
+.side-fold[open] > .form-row { border-top: 1px solid var(--line); padding-top: var(--sp-3); }
+
+/* 主栏：正文至少半屏，工具栏只用一行 */
 .admin-editor-main .form-row { margin: 0; }
-.admin-editor-main .ws { min-height: 60vh; }
-.admin-editor-main .ws-text { min-height: 52vh; }
+.ws-field .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); margin-bottom: 6px; }
+.ws-field .field-head label { font-size: var(--fs-sm); color: var(--ink-2); letter-spacing: .04em; }
+.admin-editor-main .ws { min-height: 62vh; grid-template-columns: minmax(0, 1fr); }
+.admin-editor-main .ws-text { min-height: 56vh; }
+.admin-editor-main #wsWork { width: auto; margin-left: 0; margin-bottom: 0; }
+.admin-editor-main .ws-pane { border-left: 0; border-top: 1px solid var(--line); position: relative; }
+.admin-editor-main .ws-panel { max-height: 34vh; }
 
-@media (max-width: 980px) {
-  .admin-editor-shell { grid-template-columns: minmax(0, 1fr); }
-  .admin-editor-side { position: static; order: 2; }
-  .admin-editor-main { order: 1; }
-  .admin-editor-head { align-items: flex-start; }
+/* 「更多」抽屉：常驻按钮只占一行，其余按类收进浮层。
+   浮层是 position:fixed —— .ws 有 overflow:hidden，放里面会被裁掉。 */
+.ws-more {
+  position: fixed; z-index: 92;
+  max-height: min(62vh, 460px); overflow: auto;
+  padding: 12px 14px;
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-md);
+  box-shadow: 0 16px 40px rgba(4, 9, 13, .5);
 }
-
-/* 新的左右分栏里，写作台不再走老的全宽居中套路：
-   正文占满主栏，预览/检查/版本挪到正文下面 */
-.admin-editor-main #wsWork { width: auto; margin-left: 0; }
-.admin-editor-main .ws { grid-template-columns: minmax(0, 1fr); }
-.admin-editor-main .ws-pane { border-left: 0; border-top: 1px solid var(--line); }
-.admin-editor-main .ws-panel { max-height: 44vh; }
-.admin-editor-main .ws-text { min-height: 46vh; }
-.admin-editor-main .ws-pane { position: relative; }
+.ws-more[hidden] { display: none; }
+.ws-more-grp + .ws-more-grp { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ws-more-cap { margin: 0 0 6px; font-size: 10.5px; letter-spacing: .18em; color: var(--ink-3); }
+.ws-more-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.et-more { color: var(--gold); border-color: var(--line); }
+.et-more.is-on { color: var(--accent-ink); background: var(--gold); border-color: var(--gold); }
+.ws-grp-more { margin-left: auto; display: flex; align-items: center; }
 
 /* 拖拽把手：只在宽屏、预览回到右栏时出现 */
 .ws-grip { display: none; }
 @media (min-width: 1180px) {
-  .admin-editor-main .ws { grid-template-columns: minmax(0, 1fr) var(--ws-prev, 340px); }
+  .admin-editor-main .ws { grid-template-columns: minmax(0, 1fr) var(--ws-prev, 320px); }
   .admin-editor-main .ws-pane { border-top: 0; border-left: 1px solid var(--line); }
   .admin-editor-main .ws-panel { max-height: 52vh; }
   .admin-editor-main .ws-grip {
@@ -4153,40 +4196,33 @@ html[data-cloth="on"] .game-page {
   .admin-editor-main .ws-grip:hover { background: rgba(216,187,132,.38); }
 }
 
-/* 工具栏折叠：默认只留常用的一组，其余收在「更多」后面 */
-.ws-bar.is-compact [data-act="epi"],
-.ws-bar.is-compact [data-act="say"],
-.ws-bar.is-compact [data-act="letter"],
-.ws-bar.is-compact [data-act="doc"],
-.ws-bar.is-compact [data-act="memo"],
-.ws-bar.is-compact [data-act="whisper"],
-.ws-bar.is-compact [data-act="seal"],
-.ws-bar.is-compact [data-act="time"],
-.ws-bar.is-compact [data-act="beat"],
-.ws-bar.is-compact [data-act="center"],
-.ws-bar.is-compact [data-act="big"],
-.ws-bar.is-compact [data-act="small"],
-.ws-bar.is-compact [data-act="hw"],
-.ws-bar.is-compact [data-act="kai"],
-.ws-bar.is-compact [data-act="wiki-alias"],
-.ws-bar.is-compact [data-act="note"],
-.ws-bar.is-compact [data-act="spoiler"],
-.ws-bar.is-compact [data-act="c-r"],
-.ws-bar.is-compact [data-act="c-y"],
-.ws-bar.is-compact [data-act="c-b"],
-.ws-bar.is-compact [data-act="c-g"] { display: none; }
-.ws-bar.is-compact .ws-grp + .ws-grp { border-left: 0; padding-left: 0; margin-left: 0; }
-.et-more { color: var(--gold); border-color: var(--line); }
-@media (min-width: 981px) { .admin-editor-shell { grid-template-columns: minmax(0, 1fr) 306px; } }
-
-.admin-editor-head-main { min-width: 0; }
-
-/* 保存条按容器宽度收边：原来靠负外边距出血，在分栏容器里会多出 7px 横向滚动 */
-.admin-form-wrap .admin-savebar {
-  margin-left: 0; margin-right: 0;
-  border-radius: var(--r-md) var(--r-md) 0 0;
+/* 窄屏：卡片挪到正文下面 */
+@media (max-width: 900px) {
+  .admin-editor-shell { grid-template-columns: minmax(0, 1fr); }
+  .admin-editor-main { order: 1; }
+  .admin-editor-side { order: 2; }
+  .admin-editor-head { align-items: flex-start; }
+  .admin-editor-main .ws { min-height: 46vh; }
+  .admin-editor-main .ws-text { min-height: 42vh; height: 46vh; }
+  .admin-editor-main .ws-grp-more {
+    position: sticky; right: 0; margin-left: 0; padding-left: 10px;
+    background: linear-gradient(90deg, rgba(19, 33, 44, 0), var(--surface-2) 34%);
+  }
 }
-.ws-grp-more { margin-left: auto; display: flex; align-items: center; }
+
+@media (max-width: 600px) {
+  .admin-editor-head { flex-direction: column; align-items: stretch; gap: 10px; }
+  .admin-editor-head-side { justify-content: flex-start; }
+  .admin-editor-head h2 { font-size: var(--fs-lg); }
+}
+
+/* 分类 / 标题这些字段用 hidden 切换，别被别的 display 规则顶掉 */
+.admin-form [hidden] { display: none !important; }
+.admin-editor-side .form-row { margin: 0 0 var(--sp-3); }
+.admin-editor-side .form-row:last-child { margin-bottom: 0; }
+.admin-editor-side input, .admin-editor-side select { width: 100%; }
+.admin-editor-side .doc-import { flex-direction: column; align-items: flex-start; gap: 6px; }
+.admin-editor-side .doc-import-state { flex: 1; font-size: var(--fs-xs); line-height: 1.5; }
 
 /* ================= 阅读页 2026-11-09：进度浮标 / 目录抽屉 / 结尾下一节 ================= */
 
