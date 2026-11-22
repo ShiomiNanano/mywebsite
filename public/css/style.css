@@ -1415,10 +1415,36 @@ body::after {
     inset 0 0 70px rgba(0, 0, 0, .42),
     0 0 90px -30px var(--wp-glow, rgba(120, 180, 220, .3));
 }
+.landing .book-cover {
+  /* 封面换成暖色插画后，文字跟着走暖调；这几枚变量只在封面内部生效 */
+  --wp-ink: #fdf6e6;
+  --wp-ink-soft: rgba(253, 246, 230, .82);
+  --wp-accent: #e0ac56;      /* 顶部小字与烫金 logo 主色：中间调，配上面那枚暗牌才读得清 */
+  --wp-accent-2: #e6bd74;    /* logo 渐变亮端 */
+  --wp-accent-ink: #6b4a1e;  /* logo 渐变暗端 */
+  --wp-line: rgba(247, 217, 162, .55);
+  --wp-glow: rgba(240, 190, 120, .32);
+  --wp-glow-soft: rgba(255, 236, 205, .06);
+}
+/* 画面里有窗光，字压在亮处时靠一层柔和暗影托住（不影响画面本身） */
+.landing .cover-top,
+.landing .cover-sub,
+.landing .cover-title,
+.landing .cover-bottom,
+.landing .cover-line { text-shadow: 0 2px 14px rgba(22, 12, 5, .88), 0 1px 3px rgba(22, 12, 5, .7); }
+.landing .cover-top {
+  text-shadow: 0 1px 2px rgba(10, 5, 2, .9), 0 0 10px rgba(10, 5, 2, .55);
+  display: inline-block; align-self: center;
+  padding: 3px 12px; border-radius: 999px;
+  background: rgba(24, 12, 4, .34);
+  backdrop-filter: blur(2px);
+}
 .landing .cover-top,
 .landing .cover-sub { color: var(--wp-accent, #f0dfae); }
 .landing .cover-title { color: var(--wp-ink, #eef7fc); }
 .landing .cover-bottom { color: var(--wp-ink-soft, rgba(238, 247, 252, .8)); }
+/* 封面副句换手写体，和衬线书名拉开层次 */
+.landing .cover-bottom { font-family: 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体', var(--font-hand, serif); font-size: 16px; letter-spacing: .18em; text-indent: .18em; }
 .landing .cover-line { background: linear-gradient(90deg, transparent, var(--wp-line, rgba(208, 233, 248, .6)), transparent); }
 .landing .btn-cover {
   color: var(--wp-ink, #eef7fc);
@@ -1887,15 +1913,18 @@ html[data-wallpaper="on"] .menu-continue {
 .cover-logo {
   width: 76%;
   aspect-ratio: 659 / 553;                 /* 与蒙版一致，保证不变形 */
+  /* 2026-11-22：暖色插画上金色 logo 会糊，直接改成白色（保留一点冷暖过渡，仍是"烫"上去的质感） */
+  /* fixed-color: 白色烫印 logo，三档白灰就是它本身的颜色 */
   background: linear-gradient(168deg,
-    var(--wp-accent-2, #f0dfae) 0%,
-    var(--wp-accent, #d3b37e) 52%,
-    var(--wp-accent-ink, #8a6c3f) 100%);
+    #ffffff 0%,
+    #f7f3ea 46%,
+    #d9d2c4 100%);
   -webkit-mask: url('/media/logo-mask.png') center / contain no-repeat;
   mask: url('/media/logo-mask.png') center / contain no-repeat;
   filter:
-    drop-shadow(0 2px 3px rgba(0, 0, 0, .5))
-    drop-shadow(0 0 18px var(--wp-glow, rgba(120, 180, 220, .3)));
+    drop-shadow(0 2px 3px rgba(12, 6, 2, .72))
+    drop-shadow(0 0 12px rgba(18, 9, 3, .60))
+    drop-shadow(0 0 20px rgba(255, 236, 205, .18));
 }
 @media (max-width: 520px) { .cover-logo { width: 82%; } }
 
@@ -3710,29 +3739,30 @@ html[data-cloth="on"] .game-page {
 .landing .book-cover {
   overflow: hidden;                                  /* 光斑要裁在封面里 */
   border: 1px solid rgba(255, 255, 255, .07);
-  /* 布面下面压了一张生成出来的夜景插画（media/cover-night.webp，36KB）：
-     第 5 层是把暖夜压成整站深蓝绿的冷调蒙版，保证「白日梦」与烫金 logo 在图上依旧清楚；
-     第 7 层是图没加载出来时的兜底布面渐变。 */
+  /* 布面下面压了一张封面插画（media/cover-cat.webp，95KB，取自素材库「壁纸2.png」窗边猫那张）：
+     第 5 层是暖褐色蒙版（上轻下重），保证「白日梦」与烫金 logo 在图上依旧清楚，
+     又不至于把夕阳和窗景压死；第 7 层是图没加载出来时的兜底布面渐变。 */
   background-image:
     radial-gradient(118% 76% at 16% -14%, rgba(255, 246, 226, .14), rgba(255, 246, 226, 0) 56%),
-    linear-gradient(0deg, rgba(0, 0, 0, .40), rgba(0, 0, 0, 0) 46%),
+    linear-gradient(0deg, rgba(22, 11, 4, .38), rgba(22, 11, 4, 0) 46%),
     repeating-linear-gradient(90deg,
-      rgba(255, 255, 255, .026) 0 1px, rgba(0, 0, 0, .028) 1px 2px),
+      rgba(255, 246, 230, .030) 0 1px, rgba(60, 34, 12, .030) 1px 2px),
     repeating-linear-gradient(0deg,
-      rgba(255, 255, 255, .013) 0 1px, rgba(0, 0, 0, .016) 1px 3px),
+      rgba(255, 246, 230, .016) 0 1px, rgba(60, 34, 12, .018) 1px 3px),
     linear-gradient(182deg,
-      rgba(6, 18, 30, .26) 0%,
-      rgba(6, 18, 30, .04) 20%,
-      rgba(6, 18, 30, .14) 42%,
-      rgba(6, 18, 30, .30) 64%,
-      rgba(7, 19, 31, .88) 100%),
-    url('/media/cover-night.webp?v=2'),
+      rgba(30, 16, 6, .44) 0%,
+      rgba(32, 18, 7, .26) 13%,
+      rgba(36, 20, 8, .08) 30%,
+      rgba(38, 22, 10, .16) 52%,
+      rgba(34, 19, 8, .38) 70%,
+      rgba(24, 13, 6, .80) 100%),
+    url('/media/cover-cat.webp?v=1'),
     linear-gradient(158deg,
       var(--wp-cover-1, #24506f) 0%,
       var(--wp-cover-2, #12293f) 52%,
       var(--wp-deep, #0a1c2c) 100%);
   background-size: auto, auto, auto, auto, auto, cover, auto;
-  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, center 42%, 0 0;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, center 34%, 0 0;
   background-repeat: no-repeat, no-repeat, repeat, repeat, no-repeat, no-repeat, no-repeat;
   /* 封面压在纸叠上：右侧和下侧留一道贴近的暗影，厚度才立得住 */
   box-shadow:
@@ -3743,21 +3773,14 @@ html[data-cloth="on"] .game-page {
     0 0 90px -30px var(--wp-glow, rgba(120, 180, 220, .3));
   transform-origin: left center;
   backface-visibility: hidden;                       /* 转过 90° 就消失，不露出镜像的封底 */
-  transform:
-    perspective(1200px)
-    rotateX(var(--brx, 0deg))
-    rotateY(var(--bry, 0deg))
-    translateY(var(--by, 0px));
-  transition: transform .55s cubic-bezier(.22, .7, .28, 1),
+  /* 不再做 3D 倾斜：透视一转就有"卡片感"。只在 hover 时轻轻抬 2px + 加重点阴影 */
+  transform: translateY(var(--by, 0px));
+  transition: transform .45s cubic-bezier(.22, .7, .28, 1),
               box-shadow .5s var(--ease),
               opacity .7s var(--ease);
   will-change: transform;
 }
-/* 指针在书上时，transform 要跟手：短延时，别用 .55s 那种缓动 */
-.landing .cover-scene.tilting .book-cover,
-.landing .cover-scene.tilting .book-stack {
-  transition: transform .13s linear, box-shadow .4s var(--ease);
-}
+/* 3D 倾斜已取消（2026-11-22），这条跟着删 */
 /* 纸叠跟着封面一起歪：只歪封面的话，右上角会裂开一道缝 */
 .landing .book-stack {
   /* 老规则给纸叠定死了宽度（min(50vh,260px) 之类），窄屏上会比封面窄一截，
@@ -3769,22 +3792,18 @@ html[data-cloth="on"] .game-page {
   inset: 0;
   justify-self: stretch;
   align-self: stretch;
-  transform:
-    perspective(1200px)
-    rotateX(var(--brx, 0deg))
-    rotateY(var(--bry, 0deg))
-    translateY(var(--by, 0px));
-  transition: transform .55s cubic-bezier(.22, .7, .28, 1);
+  transform: translateY(var(--by, 0px));
+  transition: transform .45s cubic-bezier(.22, .7, .28, 1);
   will-change: transform;
 }
 .landing .book-cover:hover {
-  --by: -4px;
+  --by: -2px;
+  /* 不像卡片那样"浮起来"，改成"压得更实"：接触阴影加深、外发光收掉 */
   box-shadow:
-    0 40px 74px -22px rgba(0, 0, 0, .78),
-    14px 0 32px -14px rgba(0, 0, 0, .58),
-    4px 5px 14px -4px rgba(0, 0, 0, .6),
-    0 0 46px -8px var(--wp-glow, rgba(120, 180, 220, .34)),
-    inset 0 0 70px rgba(0, 0, 0, .42);
+    0 30px 52px -20px rgba(0, 0, 0, .88),
+    16px 2px 30px -16px rgba(0, 0, 0, .62),
+    2px 3px 8px -2px rgba(0, 0, 0, .72),
+    inset 0 0 78px rgba(0, 0, 0, .5);
 }
 
 /* ---------- 2. 书脊：凹槽 + 脊线高光 ---------- */
@@ -3801,17 +3820,10 @@ html[data-cloth="on"] .game-page {
     1px 0 0 rgba(255, 246, 226, .08);
 }
 
-/* ---------- 3. 光斑：跟着指针走的一块高光（纯 transform，不重绘） ---------- */
-.landing .book-cover::after {
-  content: ""; position: absolute; left: 0; top: 0;
-  width: 460px; height: 460px; z-index: 3; pointer-events: none;
-  background: radial-gradient(circle at 50% 50%,
-    rgba(255, 255, 255, .20), rgba(255, 255, 255, .06) 42%, rgba(255, 255, 255, 0) 66%);
-  transform: translate3d(calc(var(--bmx, 158px) - 230px), calc(var(--bmy, 96px) - 230px), 0);
-  opacity: .34;                                      /* 静止时也有一点"上方来光" */
-  transition: opacity .45s var(--ease);
-}
-.landing .book-cover:hover::after { opacity: .9; }
+/* ---------- 3. 指针高光：已随 3D 倾斜一起取消（2026-11-22）
+   原来这块 460×460 的白斑跟着指针走、hover 时提到 .9 不透明度，
+   现在没有指针跟随了，hover 一律把整本书洗白，所以整块删掉；
+   封面的"上方来光"由第 1 层的 radial-gradient 负责，够用。 */
 
 /* ---------- 4. 封面内框：烫印压边（金线 + 内阴影） ---------- */
 .landing .cover-inner {
@@ -3848,6 +3860,8 @@ html[data-cloth="on"] .game-page {
 .landing .cover-logo {
   background-size: 260% 260%;
   animation: coverFoil 12s ease-in-out infinite;
+  /* 插画换成亮窗景后，烫金线条压在窗光上会糊掉，垫一层柔和暗影 */
+  filter: drop-shadow(0 2px 10px rgba(20, 10, 4, .72)) drop-shadow(0 1px 2px rgba(20, 10, 4, .55));
 }
 @keyframes coverFoil {
   0%, 58%   { background-position: 12% 26%; }
@@ -3874,13 +3888,13 @@ html[data-cloth="on"] .game-page {
     inset 0 -1px 0 rgba(0, 0, 0, .10);
 }
 /* 书口再露得多一点：纸叠往外错开 2~13px，厚度才看得出来 */
-.landing .book-stack .bp:nth-child(1) { --tx: 2px;  --ty: 1px; --ry: -142deg; --pd: 30ms; }
-.landing .book-stack .bp:nth-child(2) { --tx: 4px;  --ty: 2px; --ry: -148deg; --pd: 80ms; }
-.landing .book-stack .bp:nth-child(3) { --tx: 6px;  --ty: 3px; --ry: -154deg; --pd: 130ms; }
-.landing .book-stack .bp:nth-child(4) { --tx: 8px;  --ty: 4px; --ry: -160deg; --pd: 180ms; }
-.landing .book-stack .bp:nth-child(5) { --tx: 10px; --ty: 5px; --ry: -166deg; --pd: 230ms; }
-.landing .book-stack .bp:nth-child(6) { --tx: 11px; --ty: 6px; --ry: -172deg; --pd: 280ms; }
-.landing .book-stack .bp:nth-child(7) { --tx: 13px; --ty: 7px; --ry: -178deg; --pd: 330ms; }
+.landing .book-stack .bp:nth-child(1) { --tx: 2px;  --ty: 1px; --ry: -104deg; --pd: 0ms; }
+.landing .book-stack .bp:nth-child(2) { --tx: 4px;  --ty: 2px; --ry: -104deg; --pd: 16ms; }
+.landing .book-stack .bp:nth-child(3) { --tx: 6px;  --ty: 3px; --ry: -104deg; --pd: 32ms; }
+.landing .book-stack .bp:nth-child(4) { --tx: 8px;  --ty: 4px; --ry: -104deg; --pd: 48ms; }
+.landing .book-stack .bp:nth-child(5) { --tx: 10px;  --ty: 5px; --ry: -104deg; --pd: 64ms; }
+.landing .book-stack .bp:nth-child(6) { --tx: 11px;  --ty: 6px; --ry: -104deg; --pd: 80ms; }
+.landing .book-stack .bp:nth-child(7) { --tx: 13px;  --ty: 7px; --ry: -104deg; --pd: 96ms; }
 
 /* ---------- 8. 翻开：光从书口里透出来 ---------- */
 .landing .cover-scene::before {
@@ -3892,25 +3906,35 @@ html[data-cloth="on"] .game-page {
 }
 .landing .cover-scene.opening::before { opacity: 1; transform: scale(1.06); }
 
-/* 封面绕书脊转开：转得够远、淡出留到后半程，才看得见"翻开"而不是"消失"。
-   选择器多一层 .cover-scene 是为了压过上面 .tilting 那条（它把 transition 改短了），
-   否则"点下去"那一下会用 0.13s 的跟手缓动飞出去。 */
+/* 点书之后不做 3D 翻页了（两片平面怎么转都会穿帮）：
+   书往下沉一点、缩一点、淡出，像被人从桌上拿起来；
+   同一时间书架从后面浮上来 —— 参照手机解锁那一套：整体 1.02→1，卡片依次上浮。 */
 .landing .cover-scene .book-cover.turning {
-  transform:
-    perspective(1200px)
-    rotateX(var(--brx, 0deg))
-    rotateY(calc(-104deg + var(--bry, 0deg)))
-    translateY(-6px);
+  transform: translateY(12px) scale(.965);
   opacity: 0;
-  transition: transform .82s cubic-bezier(.42, .04, .22, 1),
-              opacity .34s ease .48s;
+  transition: transform .5s cubic-bezier(.32, .06, .24, 1),
+              opacity .44s ease .04s;
 }
-/* 纸页跟着翻：飞到近乎摊平，同时淡出 —— 只转不淡会在眼前立成一堵白墙 */
-.landing .book-stack.turning .bp {
-  opacity: 0;
-  transition:
-    transform .66s cubic-bezier(.5, .05, .2, 1) var(--pd),
-    opacity .42s ease calc(var(--pd) + .16s);
+.landing .book-stack.turning { opacity: 0; transition: opacity .28s ease; }
+.landing .book-stack.turning .bp { opacity: 0; transition: none; }
+
+/* 书架浮起来：整页先微微放大到正常尺寸，再让每一块依次落位 */
+#app.app-enter > .page { animation: appIn .46s cubic-bezier(.2, .7, .2, 1) both; }
+#app.app-enter .menu-hero,
+#app.app-enter .menu-card,
+#app.app-enter .bottom-nav { animation: riseIn .52s cubic-bezier(.2, .7, .2, 1) both; }
+#app.app-enter .menu-hero { animation-delay: .10s; }
+#app.app-enter .menu-card:nth-child(1) { animation-delay: .16s; }
+#app.app-enter .menu-card:nth-child(2) { animation-delay: .23s; }
+#app.app-enter .menu-card:nth-child(3) { animation-delay: .30s; }
+#app.app-enter .bottom-nav { animation-delay: .32s; }
+@keyframes appIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to   { opacity: 1; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

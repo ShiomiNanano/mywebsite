@@ -974,6 +974,14 @@ const App = {
   },
   // 缓存先上屏后，后台换新；只在还停在书架、且没往下滚时重画，避免打断
   refreshMenuSoon() {
+    // 刚从封面进来的那一秒里不要重画：入场动画正在跑，
+    // 这时候整页重建会让人看到"浮起来之后又闪了一下"。
+    const appEl = document.getElementById('app');
+    if (appEl && appEl.classList.contains('app-enter')) {
+      clearTimeout(this._menuSoonT);
+      this._menuSoonT = setTimeout(() => this.refreshMenuSoon(), 600);
+      return;
+    }
     this.ensureMenu(true).then(() => {
       const h = location.hash || '';
       if ((h === '' || h === '#/' || h === '#/menu') && (window.scrollY || 0) < 160) this.route();
@@ -1011,7 +1019,7 @@ const App = {
           <div class="cover-inner">
             <div class="cover-top">汐凪島 · 绘空事</div>
             <div class="cover-logo" role="img" aria-label="Daydream Café：咖啡杯里打盹的猫"></div>
-            <h1 class="cover-title">白日梦</h1>
+            <h1 class="cover-title">绘空事</h1>
             <div class="cover-line"></div>
             <div class="cover-bottom">梦从此刻开始</div>
           </div>
@@ -4215,45 +4223,8 @@ const card = (x) => {
      每帧只写 4 个自定义属性（两个角度、两个光斑坐标），
      实际合成全部交给 CSS 的 transform —— 不碰布局，也不重绘背景。 */
   initCoverTilt() {
-    const book = document.getElementById('bookCover');
-    if (!book) return;
-    let fine = false;
-    try { fine = window.matchMedia('(pointer: fine)').matches; } catch (e) {}
-    if (!fine || this.reduceMotion()) return;
-
-    // 变量写在 .cover-scene 上：封面和它下面那叠纸都继承，才会一起歪
-    // （老浏览器 / 简化过的测试 DOM 里 closest 可能没有，兜底就用封面自己）
-    const holder = (typeof book.closest === 'function' && book.closest('.cover-scene')) || book;
-    const MAX = 6;                      // 最多歪 6°，再多就不像书、像纸片了
-    let raf = 0, lastX = 0, lastY = 0, armed = false;
-
-    const paint = () => {
-      raf = 0;
-      const r = book.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      const px = Math.min(1, Math.max(0, (lastX - r.left) / r.width));
-      const py = Math.min(1, Math.max(0, (lastY - r.top) / r.height));
-      holder.style.setProperty('--bry', ((px - .5) * MAX * 2).toFixed(2) + 'deg');
-      holder.style.setProperty('--brx', ((.5 - py) * MAX * 2).toFixed(2) + 'deg');
-      holder.style.setProperty('--bmx', Math.round(px * r.width) + 'px');
-      holder.style.setProperty('--bmy', Math.round(py * r.height) + 'px');
-    };
-    const onMove = (e) => {
-      lastX = e.clientX; lastY = e.clientY;
-      if (!armed) { armed = true; holder.classList.add('tilting'); }
-      if (raf) return;                  // rAF 节流：一次移动只算一帧
-      raf = requestAnimationFrame(paint);
-    };
-    book.addEventListener('pointerenter', onMove, { passive: true });
-    book.addEventListener('pointermove', onMove, { passive: true });
-    book.addEventListener('pointerleave', () => {
-      if (raf) { cancelAnimationFrame(raf); raf = 0; }
-      armed = false;
-      holder.classList.remove('tilting');  // 去掉这个类，回正就走 .55s 缓动
-      ['--brx', '--bry', '--bmx', '--bmy'].forEach((k) => {
-        try { holder.style.removeProperty(k); } catch (e) {}
-      });
-    });
+    /* 2026-11-22 取消：鼠标移到书上整本书会 3D 歪一下，读起来像"一张卡片"，
+       厚度感和光影已经够，这里不再挂任何指针监听（顺带省掉一份 per-move 回调）。 */
   },
 
   initTilt() {
@@ -4321,11 +4292,17 @@ const card = (x) => {
         book.classList.add('turning');
         if (stack) stack.classList.add('turning');
         if (scene) scene.classList.add('opening');             // 书口透出的那道光
+        // 书架从后面浮上来（手机解锁那一下）：加个类跑一次入场动画，跑完就摘掉
+        const appEl = document.getElementById('app');
+        if (appEl) {
+          appEl.classList.add('app-enter');
+          setTimeout(() => appEl.classList.remove('app-enter'), 1100);
+        }
         /* 等书页翻完再进书架。这个定时器【必须可取消】——
            以前它是不取消的：在封面上点一下书、随即去点「登录」，
            登录页刚要显示就被它强行改成 #/menu 顶掉了，
            未登录用户因此进不去注册/登录页（店长报的那个严重 bug）。 */
-        this._coverTimer = setTimeout(() => { this._coverTimer = null; location.hash = '#/menu'; }, 1050);
+        this._coverTimer = setTimeout(() => { this._coverTimer = null; location.hash = '#/menu'; }, 360);
       };
       book.onclick = openBook;
       book.onkeydown = (e) => {
@@ -4580,7 +4557,17 @@ const card = (x) => {
       const doc = document.documentElement;
       const max = doc.scrollHeight - window.innerHeight;
       const y = window.scrollY || 0;
-      const p = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+      // 位置记忆用「整页」的比例（留言也在一页里，恢复时才落得准）
+      const pDoc = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+      // 进度百分比用「本章」的比例：滚到「本节完 / 下一篇」那块露出来就算 100%，
+      // 不再等把下面的留言也翻完。
+      const endEl = reading.querySelector('.reading-end');
+      let p = pDoc;
+      if (endEl) {
+        const endAbs = endEl.getBoundingClientRect().top + y;
+        const denom = endAbs + 48 - window.innerHeight;
+        p = denom > 60 ? Math.min(1, Math.max(0, y / denom)) : 1;
+      }
       chrome.bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
       chrome.top.classList.toggle('on', y > 560);
 
@@ -4602,11 +4589,11 @@ const card = (x) => {
 
       // 位置记忆：离开再回来能落回原处（每篇单独存，最多留 200 篇）
       const now = Date.now();
-      if (articleId && p > 0.02 && now - lastSave > 400) {
+      if (articleId && pDoc > 0.02 && now - lastSave > 400) {
         lastSave = now;
         try {
           const all = JSON.parse(localStorage.getItem('daydream-pos') || '{}');
-          all[articleId] = { p: Number(p.toFixed(4)), ts: now };
+          all[articleId] = { p: Number(pDoc.toFixed(4)), ts: now };
           const keys = Object.keys(all);
           if (keys.length > 200) {
             keys.sort((a, b) => all[a].ts - all[b].ts).slice(0, keys.length - 200).forEach(k => delete all[k]);
