@@ -1587,6 +1587,7 @@ export async function onRequest(context) {
       name TEXT NOT NULL,
       url TEXT NOT NULL,
       sort INTEGER DEFAULT 0,
+      locked INTEGER NOT NULL DEFAULT 0,
       created_at TEXT
     )`).run();
     if (method === 'GET' && path === '/links') {
@@ -1625,6 +1626,98 @@ export async function onRequest(context) {
       if (!name) return json({ error: '请填写名字' }, 400);
       if (!/^https?:\/\//i.test(url2)) return json({ error: '网址要 http:// 或 https:// 开头' }, 400);
       await env.DB.prepare('UPDATE links SET name=?, url=?, sort=? WHERE id=?').bind(name, url2, sort, id).run();
+      return json({ ok: true });
+    }
+
+    /* ===== 角色卡（个人章的角色） =====
+       GET 公开；POST / PUT / DELETE 管理员。
+       slug 是文章 tags 里存的那个标识，用来把个人章挂到角色上。
+       编辑时不让改 slug —— 改了已挂的文章就全断了，要换就删了重建。 */
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS characters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      name TEXT NOT NULL,
+      intro TEXT,
+      initial TEXT,
+      accent TEXT,
+      edge TEXT,
+      cover TEXT,
+      texture TEXT,
+      font TEXT,
+      mark TEXT,
+      sort INTEGER DEFAULT 0,
+      locked INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT
+    )`).run();
+    /* 老表补列：D1 没有 IF NOT EXISTS 的 ALTER，重复执行会报错，吞掉就行。 */
+    for (const col of ['locked INTEGER NOT NULL DEFAULT 0', 'edge TEXT', 'cover TEXT', 'texture TEXT']) {
+      try { await env.DB.prepare('ALTER TABLE characters ADD COLUMN ' + col).run(); } catch (e) { /* 已经有了 */ }
+    }
+    if (method === 'GET' && path === '/characters') {
+      const rows = await env.DB.prepare(
+        'SELECT id, slug, name, intro, initial, accent, edge, cover, texture, font, mark, sort, locked, created_at FROM characters ORDER BY sort, id'
+      ).all();
+      return jsonPublic(rows.results || [], 30);
+    }
+    if (method === 'POST' && path === '/characters') {
+      const e = needAdmin(); if (e) return e;
+      const body = await readBody(request);
+      const name = String(body.name || '').trim().slice(0, 40);
+      if (!name) return json({ error: '先给角色起个名字' }, 400);
+      let slug = String(body.slug || '').trim().slice(0, 60) || name.toLowerCase().replace(/\s+/g, '-');
+      slug = slug.replace(/[^\w\-\u4e00-\u9fff]/g, '') || 'c' + Date.now().toString(36);
+      const dup = await env.DB.prepare('SELECT id FROM characters WHERE slug=?').bind(slug).first();
+      if (dup) slug = slug + '-' + Date.now().toString(36).slice(-4);
+      const top = await env.DB.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM characters').first();
+      const sort = body.sort != null ? (parseInt(body.sort, 10) || 0) : (Number(top && top.s) || 0) + 10;
+      const r = await env.DB.prepare(
+        'INSERT INTO characters (slug, name, intro, initial, accent, edge, cover, texture, font, mark, sort, locked, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+      ).bind(
+        slug, name,
+        String(body.intro || '').slice(0, 400),
+        String(body.initial || '').slice(0, 4),
+        String(body.accent || '').slice(0, 20),
+        String(body.edge || '').slice(0, 20),
+        String(body.cover || '').slice(0, 400000),
+        String(body.texture || '').slice(0, 20),
+        String(body.font || '').slice(0, 20),
+        String(body.mark || '').slice(0, 8),
+        sort,
+        body.locked ? 1 : 0,
+        nowStr()
+      ).run();
+      return json({ id: r.meta.last_row_id, slug: slug }, 201);
+    }
+    let kc = path.match(/^\/characters\/(\d+)$/);
+    if (kc && method === 'DELETE') {
+      const e = needAdmin(); if (e) return e;
+      await env.DB.prepare('DELETE FROM characters WHERE id=?').bind(Number(kc[1])).run();
+      return json({ ok: true });
+    }
+    if (kc && method === 'PUT') {
+      const e = needAdmin(); if (e) return e;
+      const id = Number(kc[1]);
+      const row = await env.DB.prepare('SELECT * FROM characters WHERE id=?').bind(id).first();
+      if (!row) return json({ error: '这张角色卡不在了' }, 404);
+      const body = await readBody(request);
+      const pick = (k, cur, max) => (body[k] != null ? String(body[k]).slice(0, max) : cur);
+      const name = (body.name != null ? String(body.name).trim().slice(0, 40) : row.name) || row.name;
+      await env.DB.prepare(
+        'UPDATE characters SET name=?, intro=?, initial=?, accent=?, edge=?, cover=?, texture=?, font=?, mark=?, sort=?, locked=? WHERE id=?'
+      ).bind(
+        name,
+        pick('intro', row.intro || '', 400),
+        pick('initial', row.initial || '', 4),
+        pick('accent', row.accent || '', 20),
+        pick('edge', row.edge || '', 20),
+        pick('cover', row.cover || '', 400000),
+        pick('texture', row.texture || '', 20),
+        pick('font', row.font || '', 20),
+        pick('mark', row.mark || '', 8),
+        body.sort != null ? (parseInt(body.sort, 10) || 0) : row.sort,
+        body.locked != null ? (body.locked ? 1 : 0) : (Number(row.locked) ? 1 : 0),
+        id
+      ).run();
       return json({ ok: true });
     }
 

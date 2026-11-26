@@ -591,7 +591,7 @@ select { appearance: none; background-image: none; cursor: pointer; }
   display: flex; align-items: center; gap: var(--sp-3);
   padding: 9px 14px;
   background: linear-gradient(180deg, var(--surface) 0%, var(--surface-2) 100%);
-  border: 1px solid var(--line); border-radius: var(--r-md);
+  border: 1px solid var(--char-edge, var(--line)); border-radius: var(--r-md);
   color: var(--ink); font-size: var(--fs-sm);
   box-shadow: inset 0 1px 0 var(--surface-highlight), 0 10px 26px -22px rgba(var(--shadow),.55);
   transition: var(--t);
@@ -5053,4 +5053,250 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
   .mb-panel { right: 12px; left: 12px; width: auto; bottom: calc(78px + var(--safe-bottom, 0px)); }
   .mf-row { grid-template-columns: minmax(0, 1fr); }
   .music-row { flex-wrap: wrap; }
+}
+
+/* ======================= 角色卡（个人章 · 2026-11-27） =======================
+   竖卡横排：一行能放几张就放几张，窄屏掉到下一行。
+   名字的字体 / 主色由后台「角色卡」里选，写在 --char-accent 上。 */
+.char-list-page .char-deck { max-width: 68rem; margin: var(--sp-6) auto 0; padding: 0 var(--sp-4); }
+.char-track {
+  display: flex; gap: var(--sp-4); align-items: stretch;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scroll-behavior: smooth;
+  padding: 2px 0 6px; scrollbar-width: none; -ms-overflow-style: none;
+}
+.char-track::-webkit-scrollbar { display: none; }
+.char-track > .char-card {
+  flex: 0 0 calc((100% - 3 * var(--sp-4)) / 4); min-width: 0;
+  scroll-snap-align: start;
+}
+@media (max-width: 900px) {
+  .char-track > .char-card { flex: 0 0 calc((100% - 2 * var(--sp-4)) / 3); }
+}
+@media (max-width: 640px) {
+  .char-track > .char-card { flex: 0 0 calc((100% - var(--sp-4)) / 2); }
+}
+.char-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: var(--sp-3); }
+.char-page-btn {
+  width: 30px; height: 30px; padding: 0; cursor: pointer;
+  display: grid; place-items: center; font-size: 18px; line-height: 1;
+  color: var(--ink-2); background: var(--surface-2);
+  border: 1px solid var(--line-2); border-radius: 50%;
+  transition: color .25s var(--ease), border-color .25s var(--ease), opacity .25s var(--ease);
+}
+.char-page-btn:hover:not(:disabled) { color: var(--ink); border-color: var(--gold-2); }
+.char-page-btn:disabled { opacity: .3; cursor: default; }
+.char-dots { display: flex; align-items: center; gap: 6px; }
+.char-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--line-2); transition: background .25s var(--ease), transform .25s var(--ease);
+}
+.char-dot.is-on { background: var(--gold-2); transform: scale(1.25); }
+.char-card {
+  position: relative; display: flex; flex-direction: column;
+  min-height: 224px; padding: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--ink-2); text-decoration: none;
+  transition: transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.char-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: var(--char-accent, var(--gold-2)); opacity: .7;
+  transition: opacity .3s var(--ease);
+}
+.char-card:not(.is-locked):hover {
+  transform: translateY(-3px); border-color: var(--char-accent, var(--line-2));
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .9);
+}
+.char-card:not(.is-locked):hover::before { opacity: 1; }
+.char-plate {
+  position: relative; flex: none; height: 126px; display: grid; place-items: center;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(120% 100% at 50% 118%, rgba(0, 0, 0, .42), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .045), transparent 88%);
+}
+.char-glyph {
+  width: 62px; height: 62px; display: grid; place-items: center;
+  border-radius: 50%; font-size: 26px; line-height: 1;
+  color: var(--char-accent, var(--gold)); background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, .16);
+}
+/* 底纹：一整张卡上盖一层很淡的纹理，文字照常压在上面 */
+.char-card { isolation: isolate; }
+.char-card[class*="char-tex-"]::after {
+  content: ""; position: absolute; inset: 0; z-index: 3;
+  pointer-events: none; border-radius: inherit;
+}
+.char-tex-grain::after {
+  background-image: radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+.char-tex-lines::after {
+  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 7px);
+}
+.char-tex-vignette::after {
+  background-image: radial-gradient(130% 95% at 50% 0%, transparent 42%, rgba(0, 0, 0, .5) 100%);
+}
+.char-tex-glass::after {
+  background-image: linear-gradient(155deg, rgba(255, 255, 255, .12) 0%, rgba(255, 255, 255, .03) 32%, transparent 55%, rgba(0, 0, 0, .18) 100%);
+}
+.char-plate.has-cover { background: none; }
+.char-cover {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+.char-plate.has-cover::after {
+  content: ""; position: absolute; inset: auto 0 0 0; height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .45));
+  pointer-events: none;
+}
+.char-hero-glyph.has-cover { overflow: hidden; padding: 0; }
+.char-hero-glyph.has-cover img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+.char-plate-mark {
+  position: absolute; top: 9px; right: 12px; font-size: 13px; line-height: 1;
+  color: var(--char-accent, var(--gold)); opacity: .8;
+}
+.char-lock { position: absolute; right: 10px; bottom: 9px; font-size: 13px; line-height: 1; opacity: .75; }
+.char-body { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 13px 15px 15px; min-width: 0; }
+.char-name {
+  display: block; font-size: 22px; line-height: 1.25; letter-spacing: .04em; color: var(--char-name, var(--ink));
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.char-desc {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: var(--fs-xs); line-height: 1.7; color: var(--ink-3); min-height: 3.4em;
+}
+.char-foot {
+  margin-top: auto; padding-top: 9px; border-top: 1px dashed var(--line);
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+}
+.char-count { flex: none; font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ink-3); }
+.char-count b { font-size: 15px; color: var(--char-accent, var(--ink-2)); margin-right: 2px; }
+.char-latest {
+  min-width: 0; font-style: normal; font-size: var(--fs-xs); color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.char-latest::before { content: "最近 · "; opacity: .7; }
+.char-card.is-locked { cursor: default; border-style: dashed; }
+.char-card.is-locked .char-plate { filter: saturate(.75) brightness(.94); }
+.char-card.is-locked::before { opacity: .35; }
+.char-card.is-locked .char-name { opacity: .9; }
+
+/* 后台：九色板（赤橙黄绿青蓝紫 + 黑 + 白） */
+.char-swatches { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 0 2px; }
+.char-swatch {
+  width: 26px; height: 26px; padding: 0; cursor: pointer;
+  border-radius: 50%; border: 2px solid transparent;
+  background: var(--sw, var(--line));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35);
+  transition: transform .2s var(--ease), border-color .2s var(--ease);
+}
+.char-swatch:hover { transform: scale(1.08); }
+.char-swatch.is-on { border-color: var(--ink); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 0 0 2px rgba(0, 0, 0, .25); }
+.char-swatch.is-none { background: repeating-linear-gradient(45deg, var(--surface-3) 0 5px, var(--surface-2) 5px 10px); }
+.char-cover-edit { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; }
+.char-cover-prev {
+  width: 84px; height: 52px; flex: none; display: grid; place-items: center;
+  border: 1px dashed var(--line-2); border-radius: var(--r-sm); overflow: hidden;
+  background: var(--surface-2); color: var(--ink-3); font-size: var(--fs-xs);
+}
+.char-cover-prev img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.char-cover-prev em { font-style: normal; letter-spacing: .06em; }
+
+/* 未归档：没挂角色的旧个人章 */
+.char-stray { max-width: 68rem; margin: var(--sp-6) auto 0; padding: 0 var(--sp-4); text-align: center; }
+.char-stray h3 {
+  font-size: var(--fs-sm); font-weight: 500; letter-spacing: .12em;
+  color: var(--ink-3); margin: 0 0 var(--sp-2);
+}
+.char-stray h3 span { color: var(--ink-2); margin-left: .4em; }
+.char-stray-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.char-stray-list a {
+  padding: 6px 12px; border: 1px dashed var(--line-2); border-radius: var(--r-full);
+  font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none;
+  transition: color .25s var(--ease), border-color .25s var(--ease);
+}
+.char-stray-list a:hover { color: var(--ink); border-color: var(--gold-2); }
+
+/* 角色页 */
+.char-page .char-hero {
+  max-width: 50rem; margin: 0 auto; padding: var(--sp-6) var(--sp-4) var(--sp-4);
+  display: flex; align-items: center; gap: var(--sp-5);
+}
+.char-hero-glyph {
+  width: 84px; height: 84px; flex: none; display: grid; place-items: center;
+  border-radius: 50%; font-size: 36px; line-height: 1;
+  color: var(--char-accent, var(--gold)); background: var(--surface-2);
+  border: 1px solid var(--line-2); box-shadow: inset 0 0 0 5px rgba(0, 0, 0, .16);
+}
+.char-hero-body { min-width: 0; }
+.char-hero h1 { margin: 0 0 6px; font-size: clamp(26px, 4vw, 34px); letter-spacing: .05em; color: var(--ink); }
+.char-hero p { margin: 0 0 6px; color: var(--ink-2); font-size: var(--fs-sm); line-height: 1.8; }
+.char-hero-count { font-size: var(--fs-xs); letter-spacing: .1em; color: var(--ink-3); }
+.char-mark { font-style: normal; font-size: .62em; margin-left: .4em; color: var(--char-accent, var(--gold)); vertical-align: .18em; }
+
+.char-chapters {
+  max-width: 50rem; margin: 0 auto; padding: 0 var(--sp-4) var(--sp-8);
+  display: grid; gap: var(--sp-3);
+}
+.char-chapter {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--surface-2); color: inherit; text-decoration: none;
+  transition: border-color .25s var(--ease), transform .25s var(--ease);
+}
+.char-chapter:hover { border-color: var(--char-accent, var(--line-2)); transform: translateX(2px); }
+.char-chapter-no { font-size: var(--fs-xs); letter-spacing: .08em; color: var(--char-accent, var(--ink-3)); }
+.char-chapter-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.char-chapter-body b { font-weight: 500; font-size: var(--fs-base); color: var(--ink); }
+.char-chapter-body em { font-style: normal; font-size: var(--fs-xs); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.char-chapter-meta { font-size: var(--fs-xs); color: var(--ink-3); }
+
+/* 后台：角色卡 */
+.char-form {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-5); margin: 0 0 var(--sp-5);
+}
+.char-form-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: var(--sp-4); }
+.char-form-head h3 { margin: 0; font-size: var(--fs-lg); font-weight: 500; color: var(--ink); }
+.char-form-tip { font-size: var(--fs-xs); color: var(--ink-3); }
+.char-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-3); }
+.char-form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-xs); letter-spacing: .06em; color: var(--ink-3); }
+.char-form-grid input, .char-form-grid select, .char-form-grid textarea {
+  width: 100%; padding: 9px 11px; font: inherit; font-size: var(--fs-sm); color: var(--ink);
+  background: var(--surface-3); border: 1px solid var(--line-2); border-radius: var(--r-xs);
+}
+.char-form-grid input[type="color"] { height: 38px; padding: 3px; cursor: pointer; }
+.char-form-grid input:focus, .char-form-grid select:focus, .char-form-grid textarea:focus { outline: none; border-color: var(--gold-2); }
+.char-form-wide { grid-column: 1 / -1; }
+.char-check { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.char-check input { width: auto !important; }
+.char-check span { color: var(--ink-3); opacity: .8; }
+.char-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: var(--sp-4); }
+.char-form-hint { font-size: var(--fs-xs); color: var(--ink-3); }
+.char-rows { list-style: none; margin: 0 0 calc(80px + var(--safe-bottom)); padding: 0; display: grid; gap: 8px; }
+.char-row {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3);
+  padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface-2);
+}
+.char-row-glyph {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%;
+  font-size: 18px; color: var(--char-accent, var(--gold)); background: var(--surface-3);
+  border: 1px solid var(--line-2);
+}
+.char-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.char-row-main b { font-size: var(--fs-base); font-weight: 500; color: var(--ink); }
+.char-row-main em { font-style: normal; font-size: var(--fs-xs); color: var(--ink-3); }
+.char-row-actions { display: flex; gap: 6px; }
+
+@media (max-width: 640px) {
+  .char-list-page .char-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+  .char-card { min-height: 236px; }
+  .char-plate { height: 104px; }
+  .char-glyph { width: 52px; height: 52px; font-size: 22px; }
+  .char-name { font-size: 18px; }
+  .char-body { padding: 11px 12px 13px; }
+  .char-latest { display: none; }
 }

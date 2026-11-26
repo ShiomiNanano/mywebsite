@@ -672,7 +672,7 @@ const App = {
       else if (parts[0] === 'menu') view = await this.renderMenu();
       else if (parts[0] === 'main') view = parts.length >= 2
         ? await this.renderChapter(parts[1]) : await this.renderMainList();
-      else if (parts[0] === 'personal') view = await this.renderPersonal();
+      else if (parts[0] === 'personal') view = await this.renderPersonal(parts[1] || '');
     else if (parts[0] === 'board') view = await this.renderBoard();
     else if (parts[0] === 'wiki') view = await this.renderWiki(decodeURIComponent(parts[1] || ''));
     else if (parts[0] === 'games') view = parts[1] === 'memory' ? await this.renderMemory() : (parts[1] === 'number' ? await this.renderNumber() : await this.renderGames());
@@ -688,6 +688,7 @@ const App = {
         else if (sub === 'users') view = await this.renderAdminUsers();
         else if (sub === 'music') view = await this.renderAdminMusic();
       else if (sub === 'links') view = await this.renderAdminLinks();
+        else if (sub === 'characters') view = await this.renderAdminCharacters();
         else view = await this.renderAdminArticles();
       }
       else view = this.renderLanding();
@@ -1909,28 +1910,415 @@ const App = {
       </article>`).join('');
   },
 
-  async renderPersonal() {
+  /* ---------- 6.5 个人章：角色卡 ----------
+     一篇个人章属于哪个角色，记在 articles.tags 的第一段（存角色卡的 slug）。
+     列表页一张卡一个角色，点进去才是这个角色的所有篇目。 */
+  async loadCharacters() {
+    try {
+      const rows = await API.get('/api/characters');
+      this._characters = Array.isArray(rows) ? rows : [];
+    } catch (e) { this._characters = this._characters || []; }
+    return this._characters;
+  },
+
+  charOf(a) {
+    return String((a && a.tags) || '').split(',')[0].trim();
+  },
+
+  /* 卡面颜色只给九种：彩虹七色 + 黑 + 白。
+     存的是色值，老数据里已有的自定义色也照样认（正则兜底）。 */
+  charPalette() {
+    return [
+      { key: '赤', hex: '#d8574f' }, { key: '橙', hex: '#dd8f3d' },
+      { key: '黄', hex: '#d4b64c' }, { key: '绿', hex: '#5aa867' },
+      { key: '青', hex: '#47a9a0' }, { key: '蓝', hex: '#5586d1' },
+      { key: '紫', hex: '#9380cd' }, { key: '黑', hex: '#14181c' },
+      { key: '白', hex: '#eef2f5' },
+    ];
+  },
+  charColor(v, dft) {
+    const raw = String(v || '').trim().toLowerCase();
+    const hit = this.charPalette().find((x) => x.hex === raw);
+    if (hit) return hit.hex;
+    return /^#[0-9a-f]{6}$/.test(raw) ? raw : dft;
+  },
+  charStyle(c) {
+    const accent = this.charColor(c && c.accent, '#d9c39a');
+    const edge = this.charColor(c && c.edge, '');
+    const font = ({ song: 'char-f-song', kai: 'char-f-kai', hw: 'char-f-hw', round: 'char-f-round' })[(c && c.font) || ''] || 'char-f-song';
+    // 主色选到「黑」时，名字得换成亮色，不然字就看不见了
+    const nameColor = accent === '#14181c' ? '#e6edf2' : accent;
+    return { accent: accent, edge: edge, font: font, nameColor: nameColor };
+  },
+
+  charCardHtml(c, items) {
+    const st = this.charStyle(c);
+    const glyph = c.initial || String(c.name || '?').slice(0, 1);
+    const locked = !!Number(c.locked);
+    /* 上半部分：有上传的卡面图就用图，没有就退回「首字纹章」。
+       锁定只在角落留一个小小的锁，卡面上的字和描述照常显示。 */
+    const cover = String((c && c.cover) || '').trim();
+    const hasCover = /^(data:image\/|https?:\/\/|\/)/.test(cover);
+    const inner = `
+        <span class="char-plate${hasCover ? ' has-cover' : ''}">
+          ${hasCover
+            ? `<img class="char-cover" src="${esc(cover)}" alt="" loading="lazy" decoding="async">`
+            : `<span class="char-glyph ${st.font}">${esc(glyph)}</span>`}
+          <span class="char-plate-mark">${esc(c.mark || '')}</span>
+          ${locked ? '<span class="char-lock" aria-hidden="true">🔒</span>' : ''}
+        </span>
+        <span class="char-body">
+          <span class="char-name ${st.font}">${esc(c.name)}</span>
+          <span class="char-desc">${c.intro ? esc(c.intro) : '这个角色的故事还没有开始。'}</span>
+        </span>`;
+    const tex = /^(grain|lines|vignette|glass)$/.test(String(c.texture || '')) ? ' char-tex-' + String(c.texture) : '';
+    const style = `style="--char-accent:${esc(st.accent)};--char-name:${esc(st.nameColor)}${st.edge ? ';--char-edge:' + esc(st.edge) : ''}"`;
+    return locked
+      ? `<span class="char-card is-locked${tex}" ${style} aria-disabled="true">${inner}</span>`
+      : `<a class="char-card${tex}" href="#/personal/${encodeURIComponent(c.slug)}" ${style}>${inner}</a>`;
+  },
+
+  async renderPersonal(slug) {
     const m = await this.ensureMenu();
+    const chars = await this.loadCharacters();
+    const items = (m && m.personal) || [];
+    const key = decodeURIComponent(slug || '');
+    const byChar = {};
+    items.forEach((a) => { const k = this.charOf(a); (byChar[k] = byChar[k] || []).push(a); });
+
+    /* ---- 角色页：这个人的所有个人篇 ---- */
+    if (key) {
+      const c = chars.find((x) => x.slug === key);
+      if (!c) {
+        this.pageTitle = '个人章 · 白日梦咖啡馆';
+        return `<div class="page">${this.topbar()}<div class="breadcrumb"><a href="#/menu">书架</a> / <a href="#/personal">个人章</a></div><div class="notfound">这张角色卡不在了。</div></div>`;
+      }
+      const own = byChar[key] || [];
+      const st = this.charStyle(c);
+      this.pageTitle = c.name + ' · 个人章';
+      if (Number(c.locked)) {
+        /* 锁定只是「现在不给看篇目」，卡面上的介绍照常放出来。 */
+        return `
+      <div class="page char-page is-locked" style="--char-accent:${esc(st.accent)};--char-name:${esc(st.nameColor)}${st.edge ? ';--char-edge:' + esc(st.edge) : ''}">
+        ${this.topbar()}
+        <div class="breadcrumb"><a href="#/menu">书架</a> / <a href="#/personal">个人章</a> / ${esc(c.name)}</div>
+        <header class="char-hero">
+          ${/^(data:image\/|https?:\/\/|\/)/.test(String(c.cover || '').trim())
+            ? `<span class="char-hero-glyph has-cover"><img src="${esc(c.cover)}" alt=""></span>`
+            : `<span class="char-hero-glyph ${st.font}">${esc(c.initial || String(c.name || '').slice(0, 1))}</span>`}
+          <div class="char-hero-body">
+            <h1 class="${st.font}">${esc(c.name)}${c.mark ? `<i class="char-mark">${esc(c.mark)}</i>` : ''}</h1>
+            ${c.intro ? `<p>${esc(c.intro)}</p>` : ''}
+          </div>
+        </header>
+        <div class="char-chapters"><p class="empty-hint">这里还空着。</p></div>
+      </div>`;
+      }
+      return `
+      <div class="page char-page" style="--char-accent:${esc(st.accent)};--char-name:${esc(st.nameColor)}${st.edge ? ';--char-edge:' + esc(st.edge) : ''}">
+        ${this.topbar()}
+        <div class="breadcrumb"><a href="#/menu">书架</a> / <a href="#/personal">个人章</a> / ${esc(c.name)}</div>
+        <header class="char-hero">
+          ${/^(data:image\/|https?:\/\/|\/)/.test(String(c.cover || '').trim())
+            ? `<span class="char-hero-glyph has-cover"><img src="${esc(c.cover)}" alt=""></span>`
+            : `<span class="char-hero-glyph ${st.font}">${esc(c.initial || String(c.name || '').slice(0, 1))}</span>`}
+          <div class="char-hero-body">
+            <h1 class="${st.font}">${esc(c.name)}${c.mark ? `<i class="char-mark">${esc(c.mark)}</i>` : ''}</h1>
+            ${c.intro ? `<p>${esc(c.intro)}</p>` : ''}
+            <span class="char-hero-count">${own.length} 篇 · 个人章</span>
+          </div>
+        </header>
+        <div class="char-chapters">
+          ${own.length ? own.map((a, n) => `
+            <a class="char-chapter" href="#/read/${a.id}">
+              <span class="char-chapter-no">${String(n + 1).padStart(2, '0')}</span>
+              <span class="char-chapter-body">
+                <b>${esc(a.title)}</b>
+                <em>${esc(a.excerpt || '')}</em>
+              </span>
+              <span class="char-chapter-meta">${a.chars ? this.plainLenWord(a.chars) : ''}</span>
+            </a>`).join('') : '<p class="empty-hint">这个角色的个人篇还在路上。</p>'}
+        </div>
+      </div>`;
+    }
+
+    /* ---- 列表页：一人一张横卡 ---- */
+    const cards = chars.slice().sort((x, y) => (Number(x.sort) || 0) - (Number(y.sort) || 0) || x.id - y.id);
+    const stray = byChar[''] || [];
     this.pageTitle = '个人章 · 白日梦咖啡馆';
     return `
-    <div class="page">
+    <div class="page char-list-page">
       ${this.topbar()}
       <div class="breadcrumb"><a href="#/menu">书架</a> / 个人章</div>
       <div class="page-head">
         <span class="eyebrow">読み切り</span>
         <h1>个人章</h1>
-        <p>每一篇，都是一段被妥善安放的心事。</p>
+        <p>梦是灵魂的私语，有人酣睡，亦有人无眠</p>
       </div>
-      <div class="article-grid grid-personal">
-        ${m.personal.length ? m.personal.map(a => `
-          <a class="article-card" href="#/read/${a.id}">
-            <div class="card-ico">✉</div>
-            <h3>${esc(a.title)}</h3>
-            <p>${esc(this.excerpt(a))}</p>
-            
-          </a>`).join('') : '<p class="empty-hint">个人章还没有内容。</p>'}
+      <div class="char-deck">
+        <div class="char-track" id="charTrack">
+          ${cards.map((c) => this.charCardHtml(c, byChar[c.slug] || [])).join('')}
+        </div>
+        ${cards.length > 4 ? `
+        <div class="char-pager" id="charPager">
+          <button type="button" class="char-page-btn" data-dir="-1" aria-label="上一页">‹</button>
+          <span class="char-dots" id="charDots"></span>
+          <button type="button" class="char-page-btn" data-dir="1" aria-label="下一页">›</button>
+        </div>` : ''}
+        ${cards.length ? '' : '<p class="empty-hint">还没有角色卡。到管理后台「角色卡」里建第一张。</p>'}
+      </div>
+      ${stray.length ? `
+      <div class="char-stray">
+        <h3>未归档 <span>${stray.length}</span></h3>
+        <div class="char-stray-list">
+          ${stray.map((a) => `<a href="#/read/${a.id}">${esc(a.title)}</a>`).join('')}
+        </div>
+      </div>` : ''}
+    </div>`;
+  },
+
+  // 字数那行的说法（和阅读页一致：约 1.2k 字）
+  plainLenWord(n) {
+    const v = Number(n) || 0;
+    if (v < 1000) return v + ' 字';
+    return '约 ' + (Math.round(v / 100) / 10) + 'k 字';
+  },
+
+  /* ---------- 6.6 后台：角色卡 ---------- */
+  /* 角色卡翻页：一行四张，放不下就左右翻（手机上直接横滑）。
+     数的是「一屏能站几张」，所以窗口变宽变窄时会重新算，滚到哪就更新圆点。 */
+  bindCharDeck() {
+    const track = document.getElementById('charTrack');
+    if (!track || track.dataset.bound) return;
+    track.dataset.bound = '1';
+    const pager = document.getElementById('charPager');
+    const dots = document.getElementById('charDots');
+    const cards = Array.from(track.children || track.querySelectorAll('.char-card'));
+    if (!cards.length) return;
+    const gapOf = () => parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 18;
+    const perPage = () => {
+      const first = cards[0];
+      const cw = (first && first.offsetWidth) || 200;
+      const w = track.clientWidth || 1;
+      return Math.max(1, Math.min(cards.length, Math.round((w + gapOf()) / (cw + gapOf()))));
+    };
+    const pages = () => Math.max(1, Math.ceil(cards.length / perPage()));
+    /* 一页 = 一屏宽（卡片是均分的，翻页正好对齐到下一组） */
+    const step = () => track.clientWidth || 1;
+    const sync = () => {
+      if (!pager) return;
+      const n = pages();
+      const cur = Math.min(n - 1, Math.round(track.scrollLeft / step()));
+      if (dots) {
+        dots.innerHTML = Array.from({ length: n }, (_, i) => `<i class="char-dot${i === cur ? ' is-on' : ''}"></i>`).join('');
+      }
+      pager.querySelectorAll('[data-dir]').forEach((b) => {
+        const dir = Number(b.dataset.dir);
+        const off = dir < 0 ? cur <= 0 : cur >= n - 1;
+        b.disabled = off;
+        b.setAttribute('aria-disabled', off ? 'true' : 'false');
+      });
+      pager.dataset.cur = String(cur);
+    };
+    if (pager) {
+      pager.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-dir]');
+        if (!b || b.disabled) return;
+        const n = pages();
+        const cur = Math.min(n - 1, Math.round(track.scrollLeft / step()));
+        const next = Math.max(0, Math.min(n - 1, cur + Number(b.dataset.dir)));
+        track.scrollTo({ left: next * step(), behavior: 'smooth' });
+      });
+      track.addEventListener('scroll', () => { clearTimeout(track._t); track._t = setTimeout(sync, 90); });
+      window.addEventListener('resize', () => { clearTimeout(track._r); track._r = setTimeout(sync, 150); });
+      sync();
+    }
+  },
+
+  async renderAdminCharacters() {
+    const u = this.state.user;
+    if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
+    this.pageTitle = '角色卡 · 白日梦咖啡馆';
+    const chars = await this.loadCharacters();
+    const pal = this.charPalette();
+    let items = [];
+    try { const m = await this.ensureMenu(); items = (m && m.personal) || []; } catch (e) { items = []; }
+    const count = (slug) => items.filter((a) => this.charOf(a) === slug).length;
+    const ed = this._charEdit || null;
+    const fonts = [['song', '宋体 · 端正'], ['kai', '楷体 · 手记'], ['hw', '手写 · 随笔'], ['round', '圆体 · 温柔']]
+      .map(([v, label]) => `<option value="${v}" ${(ed ? ed.font : 'song') === v ? 'selected' : ''}>${label}</option>`).join('');
+    const list = chars.length ? chars.map((c) => {
+      const st = this.charStyle(c);
+      return `
+        <li class="char-row" data-id="${c.id}">
+          <span class="char-row-glyph ${st.font}" style="--char-accent:${esc(st.accent)}">${esc(c.initial || String(c.name || '').slice(0, 1))}</span>
+          <span class="char-row-main">
+            <b class="${st.font}">${esc(c.name)}${Number(c.locked) ? ' 🔒' : ''}</b>
+            <em>${esc(c.slug)} · ${count(c.slug)} 篇${Number(c.locked) ? ' · 已锁定' : ''}</em>
+          </span>
+          <span class="char-row-actions">
+            <button type="button" class="btn btn-small btn-ghost" data-char-edit="${c.id}">编辑</button>
+            <button type="button" class="btn btn-small btn-danger" data-char-del="${c.id}">删除</button>
+          </span>
+        </li>`;
+    }).join('') : '<li class="empty-hint">还没有角色卡。</li>';
+
+    return `
+    <div class="page admin-page">
+      ${this.topbar()}
+      ${this.adminNav('characters')}
+      <div class="admin-shell">
+        <div class="admin-title">
+          <div class="admin-editor-head-main">
+            <h1>角色卡</h1>
+            <p class="admin-sub">共 ${chars.length} 张 · 列表页按这里的顺序排，一行放几张看屏幕宽度</p>
+          </div>
+          ${ed ? '<button type="button" class="btn btn-small btn-ghost" id="charNew">＋ 新建一张</button>' : ''}
+        </div>
+        <form class="char-form" id="charForm" data-id="${ed ? ed.id : ''}">
+          <div class="char-form-head">
+            <h3>${ed ? '编辑「' + esc(ed.name) + '」' : '新建角色卡'}</h3>
+            ${ed ? `<span class="char-form-tip">标识 ${esc(ed.slug)} 不可改（已挂的文章靠它认人）</span>` : ''}
+          </div>
+          <div class="char-form-grid">
+            <label>名字<input name="name" maxlength="40" required value="${ed ? esc(ed.name) : ''}" placeholder="如：桐谷诺艾"></label>
+            <label>标识<input name="slug" maxlength="60" ${ed ? 'disabled' : ''} value="${ed ? esc(ed.slug) : ''}" placeholder="留空按名字生成"></label>
+            <label>首字 / 纹章<input name="initial" maxlength="4" value="${ed ? esc(ed.initial || '') : ''}" placeholder="诺"></label>
+            <label>装饰符号<input name="mark" maxlength="8" value="${ed ? esc(ed.mark || '') : ''}" placeholder="✦ · ❋ · 空着也行"></label>
+            <label>名字字体<select name="font">${fonts}</select></label>
+            <label class="char-form-wide">卡面主色
+              <span class="char-swatches" data-swatch="accent">${pal.map((p) => `<button type="button" class="char-swatch${p.hex === (ed ? this.charStyle(ed).accent : '#d9c39a') ? ' is-on' : ''}" data-hex="${p.hex}" style="--sw:${p.hex}" title="${p.key}" aria-label="${p.key}"></button>`).join('')}</span>
+              <input type="hidden" name="accent" value="${ed ? esc(this.charStyle(ed).accent) : '#d9c39a'}">
+            </label>
+            <label class="char-form-wide">边框色
+              <span class="char-swatches" data-swatch="edge">${[{ key: '默认', hex: '' }].concat(pal).map((p) => `<button type="button" class="char-swatch${p.hex === (ed ? this.charStyle(ed).edge : '') ? ' is-on' : ''}${p.hex ? '' : ' is-none'}" data-hex="${p.hex}" style="--sw:${p.hex || 'transparent'}" title="${p.key}" aria-label="${p.key}"></button>`).join('')}</span>
+              <input type="hidden" name="edge" value="${ed ? esc(this.charStyle(ed).edge) : ''}">
+            </label>
+            <label>卡面底纹<select name="texture">${[['', '无'], ['grain', '细砂'], ['lines', '竖纹'], ['vignette', '暗角'], ['glass', '玻璃']].map(([v, t]) => `<option value="${v}"${(ed ? String(ed.texture || '') : '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+            <label class="char-form-wide">卡面上半部分
+              <span class="char-cover-edit">
+                <span class="char-cover-prev" id="charCoverPrev">${ed && /^(data:image\/|https?:\/\/|\/)/.test(String(ed.cover || '').trim()) ? `<img src="${esc(ed.cover)}" alt="">` : '<em>文字纹章</em>'}</span>
+                <label class="btn btn-small btn-ghost btn-file">选图片<input type="file" id="charCoverFile" accept="image/*" hidden></label>
+                <button type="button" class="btn btn-small btn-ghost" id="charCoverClear">清除图片</button>
+              </span>
+              <input type="hidden" name="cover" id="charCover" value="${ed ? esc(ed.cover || '') : ''}">
+            </label>
+            <label>排序<input name="sort" type="number" step="10" value="${ed ? (ed.sort || 0) : (chars.reduce((a, c) => Math.max(a, Number(c.sort) || 0), 0) + 10)}"></label>
+            <label class="char-form-wide">一句话描述<textarea name="intro" rows="2" maxlength="400" placeholder="卡面上那句介绍；列表页最多显示两行">${ed ? esc(ed.intro || '') : ''}</textarea></label>
+            <label class="char-form-wide char-check"><input name="locked" type="checkbox"${ed && Number(ed.locked) ? ' checked' : ''}> 锁定这张卡<span>列表里只露名字、点不开；和设定词条的锁一样</span></label>
+          </div>
+          <div class="char-form-actions">
+            <button class="btn btn-primary btn-small" type="submit">${ed ? '保存修改' : '建这张卡'}</button>
+            ${ed ? '<button type="button" class="btn btn-small btn-ghost" id="charCancel">取消</button>' : ''}
+            <span class="char-form-hint">卡面上的名字用的是「名字字体」，颜色是「主色」。</span>
+          </div>
+        </form>
+        <ul class="char-rows" id="charRows">${list}</ul>
+        <p class="music-note">个人章挂在哪个角色上，在文章编辑器里选（分类「个人章」→ 归属角色）。</p>
       </div>
     </div>`;
+  },
+
+  bindCharAdmin() {
+    const form = document.getElementById('charForm');
+    if (form && !form.dataset.bound) {
+      form.dataset.bound = '1';
+      /* 九色板：点一下就换隐藏字段的值 */
+      form.addEventListener('click', (e) => {
+        const sw = e.target.closest && e.target.closest('.char-swatch');
+        if (!sw) return;
+        const wrap = sw.closest('[data-swatch]');
+        if (!wrap) return;
+        wrap.querySelectorAll('.char-swatch').forEach((b) => b.classList.toggle('is-on', b === sw));
+        const field = form.querySelector('input[name="' + wrap.dataset.swatch + '"]');
+        if (field) field.value = sw.dataset.hex || '';
+      });
+      /* 卡面图：本地压到 320px 再存成 data URL（和头像同一套 shrinkImage） */
+      const coverFile = document.getElementById('charCoverFile');
+      if (coverFile) coverFile.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (file.size > 40 * 1024 * 1024) return toast('图片太大了（超过 40MB），换一张吧', 'err');
+        try {
+          const data = await shrinkImage(file, 320);
+          const hid = document.getElementById('charCover');
+          if (hid) hid.value = data;
+          const prev = document.getElementById('charCoverPrev');
+          if (prev) prev.innerHTML = '<img src="' + esc(data) + '" alt="">';
+          toast('卡面图已压缩，提交后生效');
+        } catch (err) {
+          toast('图片处理失败（' + ((err && err.message) || '未知') + '）', 'err');
+        }
+      });
+      const coverClear = document.getElementById('charCoverClear');
+      if (coverClear) coverClear.addEventListener('click', () => {
+        const hid = document.getElementById('charCover');
+        if (hid) hid.value = '';
+        const prev = document.getElementById('charCoverPrev');
+        if (prev) prev.innerHTML = '<em>文字纹章</em>';
+      });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const id = form.dataset.id || '';
+        const body = {
+          name: String(fd.get('name') || '').trim(),
+          slug: String(fd.get('slug') || '').trim(),
+          initial: String(fd.get('initial') || '').trim(),
+          mark: String(fd.get('mark') || '').trim(),
+          font: String(fd.get('font') || 'song'),
+          accent: String(fd.get('accent') || ''),
+          edge: String(fd.get('edge') || ''),
+          cover: String(fd.get('cover') || ''),
+          texture: String(fd.get('texture') || ''),
+          sort: parseInt(fd.get('sort'), 10) || 0,
+          intro: String(fd.get('intro') || '').trim(),
+          locked: fd.get('locked') ? 1 : 0,
+        };
+        if (!body.name) return toast('先给角色起个名字');
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) btn.disabled = true;
+        try {
+          if (id) await API.put('/api/characters/' + id, body);
+          else await API.post('/api/characters', body);
+          this._charEdit = null;
+          this.state.menu = null;
+          toast(id ? '角色卡已更新' : '角色卡建好了');
+          this.route();
+        } catch (err) { toast(err.message, 'err'); }
+        finally { if (btn) btn.disabled = false; }
+      });
+    }
+    const rows = document.getElementById('charRows');
+    if (rows && !rows.dataset.bound) {
+      rows.dataset.bound = '1';
+      rows.addEventListener('click', async (e) => {
+        const edBtn = e.target.closest('[data-char-edit]');
+        const delBtn = e.target.closest('[data-char-del]');
+        if (edBtn) {
+          const id = Number(edBtn.dataset.charEdit);
+          const c = (this._characters || []).find((x) => Number(x.id) === id);
+          if (c) { this._charEdit = c; this.route(); }
+          return;
+        }
+        if (delBtn) {
+          const id = Number(delBtn.dataset.charDel);
+          const c = (this._characters || []).find((x) => Number(x.id) === id);
+          if (!confirm('删掉「' + (c ? c.name : '') + '」这张卡？已挂在这张卡下的文章会变成「未归档」。')) return;
+          try {
+            await API.del('/api/characters/' + id);
+            this._charEdit = null;
+            this.state.menu = null;
+            toast('已删除');
+            this.route();
+          } catch (err) { toast(err.message, 'err'); }
+        }
+      });
+    }
+    const cancel = document.getElementById('charCancel');
+    if (cancel) cancel.addEventListener('click', () => { this._charEdit = null; this.route(); });
+    const fresh = document.getElementById('charNew');
+    if (fresh) fresh.addEventListener('click', () => { this._charEdit = null; this.route(); });
   },
 
   /* ---------- 7. 设定 ---------- */
@@ -2444,6 +2832,7 @@ const card = (x) => {
         <a class="${active === 'users' ? 'active' : ''}" href="#/admin/users">用户管理</a>
         <a class="${active === 'music' ? 'active' : ''}" href="#/admin/music">八音盒</a>
         <a class="${active === 'links' ? 'active' : ''}" href="#/admin/links">友链</a>
+        <a class="${active === 'characters' ? 'active' : ''}" href="#/admin/characters">角色卡</a>
       </div>
       <div class="admin-nav-tools">
         <a class="admin-export" href="/api/admin/export/zip" download>导出全部（ZIP）</a>
@@ -2876,6 +3265,7 @@ const card = (x) => {
     show('mainFields', v === 'main');
     show('sectionFields', v === 'main');
     show('settingFields', v === 'settings');
+    show('charFields', v === 'personal');
     show('secTitleRow', v === 'main');
     show('titleRow', v !== 'main');
     document.querySelectorAll('#catSeg .cat-seg-btn').forEach((b) => {
@@ -2884,9 +3274,21 @@ const card = (x) => {
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const note = document.getElementById('catNote');
-    if (note) note.textContent = v === 'main' ? '按章分节' : (v === 'personal' ? '单篇' : '词条');
+    if (note) note.textContent = v === 'main' ? '按章分节' : (v === 'personal' ? '按角色归档' : '词条');
     const tnote = document.getElementById('titleNote');
     if (tnote) tnote.textContent = v === 'main' ? '节 · 篇' : '篇名';
+
+
+    const sub = document.getElementById('edSub');
+    if (sub) {
+      if (v === 'main') {
+        const cn = form && form.chapter_no ? String(form.chapter_no.value) : '';
+        const sn = form && form.section_no ? String(form.section_no.value) : '';
+        sub.textContent = '主线' + (cn !== '' && sn !== '' ? ' · 第 ' + cn + ' 章 · 第 ' + sn + ' 节' : '');
+      } else {
+        sub.textContent = v === 'personal' ? '个人章' : '设定词条';
+      }
+    }
     if (form) form.dataset.cat = v;
     if (form && form.isConnected && this._refreshInfo) this._refreshInfo();
   },
@@ -2947,6 +3349,7 @@ const card = (x) => {
     this.docImport = null;      // 每次进表单都清掉上一次导入的文件
     let a = null;
     if (id) a = await API.get('/api/admin/articles/' + id);
+    try { this._characters = await API.get('/api/characters'); } catch (e) { this._characters = []; }
     const category = a ? a.category : 'main';
     const isMain = category === 'main';
     const rich = false;   // 原始 HTML 模式已移除：一律先给纯文本，标记原文随后异步覆盖
@@ -2965,6 +3368,13 @@ const card = (x) => {
     const catText = isMain ? '主线' : (category === 'personal' ? '个人章' : '设定');
     const typeOpts = ['地点', '人物', '组织', '名词', '其它']
       .map((t) => `<option value="${t}" ${a && a.chapter_title === t ? 'selected' : ''}>${t}</option>`).join('');
+    // 个人章的「归属角色」：值就是角色卡的 slug，落在 articles.tags 里
+    const charList = Array.isArray(this._characters) ? this._characters : [];
+    const myTag = a && a.tags ? String(a.tags).split(',')[0].trim() : '';
+    const charOpts = ['<option value="">未归档</option>']
+      .concat(charList.map((c) => `<option value="${esc(c.slug)}" ${myTag === c.slug ? 'selected' : ''}>${esc(c.name)}</option>`))
+      .concat(myTag && !charList.some((c) => c.slug === myTag) ? [`<option value="${esc(myTag)}" selected>${esc(myTag)}（卡片已删）</option>`] : [])
+      .join('');
     return `
     <div class="page admin-page">
       ${this.topbar()}
@@ -3154,6 +3564,15 @@ const card = (x) => {
                           <input id="sectionNo" name="section_no" type="number" min="1" step="1" placeholder="1" value="${a ? a.section_no : ''}">
                           <button type="button" class="step-btn" data-step="1" aria-label="节号加一">＋</button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="charFields" ${category === 'personal' ? '' : 'hidden'}>
+                    <div class="field-list">
+                      <div class="field">
+                        <label for="charPick">归属角色</label>
+                        <select id="charPick" name="charKey">${charOpts}</select>
+                        <p class="field-hint">这篇属于谁的个人篇；角色卡（名字 / 卡面）在 <a href="#/admin/characters" target="_blank" rel="noopener">角色卡</a> 里改</p>
                       </div>
                     </div>
                   </div>
@@ -4646,6 +5065,8 @@ const card = (x) => {
   afterRender() {
     this.bindMusicAdmin();
     this.bindLinkAdmin();
+    this.bindCharAdmin();
+    this.bindCharDeck();
     this.bindArticlePrefetch();
 
     /* 从互链跳走再点「回到原文」回来时，还原当时的滚动位置 ——
@@ -5331,6 +5752,8 @@ const card = (x) => {
       // RAW 模式已移除：永远作为标记原文提交（原来读 rawHtml，删掉那一行后会抛 ReferenceError）
       payload.source = form.content.value;
       if (form.tags) payload.tags = form.tags.value.trim();
+      // 个人章：归属角色（角色卡 slug）也写进 tags —— 后端只有这一个可自由存标记的列
+      if (category === 'personal' && form.charKey) payload.tags = form.charKey.value.trim();
       // 设定的「类型」写进 chapter_title —— 复用现成字段，后端无需改动
       if (category === 'settings' && form.setting_type) payload.chapter_title = form.setting_type.value;
       // 设定的公开性：0 公开 / 1 锁定（锁定后别人读不到正文 ✓）
