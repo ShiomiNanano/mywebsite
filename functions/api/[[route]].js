@@ -174,11 +174,11 @@ function escapeHtml(s) {
       后端用它生成正式正文。两边不一致，作者看到的和发布的就不一样了。
       （测试里有一条"逐条比对两边输出"守这个。）
    先转义再套标签 —— 顺序反了的话，粘贴进来的 <script> 会被当成真标签执行。 */
-var COLOR_NAME = { r: 'red', o: 'orange', y: 'yellow', g: 'green', c: 'cyan', b: 'blue', p: 'purple', m: 'mute', s: 'shine', a: 'abyss', d: 'digital', v: 'veil', w: 'whisper', x: 'corrupt' };
+var COLOR_NAME = { r: 'red', o: 'orange', y: 'yellow', g: 'green', c: 'cyan', b: 'blue', p: 'purple', m: 'mute', s: 'shine', a: 'abyss', d: 'digital', v: 'veil', w: 'whisper', x: 'corrupt', e: 'stele', h: 'void' };
 
 function richInline(s) {
   return escapeHtml(String(s == null ? '' : s))
-    .replace(/\{\{([rybgocpmsadvwx])\|([^{}]+)\}\}/g, function (m, k, t) {
+    .replace(/\{\{([rybgocpmsadvwxeh])\|([^{}]+)\}\}/g, function (m, k, t) {
       return '<span class="t-' + COLOR_NAME[k] + '">' + t + '</span>';
     })
           .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, function (m, target, label) {

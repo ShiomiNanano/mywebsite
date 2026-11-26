@@ -2708,10 +2708,24 @@ const card = (x) => {
         const w = narrow ? window.innerWidth - 16 : Math.min(620, Math.max(280, r.width - 16));
         panel.style.width = w + 'px';
         panel.style.left = (narrow ? 8 : Math.max(8, Math.min(r.left + 8, window.innerWidth - w - 8))) + 'px';
-        const top = narrow ? 8 : Math.max(8, r.bottom + 6);
+        // 先按"塞得下多少"算：下面放不下、上面放得下时翻到工具栏上方（下拉菜单的常见做法）
+        const gap = narrow ? 8 : 6;
+        const roomBelow = window.innerHeight - (r.bottom + gap) - (narrow ? 16 : 12);
+        const roomAbove = r.top - gap - 12;
+        const want = Math.min(panel.scrollHeight || 320, 420);
+        const flip = narrow ? false : (roomBelow < want && roomAbove > roomBelow);
+        let top;
+        if (narrow) {
+          top = 8;
+        } else if (flip) {
+          top = Math.max(8, r.top - gap - Math.min(panel.scrollHeight || 320, roomAbove));
+        } else {
+          top = Math.max(8, r.bottom + gap);
+        }
         panel.style.top = top + 'px';
         // 屏幕矮的时候别让浮层顶出可视区：按剩余高度收短，内部自己滚
-        panel.style.maxHeight = Math.max(180, window.innerHeight - top - (narrow ? 16 : 12)) + 'px';
+        const room = flip ? (r.top - gap - top) : (window.innerHeight - top - (narrow ? 16 : 12));
+        panel.style.maxHeight = Math.max(180, room) + 'px';
       };
       const setOpen = (open) => {
         if (!panel) return;
@@ -3030,6 +3044,8 @@ const card = (x) => {
                           <button type="button" class="et-btn et-color c-veil" data-act="c-v" title="幽影：梦与回忆，紫色薄雾">幽影</button>
                           <button type="button" class="et-btn et-color c-whisper" data-act="c-w" title="呓语：听不清的低语，字会断续发虚">呓语</button>
                           <button type="button" class="et-btn et-color c-corrupt" data-act="c-x" title="崩坏：信号坏了，字会被切错位">崩坏</button>
+                          <button type="button" class="et-btn et-color c-e" data-act="c-e" title="碑刻：字像凿进石头里，隔一阵被按下去一次">碑刻</button>
+                          <button type="button" class="et-btn et-color c-h" data-act="c-h" title="视界：字被黑洞一点点吞掉，扫过时左右扯出色散">视界</button>
                         </div>
                       </div>
                       <div class="ws-more-grp">
