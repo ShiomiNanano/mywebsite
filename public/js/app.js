@@ -2095,45 +2095,54 @@ const App = {
     const dots = document.getElementById('charDots');
     const cards = Array.from(track.children || track.querySelectorAll('.char-card'));
     if (!cards.length) return;
-    const gapOf = () => parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 18;
-    const perPage = () => {
-      const first = cards[0];
-      const cw = (first && first.offsetWidth) || 200;
-      const w = track.clientWidth || 1;
-      return Math.max(1, Math.min(cards.length, Math.round((w + gapOf()) / (cw + gapOf()))));
-    };
+    const gap = () => parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap) || 18;
+    const cardW = () => (cards[0] && cards[0].offsetWidth) || 200;
+    const perPage = () => Math.max(1, Math.min(cards.length, Math.round(((track.clientWidth || 1) + gap()) / (cardW() + gap()))));
     const pages = () => Math.max(1, Math.ceil(cards.length / perPage()));
-    /* 一页 = 一屏宽（卡片是均分的，翻页正好对齐到下一组） */
-    const step = () => track.clientWidth || 1;
-    const sync = () => {
-      if (!pager) return;
+    const maxScroll = () => Math.max(0, (track.scrollWidth || 0) - (track.clientWidth || 0));
+    /* 每页落点：按整页的卡片宽度前进；最后一页贴到最右，这样滚回来时能算得回上一页 */
+    const targets = () => {
       const n = pages();
-      const cur = Math.min(n - 1, Math.round(track.scrollLeft / step()));
-      if (dots) {
-        dots.innerHTML = Array.from({ length: n }, (_, i) => `<i class="char-dot${i === cur ? ' is-on' : ''}"></i>`).join('');
-      }
+      const stride = perPage() * (cardW() + gap());
+      const out = [];
+      for (let i = 0; i < n; i++) out.push(Math.min(maxScroll(), Math.round(i * stride)));
+      return out;
+    };
+    const indexAt = (list) => {
+      let cur = 0;
+      for (let i = 0; i < list.length; i++) if (track.scrollLeft >= list[i] - 6) cur = i;
+      return Math.min(list.length - 1, cur);
+    };
+    const paint = (cur, n) => {
+      if (!pager) return;
+      if (dots) dots.innerHTML = Array.from({ length: n }, (_, i) => `<i class="char-dot${i === cur ? ' is-on' : ''}"></i>`).join('');
       pager.querySelectorAll('[data-dir]').forEach((b) => {
-        const dir = Number(b.dataset.dir);
-        const off = dir < 0 ? cur <= 0 : cur >= n - 1;
+        const off = Number(b.dataset.dir) < 0 ? cur <= 0 : cur >= n - 1;
         b.disabled = off;
         b.setAttribute('aria-disabled', off ? 'true' : 'false');
       });
       pager.dataset.cur = String(cur);
     };
+    const sync = () => {
+      const list = targets();
+      paint(indexAt(list), list.length);
+    };
     if (pager) {
       pager.addEventListener('click', (e) => {
         const b = e.target.closest('[data-dir]');
         if (!b || b.disabled) return;
-        const n = pages();
-        const cur = Math.min(n - 1, Math.round(track.scrollLeft / step()));
-        const next = Math.max(0, Math.min(n - 1, cur + Number(b.dataset.dir)));
-        track.scrollTo({ left: next * step(), behavior: 'smooth' });
+        const list = targets();
+        const cur = indexAt(list);
+        const nxt = Math.max(0, Math.min(list.length - 1, cur + Number(b.dataset.dir)));
+        track.scrollTo({ left: list[nxt], behavior: 'smooth' });
+        paint(nxt, list.length);
       });
       track.addEventListener('scroll', () => { clearTimeout(track._t); track._t = setTimeout(sync, 90); });
       window.addEventListener('resize', () => { clearTimeout(track._r); track._r = setTimeout(sync, 150); });
       sync();
     }
   },
+
 
   async renderAdminCharacters() {
     const u = this.state.user;
