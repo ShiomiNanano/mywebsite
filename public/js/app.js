@@ -14,6 +14,18 @@ function formatTime(s) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/* 「今天 / 昨天 / 3 天前」——用户管理里比一长串日期更好读；超过 30 天就不显示了 */
+function daysAgoText(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T').replace(/Z$/, '') + 'Z');
+  if (isNaN(d.getTime())) return '';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days < 30) return days + ' 天前';
+  return '';
+}
+
 function toast(msg, type = 'ok') {
   let box = document.getElementById('toast');
   if (!box) {
@@ -1263,7 +1275,7 @@ const App = {
       </div>
       <div class="chapter-list">
         ${m.main.length ? m.main.map(c => `
-          <a class="chapter-card${this.isChapterRead(c) ? ' is-read' : ''}" href="#/main/${c.chapter_no}"><span class="read-tag" aria-label="已读">已读</span>
+          <a class="chapter-card${this.isChapterRead(c) ? ' is-read' : ''}${(Number(c.chapter_no) <= 0 || this.isPrologueTitle(c.chapter_title)) ? ' is-prologue' : ''}" href="#/main/${c.chapter_no}"><span class="read-tag" aria-label="已读">已读</span>${(Number(c.chapter_no) <= 0 || this.isPrologueTitle(c.chapter_title)) ? '<span class="chapter-bg" aria-hidden="true"></span>' : ''}
             <div class="chapter-num">${this.chapterLabel(c.chapter_no, c.chapter_title)}</div>
             <div class="chapter-body">
               <h3>${esc(c.chapter_title)}</h3>
@@ -4270,7 +4282,12 @@ const card = (x) => {
     const all = this._usersAll || [];
     const admins = all.filter((x) => x.role === 'admin').length;
     const shown = this.userFiltered().length;
-    const bits = ['共 <b>' + all.length + '</b> 位', '管理员 <b>' + admins + '</b>'];
+    const week = all.filter((u) => {
+      if (!u.last_login) return false;
+      const d = new Date(String(u.last_login).replace(' ', 'T').replace(/Z$/, '') + 'Z');
+      return !isNaN(d.getTime()) && Date.now() - d.getTime() < 7 * 86400000;
+    }).length;
+    const bits = ['共 <b>' + all.length + '</b> 位', '管理员 <b>' + admins + '</b>', '近 7 天登录 <b>' + week + '</b> 人'];
     if (shown !== all.length) bits.push('当前显示 <b>' + shown + '</b> 位');
     return bits.join(' · ');
   },
@@ -4317,7 +4334,7 @@ const card = (x) => {
           <b class="admin-row-title">${esc(x.username)}</b>
           ${x.role === 'admin' ? '<span class="tag tag-main">管理员</span>' : '<span class="tag tag-personal">用户</span>'}
         </div>
-        <span class="admin-row-meta">加入于 ${esc(formatTime(x.created_at))}</span>
+        <span class="admin-row-meta">加入于 ${esc(formatTime(x.created_at))} · ${x.last_login ? '最后登录 ' + esc(formatTime(x.last_login)) + (daysAgoText(x.last_login) ? '（' + daysAgoText(x.last_login) + '）' : '') : '从未登录'}</span>
       </div>
       <div class="admin-row-actions">
         ${me ? '<span class="admin-self">当前账号</span>' : `

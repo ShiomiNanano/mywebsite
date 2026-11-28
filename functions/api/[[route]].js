@@ -482,6 +482,8 @@ async function ensureSchema(env) {
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN tags TEXT').run(); } catch (e) {}
   /* 设定的公开性：0 = 公开，1 = 锁定。锁定的设定在列表里只露名字，读不到正文。 */
   try { await env.DB.prepare('ALTER TABLE articles ADD COLUMN locked INTEGER').run(); } catch (e) {}
+  /* 最后登录时间：管理员在「用户管理」里能看出谁最近没来 */
+  try { await env.DB.prepare('ALTER TABLE users ADD COLUMN last_login TEXT').run(); } catch (e) {}
 
   /* 小游戏的分数表：一款游戏一个榜，取每个用户的最高分排前五 */
   try {
@@ -648,7 +650,20 @@ async function currentUser(env, request) {
   const cookies = parseCookies(request);
   const payload = await verifyToken(cookies[COOKIE], secret);
   if (!payload) return null;
-  return env.DB.prepare('SELECT id, username, avatar, role, created_at FROM users WHERE id=?').bind(payload.uid).first();
+  const u = await env.DB.prepare('SELECT id, username, avatar, role, created_at, last_login FROM users WHERE id=?').bind(payload.uid).first();
+  /* 「最后登录」用「最近一次带着有效会话访问」来更新 —— 否则七天免登录的人永远不会再刷新，
+     这一列就一直停在很久以前。一小时最多写一次，别每个请求都打一次库。 */
+  if (u) {
+    try {
+      const t = u.last_login ? Date.parse(String(u.last_login).replace(' ', 'T') + 'Z') : 0;
+      if (!t || Date.now() - t > 3600 * 1000) {
+        const now = nowStr();
+        await env.DB.prepare('UPDATE users SET last_login=? WHERE id=?').bind(now, u.id).run();
+        u.last_login = now;
+      }
+    } catch (e) { /* 写失败就当没这回事，不影响这次请求 */ }
+  }
+  return u;
 }
 
 async function readBody(request) { try { return await request.json(); } catch (e) { return {}; } }
@@ -873,6 +888,8 @@ export async function onRequest(context) {
         return json({ error: '用户名或密码错误' }, 401);
       }
       await loginClear(env, name);
+      // 记最后登录时间；写失败不影响这次登录
+      try { await env.DB.prepare('UPDATE users SET last_login=? WHERE id=?').bind(nowStr(), u.id).run(); } catch (e) {}
       const token = await sign(encB64({ uid: u.id, exp: Math.floor(Date.now() / 1000) + ONE_DAY * 7 }), authSecret(env));
       return json({ ok: true, user: publicUser(u) }, 200, { 'Set-Cookie': setCookie(token) });
     }
@@ -888,8 +905,8 @@ export async function onRequest(context) {
       if (await env.DB.prepare('SELECT id FROM users WHERE username=?').bind(name).first()) return json({ error: '用户名已存在' }, 400);
       let r;
       try {
-        r = await env.DB.prepare('INSERT INTO users (username, password_hash, role, created_at) VALUES (?,?,?,?)')
-          .bind(name, await makePasswordHash(pw), 'user', nowStr()).run();
+        r = await env.DB.prepare('INSERT INTO users (username, password_hash, role, created_at, last_login) VALUES (?,?,?,?,?)')
+          .bind(name, await makePasswordHash(pw), 'user', nowStr(), nowStr()).run();
       } catch (e) {
         // 并发注册同名会被唯一索引拦下
         if (/UNIQUE|constraint/i.test(String(e && e.message))) return json({ error: '用户名已存在' }, 400);
@@ -2089,7 +2106,7 @@ export async function onRequest(context) {
 
     if (method === 'GET' && path === '/admin/users') {
       const e = needAdmin(); if (e) return e;
-      const rows = await env.DB.prepare('SELECT id, username, role, created_at FROM users ORDER BY id').all();
+      const rows = await env.DB.prepare('SELECT id, username, role, created_at, last_login FROM users ORDER BY id').all();
       return json(rows.results);
     }
     m = path.match(/^\/admin\/users\/(\d+)$/);

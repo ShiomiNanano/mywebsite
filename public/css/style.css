@@ -1280,22 +1280,81 @@ body::after {
 .article-card:hover { border-color: var(--cat, var(--line-2)); }
 .article-card .card-meta { color: var(--cat, var(--gold)); }
 
-/* 章列表：让色相轮转起来，一眼看过去有节奏 */
-.chapter-list > *:nth-child(3n+1) { --cat: var(--c-main);     --cat-soft: var(--c-main-soft); }
-.chapter-list > *:nth-child(3n+2) { --cat: var(--c-personal); --cat-soft: var(--c-personal-soft); }
-.chapter-list > *:nth-child(3n+3) { --cat: var(--c-settings); --cat-soft: var(--c-settings-soft); }
-.chapter-card .chapter-num { color: var(--cat, var(--gold)); }
-.chapter-card .chapter-arrow { color: var(--cat, var(--gold)); }
+/* 章列表：统一烫金。以前按 3n 轮换色相（序章蓝、第 01 章青、第 02 章紫），
+   同一章的序列反而各是各的颜色；现在只留一种金，序章和正章靠文字区分。 */
+.chapter-list { --cat: var(--gold); --cat-soft: rgba(214, 182, 120, .12); }
+.chapter-card .chapter-num { color: var(--cat); }
+.chapter-card .chapter-arrow { color: var(--cat); }
 .chapter-card::after {
   content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px;
-  border-radius: 0 3px 3px 0; background: var(--cat, var(--gold-2)); opacity: .55;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, rgba(214, 182, 120, 0), var(--gold-2) 45%, var(--gold) 55%, rgba(214, 182, 120, 0));
+  opacity: .6;
   transition: top .3s var(--ease), bottom .3s var(--ease), opacity .3s var(--ease);
 }
-.chapter-card:hover::after { top: 8%; bottom: 8%; opacity: 1; }
-.chapter-card { position: relative; overflow: hidden; padding-left: calc(var(--sp-5) + 6px); }
+.chapter-card:hover::after { top: 6%; bottom: 6%; opacity: 1; }
+.chapter-card { position: relative; overflow: hidden; padding-left: calc(var(--sp-5) + 10px); }
+.chapter-card:hover { border-color: var(--frame-line); box-shadow: 0 14px 30px -20px rgba(var(--shadow), .55), 0 0 0 1px rgba(214, 182, 120, .08); }
+/* 章号做成一条细金的分栏：右边一道发丝线，和右边的章名分开 */
+.chapter-card .chapter-num {
+  padding-right: var(--sp-4); border-right: 1px solid var(--frame-line);
+  letter-spacing: .08em; font-variant-numeric: tabular-nums;
+}
+.chapter-card.is-read .chapter-num { color: var(--ink-3); border-right-color: var(--line); }
+/* 序章：泡影破碎之梦 —— 卡面本身沿裂缝破开（悬停），露出后面的壁纸；
+   底做成独立的 .chapter-bg，只给底下遮罩，文字不参与，所以标题永远不会被切 */
+.chapter-card.is-prologue {
+  --crack: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 104' preserveAspectRatio='none'><g fill='none' stroke='%23f4e6c6' stroke-linecap='round'><path d='M196 -4 L202 18 L191 32 L199 48 L189 64 L197 84 L192 108' stroke-width='0.85' opacity='0.4'/><path d='M202 18 L222 12' stroke-width='0.5525' opacity='0.2'/><path d='M191 32 L174 26' stroke-width='0.51' opacity='0.18000000000000002'/><path d='M199 48 L216 44' stroke-width='0.4675' opacity='0.16000000000000003'/><path d='M197 84 L214 90' stroke-width='0.4675' opacity='0.16000000000000003'/><path d='M462 -4 L474 16 L458 34 L480 52 L466 70 L478 108' stroke-width='0.85' opacity='0.38'/><path d='M474 16 L520 10' stroke-width='0.5525' opacity='0.2'/><path d='M480 52 L540 46' stroke-width='0.51' opacity='0.168'/><path d='M466 70 L430 76' stroke-width='0.4675' opacity='0.13999999999999999'/><path d='M478 108 L500 96' stroke-width='0.425' opacity='0.12'/></g></svg>");
+  --crack-hover: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 104' preserveAspectRatio='none'><g fill='none' stroke='%23040a10' stroke-linecap='round'><path d='M196 -4 L202 18 L191 32 L199 48 L189 64 L197 84 L192 108' stroke-width='3.6' opacity='.86'/><path d='M462 -4 L474 16 L458 34 L480 52 L466 70 L478 108' stroke-width='3' opacity='.78'/></g><g fill='none' stroke='%23f4e6c6' stroke-linecap='round'><path d='M196 -4 L202 18 L191 32 L199 48 L189 64 L197 84 L192 108' stroke-width='1.05' opacity='0.95'/><path d='M202 18 L222 12' stroke-width='0.6825000000000001' opacity='0.475'/><path d='M191 32 L174 26' stroke-width='0.63' opacity='0.4275'/><path d='M199 48 L216 44' stroke-width='0.5775000000000001' opacity='0.38'/><path d='M197 84 L214 90' stroke-width='0.5775000000000001' opacity='0.38'/><path d='M462 -4 L474 16 L458 34 L480 52 L466 70 L478 108' stroke-width='1.05' opacity='0.9025'/><path d='M474 16 L520 10' stroke-width='0.6825000000000001' opacity='0.475'/><path d='M480 52 L540 46' stroke-width='0.63' opacity='0.39899999999999997'/><path d='M466 70 L430 76' stroke-width='0.5775000000000001' opacity='0.33249999999999996'/><path d='M478 108 L500 96' stroke-width='0.525' opacity='0.285'/></g></svg>");
+  --crack-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 104' preserveAspectRatio='none'><defs><mask id='g' maskUnits='userSpaceOnUse' x='0' y='0' width='600' height='104'><rect width='600' height='104' fill='%23ffffff'/><g fill='none' stroke='%23000000' stroke-linecap='round'><path d='M196 -4 L202 18 L191 32 L199 48 L189 64 L197 84 L192 108' stroke-width='3.4'/><path d='M462 -4 L474 16 L458 34 L480 52 L466 70 L478 108' stroke-width='2.8'/></g></mask></defs><rect width='600' height='104' fill='%23ffffff' mask='url(%23g)'/></svg>");
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.chapter-card.is-prologue .chapter-bg {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  border-radius: inherit; border: 1px solid var(--line);
+  background-color: var(--surface);
+  background-image: var(--crack);
+  background-size: 100% 100%; background-repeat: no-repeat;
+  box-shadow: 0 1px 2px rgba(var(--shadow), .04);
+  transition: background-image .25s linear, border-color .3s var(--ease);
+}
+.chapter-card.is-prologue .chapter-num,
+.chapter-card.is-prologue .chapter-body,
+.chapter-card.is-prologue .chapter-arrow { position: relative; z-index: 1; }
+.chapter-card.is-prologue .read-tag { z-index: 2; }
 
-/* 节列表：序号用分类色（沿用当前章的颜色） */
-.section-list { --cat: var(--c-main); --cat-soft: var(--c-main-soft); }
+/* 悬停：底沿裂缝被挖空（露出壁纸），两片再错开一点 */
+.chapter-card.is-prologue:hover .chapter-bg {
+  background-image: var(--crack-hover);
+  border-color: var(--frame-line);
+  -webkit-mask-image: var(--crack-mask); mask-image: var(--crack-mask);
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+}
+.chapter-card.is-prologue:hover { border-color: transparent; box-shadow: none; }
+.chapter-card.is-prologue .chapter-num,
+.chapter-card.is-prologue .chapter-body,
+.chapter-card.is-prologue .chapter-arrow { transition: transform .3s var(--ease); }
+.chapter-card.is-prologue:hover .chapter-num { transform: translate(-8px, -1.5px) rotate(-.4deg); }
+.chapter-card.is-prologue:hover .chapter-body { transform: translate(8px, 1.5px) rotate(.3deg); }
+.chapter-card.is-prologue:hover .chapter-arrow { transform: translate(9px, 0); }
+/* 右侧那条金竖条在序章上收短一点，像断口 */
+.chapter-card.is-prologue::after { top: 30%; bottom: 38%; }
+.chapter-card.is-prologue:hover::after { top: 24%; bottom: 30%; }
+/* 窄屏卡片矮，裂纹别压在标题上：把纹样推向右下，只留右边那一道 */
+@media (max-width: 640px) {
+  .chapter-card.is-prologue .chapter-bg { background-size: 210% 100%; background-position: 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chapter-card.is-prologue .chapter-num,
+  .chapter-card.is-prologue .chapter-body,
+  .chapter-card.is-prologue .chapter-arrow { transition: none; }
+}
+
+/* 节列表：跟主线一样用金色（原来跟着「主线」分类色走，一章金一节蓝很跳） */
+.section-list { --cat: var(--gold); --cat-soft: rgba(214, 182, 120, .12); }
 .section-card { position: relative; overflow: hidden; }
 .section-card .section-index { color: var(--cat, var(--accent)); background: var(--cat-soft, var(--surface-2)); }
 .section-card:hover { border-color: var(--cat, var(--line-2)); }
