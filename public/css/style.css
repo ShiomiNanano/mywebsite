@@ -5063,7 +5063,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
   display: flex; gap: var(--sp-4); align-items: stretch;
   overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory; scroll-behavior: smooth;
-  padding: 2px 0 6px; scrollbar-width: none; -ms-overflow-style: none;
+  padding: 2px 0 10px; scrollbar-width: none; -ms-overflow-style: none;
 }
 .char-track::-webkit-scrollbar { display: none; }
 .char-track > .char-card {
@@ -5094,7 +5094,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 .char-dot.is-on { background: var(--gold-2); transform: scale(1.25); }
 .char-card {
   position: relative; display: flex; flex-direction: column;
-  min-height: 224px; padding: 0; overflow: hidden;
+  min-height: 224px; padding: 0;
   border: 1px solid var(--line); border-radius: var(--r-md);
   background: var(--surface-2); color: var(--ink-2); text-decoration: none;
   transition: transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease);
@@ -5102,6 +5102,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 .char-card::before {
   content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
   background: var(--char-accent, var(--gold-2)); opacity: .7;
+  border-top-left-radius: inherit; border-top-right-radius: inherit;
   transition: opacity .3s var(--ease);
 }
 .char-card:not(.is-locked):hover {
@@ -5111,6 +5112,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 .char-card:not(.is-locked):hover::before { opacity: 1; }
 .char-plate {
   position: relative; flex: none; height: 126px; display: grid; place-items: center;
+  overflow: hidden; border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0;
   border-bottom: 1px solid var(--line);
   background:
     radial-gradient(120% 100% at 50% 118%, rgba(0, 0, 0, .42), transparent 70%),
@@ -5124,7 +5126,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
   box-shadow: inset 0 0 0 4px rgba(0, 0, 0, .16);
 }
 /* 底纹：一整张卡上盖一层很淡的纹理，文字照常压在上面 */
-.char-card { isolation: isolate; }
+.char-card { isolation: auto; }
 .char-card[class*="char-tex-"]::after {
   content: ""; position: absolute; inset: 0; z-index: 3;
   pointer-events: none; border-radius: inherit;
@@ -5159,7 +5161,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
   color: var(--char-accent, var(--gold)); opacity: .8;
 }
 .char-lock { position: absolute; right: 10px; bottom: 9px; font-size: 13px; line-height: 1; opacity: .75; }
-.char-body { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 13px 15px 15px; min-width: 0; }
+.char-body { display: flex; flex-direction: column; gap: 6px; flex: 1 0 auto; padding: 13px 15px 15px; min-width: 0; }
 .char-name {
   display: block; font-size: 22px; line-height: 1.25; letter-spacing: .04em; color: var(--char-name, var(--ink));
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -5293,7 +5295,7 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
 
 @media (max-width: 640px) {
   .char-list-page .char-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
-  .char-card { min-height: 236px; }
+  .char-card { min-height: 0; }
   .char-plate { height: 104px; }
   .char-glyph { width: 52px; height: 52px; font-size: 22px; }
   .char-name { font-size: 18px; }
