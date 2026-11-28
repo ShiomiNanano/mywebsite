@@ -31,9 +31,12 @@
   <!-- 字体由 js/app.js 延后注入：正文用系统字体，装饰字体不阻塞首屏 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- 壁纸先解码好：不然封面/书架会先露一帧底色，再"亮"成照片（那一下就是闪） -->
+  <link rel="preload" as="image" href="media/wallpaper-poster.webp" fetchpriority="high">
+  <link rel="preload" as="image" href="media/wallpaper-lqip.webp">
   <!-- 壁纸配色（由 tools/make-wallpaper.py 依据壁纸生成，换壁纸后重跑脚本即可） -->
   <link rel="stylesheet" href="media/wallpaper-palette.css">
-  <link rel="stylesheet" href="css/style.css?v=20261119">
+  <link rel="stylesheet" href="css/style.css?v=20261120">
 </head>
 <body>
   <div id="app"></div>
@@ -49,6 +52,6 @@
   <script src="js/api.js?v=20261028"></script>
   <script src="js/docx.js?v=20261028"></script>
   <script src="js/rich.js?v=20261115"></script>
-  <script src="js/app.js?v=20261118"></script>
+  <script src="js/app.js?v=20261121"></script>
 </body>
 </html>

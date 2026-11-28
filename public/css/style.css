@@ -155,10 +155,9 @@ h1, h2, h3, h4 { font-weight: 600; line-height: 1.35; }
   min-height: 100vh;
   min-height: 100dvh;
   padding-bottom: calc(96px + var(--safe-bottom));
-  animation: pageIn var(--dur) var(--ease) both;
 }
-/* 只用 opacity：带 transform 的祖先会让 position:fixed 的子元素失效 */
-@keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
+/* 切页不做淡入：整页从 opacity:0 起跑时，遮罩一撤就能看见底色闪一下。
+   页面的显隐交给 #pageVeil，这里只管排版。 */
 
 /* 小标签：英文小字 */
 .eyebrow {
@@ -314,7 +313,7 @@ select { appearance: none; background-image: none; cursor: pointer; }
 .cover-scene {
   position: relative; z-index: 1;
   display: flex; flex-direction: column; align-items: center; gap: var(--sp-6);
-  animation: rise .9s var(--ease) both;
+  /* 不再从 opacity:0 浮上来：首屏有遮罩，遮罩撤掉时封面已经画好，不再闪。 */
 }
 @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
 
@@ -575,6 +574,9 @@ select { appearance: none; background-image: none; cursor: pointer; }
 .menu-quote {
   max-width: 24rem; margin: var(--sp-4) auto 0;
   font-family: var(--font-serif); font-size: var(--fs-sm); color: var(--ink-2);
+  /* 先把两行的高度留出来：每日一句是后到的（先渲染默认那句，再换成当天的），
+     行数不同会把下面的模块卡片整体顶一下，看着就是"跳"一下。 */
+  min-height: calc(3.4em + 24px);
 }
 .quote-author { display: block; margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--gold); letter-spacing: .1em; }
 
@@ -1306,27 +1308,17 @@ body::after {
 .reading .eyebrow { color: var(--cat, var(--gold)); }
 .reading-progress { background: linear-gradient(90deg, var(--cat, var(--accent)), var(--gold)); }
 
-/* ======================= 7. 入场动效（淡入 + 去模糊，错开） ======================= */
-/* 只动 opacity 和 filter —— 不碰 transform，免得和上面的倾斜打架 */
+/* ======================= 7. 入场动效（只做一次，且不再从透明开始） ======================= */
+/* 以前每张卡都从 opacity:0 + blur(7px) 淡进来，而且每切一次页就重播一遍 ——
+   那正是"主线故事 / 个人章"卡片闪一下的来源。
+   现在只保留第一次进站时的一次轻微上浮（不碰透明度），之后切页直接落位。 */
 @keyframes cardIn {
-  from { opacity: 0; filter: blur(7px); }
+  from { opacity: 0; filter: blur(4px); }
   to   { opacity: 1; filter: blur(0); }
 }
-.menu-cards > *, .chapter-list > *, .article-grid > *, .section-list > * {
-  animation: cardIn .5s var(--ease) backwards;
-}
-.menu-cards > *:nth-child(1), .chapter-list > *:nth-child(1),
-.article-grid > *:nth-child(1), .section-list > *:nth-child(1) { animation-delay: .04s; }
-.menu-cards > *:nth-child(2), .chapter-list > *:nth-child(2),
-.article-grid > *:nth-child(2), .section-list > *:nth-child(2) { animation-delay: .10s; }
-.menu-cards > *:nth-child(3), .chapter-list > *:nth-child(3),
-.article-grid > *:nth-child(3), .section-list > *:nth-child(3) { animation-delay: .16s; }
-.menu-cards > *:nth-child(4), .chapter-list > *:nth-child(4),
-.article-grid > *:nth-child(4), .section-list > *:nth-child(4) { animation-delay: .22s; }
-.menu-cards > *:nth-child(5), .chapter-list > *:nth-child(5),
-.article-grid > *:nth-child(5), .section-list > *:nth-child(5) { animation-delay: .28s; }
-.menu-cards > *:nth-child(n+6), .chapter-list > *:nth-child(n+6),
-.article-grid > *:nth-child(n+6), .section-list > *:nth-child(n+6) { animation-delay: .32s; }
+/* 这些列表（书架卡片 / 章节 / 文章 / 设定）以前每张都从 opacity:0 + blur 淡入，
+   而且每次切页都重播 —— 遮罩一撤就能看到它们先空一拍再亮起来，这就是"闪一下"。
+   现在直接落位：卡片不再做入场动画，@keyframes 留着是因为别处可能还要用。 */
 
 /* ======================= 8. 尊重"减少动态效果" ======================= */
 @media (prefers-reduced-motion: reduce) {
@@ -4389,13 +4381,15 @@ html[data-cloth="on"] .game-page {
 #app.app-enter .menu-card:nth-child(2) { animation-delay: .23s; }
 #app.app-enter .menu-card:nth-child(3) { animation-delay: .30s; }
 #app.app-enter .bottom-nav { animation-delay: .32s; }
+/* 只做位移/缩放，不从透明开始：遮罩撤掉的那一刻页面已经是不透明的，
+   否则会看到「先透出底色、再亮起来」的那一下闪。 */
 @keyframes appIn {
-  from { opacity: 0; transform: scale(1.02); }
-  to   { opacity: 1; transform: none; }
+  from { transform: scale(1.015); }
+  to   { transform: none; }
 }
 @keyframes riseIn {
-  from { opacity: 0; transform: translateY(18px) scale(.985); }
-  to   { opacity: 1; transform: none; }
+  from { transform: translateY(14px) scale(.99); }
+  to   { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5054,6 +5048,34 @@ html[data-readtheme="green"] .readset { background-color: rgba(238, 243, 230, .9
   .mf-row { grid-template-columns: minmax(0, 1fr); }
   .music-row { flex-wrap: wrap; }
 }
+
+/* ======================= 按钮「在忙」（2026-11-28） =======================
+   点了马上有反应：禁用 + 转圈 + 换文案，别让人以为没点上而连点。 */
+.btn.is-busy,
+.btn.is-busy:hover { opacity: .78; transform: none; cursor: default; }
+.btn.is-busy[disabled] { pointer-events: none; }
+.btn-spin {
+  display: inline-block; width: 12px; height: 12px; margin-right: 7px;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; vertical-align: -1px;
+  animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn-spin { animation: none; border-right-color: currentColor; opacity: .55; }
+}
+
+/* 管理页骨架：接口回来之前先把行占住，别让列表空一大片 */
+.admin-loading { color: var(--ink-3); }
+.admin-list.is-loading { opacity: .92; }
+.admin-tabs button.is-pending b { opacity: .45; }
+.admin-skel { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--r-sm); background: var(--surface-2); }
+.admin-skel span { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .1), rgba(255, 255, 255, .04)); background-size: 220% 100%; animation: admin-skel 1.3s linear infinite; }
+.admin-skel span:nth-child(1) { width: 34%; }
+.admin-skel span:nth-child(2) { width: 44%; }
+.admin-skel span:nth-child(3) { width: 14%; margin-left: auto; }
+@keyframes admin-skel { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@media (prefers-reduced-motion: reduce) { .admin-skel span { animation: none; } }
 
 /* ======================= 角色卡（个人章 · 2026-11-27） =======================
    竖卡横排：一行能放几张就放几张，窄屏掉到下一行。

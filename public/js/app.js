@@ -358,35 +358,66 @@ const App = {
           const note = (document.getElementById('bbInput').value || '').trim();
           const hint = document.getElementById('bbHint');
           if (hint) hint.textContent = '保存中…';
-          await API.put('/api/admin/board', { note });
-          toast('黑板已更新');
-          this.route();
+          const done = this.busyOn(t, '保存中…');
+          try {
+            await API.put('/api/admin/board', { note });
+            toast('黑板已更新');
+            this.route();
+          } catch (err) {
+            toast(err.message, 'err');
+            if (hint) hint.textContent = '';
+          } finally {
+            if (done) done();
+          }
         } else if (id === 'boardSend') {
           const box = document.getElementById('boardInput');
           const content = (box.value || '').trim();
           const hint = document.getElementById('boardHint');
+          if (t.dataset.busy === '1') return;
           if (!content) { if (hint) hint.textContent = '写点什么再贴吧'; return; }
           if (hint) hint.textContent = '贴上去…';
-          await API.post('/api/board/comments', { content });
-          this.clearApiCache('/api/board');   // 自己刚贴的，别让本地旧缓存顶上去
-          toast('便签贴好了');
-          this.route();
+          const done = this.busyOn(t, '贴上中…');
+          try {
+            await API.post('/api/board/comments', { content });
+            this.clearApiCache('/api/board');   // 自己刚贴的，别让本地旧缓存顶上去
+            toast('便签贴好了');
+            this.route();
+          } catch (err) {
+            toast(err.message, 'err');
+            if (hint) hint.textContent = '';
+          } finally {
+            if (done) done();
+          }
         } else if (t.classList.contains('note-del')) {
           const noteId = Number(t.getAttribute('data-note'));
           if (!confirm('删掉这张便签？删了就找不回来了。')) return;
-          await API.del('/api/board/comments/' + noteId);
-          this.clearApiCache('/api/board');
-          toast('便签已撕掉');
-          this.route();
+          const done = this.busyOn(t, '删除中…');
+          try {
+            await API.del('/api/board/comments/' + noteId);
+            this.clearApiCache('/api/board');
+            toast('便签已撕掉');
+            this.route();
+          } catch (err) {
+            toast(err.message, 'err');
+          } finally {
+            if (done) done();
+          }
         } else if (t.classList.contains('comment-del')) {
           const cid = Number(t.getAttribute('data-cid'));
           const listEl = document.getElementById('commentList');
           const artId = listEl ? Number(listEl.dataset.article) : 0;
           if (!confirm('删掉这条留言？删了就找不回来了。')) return;
-          await API.del('/api/article/' + artId + '/comments/' + cid);
-          this.clearApiCache('/api/board');
-          toast('留言已删除');
-          if (listEl) await this.loadCommentsAsync(artId, listEl);
+          const done = this.busyOn(t, '删除中…');
+          try {
+            await API.del('/api/article/' + artId + '/comments/' + cid);
+            this.clearApiCache('/api/board');
+            toast('留言已删除');
+            if (listEl) await this.loadCommentsAsync(artId, listEl);
+          } catch (err) {
+            toast(err.message, 'err');
+          } finally {
+            if (done) done();
+          }
         } else if (id === 'boardMore') {
           t.disabled = true;
           t.textContent = '加载中…';
@@ -1024,11 +1055,25 @@ const App = {
       };
       this._menuStale = false;
       this.saveMenu(this.state.menu);
+      this._menuFp = this.menuFp(this.state.menu);
     } else if (this._menuStale) {
       this._menuStale = false;
       setTimeout(() => this.refreshMenuSoon(), 0);
     }
+    if (!this._menuFp && this.state.menu) this._menuFp = this.menuFp(this.state.menu);
     return this.state.menu;
+  },
+
+  /* 目录内容的指纹：只是用来判断「要不要为了一次后台刷新把整页重建一遍」。
+     目录没变还重建，用户看到的就是切页时闪一下。 */
+  menuFp(m) {
+    if (!m) return '';
+    const pick = (list) => (list || []).map((x) => [
+      x.chapter_no, x.chapter_title, x.section_no, x.section_title,
+      x.id, x.title, x.locked, x.tags, x.updated_at,
+      (x.sections || []).map((y) => [y.section_no, y.section_title, y.id, y.locked, y.updated_at]),
+    ]);
+    return JSON.stringify([pick(m.main), pick(m.personal), pick(m.settings), m.latest || null]);
   },
 
   /* 书架目录的本地缓存：先画上次的目录，再静默换新。
@@ -1054,7 +1099,10 @@ const App = {
       this._menuSoonT = setTimeout(() => this.refreshMenuSoon(), 600);
       return;
     }
+    const fpBefore = this._menuFp || '';
     this.ensureMenu(true).then(() => {
+      // 目录没变就别重建整页 —— 那一下重建正是「已经进了书架、又闪一下」的来源
+      if (fpBefore && this._menuFp === fpBefore) return;
       const h = location.hash || '';
       if ((h === '' || h === '#/' || h === '#/menu') && (window.scrollY || 0) < 160) this.route();
     }).catch(() => {});
@@ -2285,8 +2333,7 @@ const App = {
           locked: fd.get('locked') ? 1 : 0,
         };
         if (!body.name) return toast('先给角色起个名字');
-        const btn = form.querySelector('button[type="submit"]');
-        if (btn) btn.disabled = true;
+        const done = this.busyOn(form.querySelector('button[type="submit"]'), '保存中…');
         try {
           if (id) await API.put('/api/characters/' + id, body);
           else await API.post('/api/characters', body);
@@ -2295,7 +2342,7 @@ const App = {
           toast(id ? '角色卡已更新' : '角色卡建好了');
           this.route();
         } catch (err) { toast(err.message, 'err'); }
-        finally { if (btn) btn.disabled = false; }
+        finally { if (done) done(); }
       });
     }
     const rows = document.getElementById('charRows');
@@ -2850,12 +2897,56 @@ const card = (x) => {
     </div>`;
   },
 
+  /* 管理页的接口缓存：30 秒内重复进同一个页面不再等接口，回退回来是瞬开。
+     改完数据要记得 apiForget，否则会看到旧列表。 */
+  apiCachedGet(url, ttl = 30000) {
+    if (!this._apiCache) this._apiCache = new Map();
+    const hit = this._apiCache.get(url);
+    if (hit && Date.now() - hit.t < ttl) return hit.v;
+    return null;
+  },
+
+  async apiFetch(url) {
+    if (!this._apiCache) this._apiCache = new Map();
+    const v = await API.get(url);
+    this._apiCache.set(url, { t: Date.now(), v });
+    return v;
+  },
+
+  apiForget(url) { if (this._apiCache) this._apiCache.delete(url); },
+
+  /* 骨架行：接口还没回来时先把版式占住，页面不会是一片空白 */
+  adminSkelRows(n = 6) {
+    let out = '';
+    for (let i = 0; i < n; i++) out += '<li class="admin-skel" aria-hidden="true"><span></span><span></span><span></span></li>';
+    return out;
+  },
+
+  async hydrateArticles() {
+    try {
+      const rows = await this.apiFetch('/api/admin/articles');
+      this._adminAll = Array.isArray(rows) ? rows : [];
+    } catch (e) { this._adminAll = this._adminAll || []; }
+    this._adminStale = false;
+    if (document.getElementById('adminList')) this.refreshAdminList();
+  },
+
+  async hydrateUsers() {
+    try {
+      const rows = await this.apiFetch('/api/admin/users');
+      this._usersAll = Array.isArray(rows) ? rows : [];
+    } catch (e) { this._usersAll = this._usersAll || []; }
+    this._userStale = false;
+    if (document.getElementById('userList')) this.refreshUserList();
+  },
+
   async renderAdminArticles() {
     const u = this.state.user;
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
     this.pageTitle = '文章管理 · 白日梦咖啡馆';
-    const articles = await API.get('/api/admin/articles');
-    this._adminAll = Array.isArray(articles) ? articles : [];
+    const cached = this.apiCachedGet('/api/admin/articles');
+    this._adminAll = Array.isArray(cached) ? cached : [];
+    this._adminStale = !cached;
     this._adminFilter = Object.assign({ q: '', cat: 'all', ch: 'all', sort: 'order' }, this._adminFilter || {});
     if (this._adminFilter.cat !== 'main') this._adminFilter.ch = 'all';
     return `
@@ -2866,7 +2957,7 @@ const card = (x) => {
         <header class="admin-title">
           <div>
             <h2>文章管理</h2>
-            <p class="admin-sub" id="adminStats">${this.adminStatsHtml()}</p>
+            <p class="admin-sub" id="adminStats">${this._adminStale ? '<span class="admin-loading">正在读取文章列表…</span>' : this.adminStatsHtml()}</p>
           </div>
           <div class="admin-title-actions">
             <a class="btn btn-small btn-primary" href="#/admin/new">＋ 新增文章</a>
@@ -2886,7 +2977,7 @@ const card = (x) => {
           </div>
         </div>
         ${this.adminFilterBar()}
-        <div class="admin-list" id="adminList" aria-live="polite">${this.adminRowsHtml()}</div>
+        <div class="admin-list${this._adminStale ? ' is-loading' : ''}" id="adminList" aria-live="polite" aria-busy="${this._adminStale ? 'true' : 'false'}">${this._adminStale ? this.adminSkelRows(7) : this.adminRowsHtml()}</div>
       </div>
     </div>`;
   },
@@ -2911,8 +3002,9 @@ const card = (x) => {
     const all = this._adminAll || [];
     const count = (c) => (c === 'all' ? all.length : all.filter((a) => a.category === c).length);
     const tabs = [['all', '全部'], ['main', '主线'], ['personal', '个人章'], ['settings', '设定']];
+    const stale = !!this._adminStale;
     return tabs.map(([k, label]) =>
-      `<button type="button" role="tab" data-cat="${k}" class="${f.cat === k ? 'on' : ''}" aria-selected="${f.cat === k}">${label}<b>${count(k)}</b></button>`
+      `<button type="button" role="tab" data-cat="${k}" class="${f.cat === k ? 'on' : ''} ${stale ? 'is-pending' : ''}" aria-selected="${f.cat === k}">${label}<b>${stale ? '·' : count(k)}</b></button>`
     ).join('');
   },
 
@@ -3964,8 +4056,7 @@ const card = (x) => {
         const url = String(fd.get('url') || '').trim();
         if (!name) return toast('先给它起个名字');
         if (!/^https?:\/\//i.test(url)) return toast('网址要 http:// 或 https:// 开头');
-        const btn = form.querySelector('button[type="submit"]');
-        if (btn) btn.disabled = true;
+        const done = this.busyOn(form.querySelector('button[type="submit"]'), '添加中…');
         try {
           await API.post('/api/links', { name: name, url: url });
           form.reset();
@@ -3974,7 +4065,7 @@ const card = (x) => {
         } catch (err) {
           toast(err.message || '添加失败');
         } finally {
-          if (btn) btn.disabled = false;
+          if (done) done();
         }
       });
     }
@@ -4088,8 +4179,7 @@ const card = (x) => {
         if (!file || !file.size) return toast('先选一个音频文件');
         if (file.size > 20 * 1024 * 1024) return toast('超过 20MB 了，换短一点的或先压一下');
         const btn = form.querySelector('button[type="submit"]');
-        const old = btn ? btn.textContent : '';
-        if (btn) { btn.disabled = true; btn.textContent = '上传中…'; }
+        const doneUp = this.busyOn(btn, '上传中…');
         try {
           const up = await fetch('/api/music/upload?name=' + encodeURIComponent(file.name || 'song.mp3'), {
             method: 'POST',
@@ -4106,7 +4196,7 @@ const card = (x) => {
         } catch (err) {
           toast(err.message || '上传失败');
         } finally {
-          if (btn) { btn.disabled = false; btn.textContent = old || '上传并添加'; }
+          if (doneUp) doneUp();
         }
       });
     }
@@ -4149,8 +4239,9 @@ const card = (x) => {
     const u = this.state.user;
     if (!u || u.role !== 'admin') { location.hash = '#/menu'; return ''; }
     this.pageTitle = '用户管理 · 白日梦咖啡馆';
-    const users = await API.get('/api/admin/users');
-    this._usersAll = Array.isArray(users) ? users : [];
+    const cached = this.apiCachedGet('/api/admin/users');
+    this._usersAll = Array.isArray(cached) ? cached : [];
+    this._userStale = !cached;
     this._userFilter = Object.assign({ q: '', role: 'all' }, this._userFilter || {});
     return `
     <div class="page admin-page">
@@ -4160,7 +4251,7 @@ const card = (x) => {
         <header class="admin-title">
           <div>
             <h2>用户管理</h2>
-            <p class="admin-sub" id="userStats">${this.userStatsHtml()}</p>
+            <p class="admin-sub" id="userStats">${this._userStale ? '<span class="admin-loading">正在读取用户列表…</span>' : this.userStatsHtml()}</p>
           </div>
         </header>
         <div class="admin-bar" id="userBar">
@@ -4170,7 +4261,7 @@ const card = (x) => {
           </label>
           <div class="admin-tabs" id="userTabs" role="tablist">${this.userTabsHtml()}</div>
         </div>
-        <div class="admin-list" id="userList" aria-live="polite">${this.userRowsHtml()}</div>
+        <div class="admin-list${this._userStale ? ' is-loading' : ''}" id="userList" aria-live="polite" aria-busy="${this._userStale ? 'true' : 'false'}">${this._userStale ? this.adminSkelRows(6) : this.userRowsHtml()}</div>
       </div>
     </div>`;
   },
@@ -5072,6 +5163,19 @@ const card = (x) => {
 
   /* ---------- 事件绑定 ---------- */
   afterRender() {
+    if (this._adminStale && document.getElementById('adminList')) this.hydrateArticles();
+    /* 进了后台就顺手把两个慢接口预热掉：等真的点过去时命中缓存，直接出内容 */
+    if (this.state.user && this.state.user.role === 'admin' && /^#\/admin\//.test(location.hash)) {
+      const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 400));
+      if (!this._adminPrewarmed) {
+        this._adminPrewarmed = true;
+        idle(() => {
+          if (!this.apiCachedGet('/api/admin/articles')) this.apiFetch('/api/admin/articles').catch(() => {});
+          if (!this.apiCachedGet('/api/admin/users')) this.apiFetch('/api/admin/users').catch(() => {});
+        });
+      }
+    }
+    if (this._userStale && document.getElementById('userList')) this.hydrateUsers();
     this.bindMusicAdmin();
     this.bindLinkAdmin();
     this.bindCharAdmin();
@@ -5150,7 +5254,12 @@ const card = (x) => {
     if (adminBar) {
       const search = document.getElementById('adminSearch');
       if (search) {
-        search.oninput = () => { this._adminFilter.q = search.value; this.refreshAdminList(); };
+        let qTimer = 0;
+        search.oninput = () => {
+          this._adminFilter.q = search.value;
+          clearTimeout(qTimer);
+          qTimer = setTimeout(() => this.refreshAdminList(), 120);
+        };
         search.onkeydown = (e) => {
           if (e.key === 'Escape') { search.value = ''; this._adminFilter.q = ''; this.refreshAdminList(); }
         };
@@ -5171,7 +5280,14 @@ const card = (x) => {
     const userBar = document.getElementById('userBar');
     if (userBar) {
       const us = document.getElementById('userSearch');
-      if (us) us.oninput = () => { this._userFilter.q = us.value; this.refreshUserList(); };
+      if (us) {
+        let uTimer = 0;
+        us.oninput = () => {
+          this._userFilter.q = us.value;
+          clearTimeout(uTimer);
+          uTimer = setTimeout(() => this.refreshUserList(), 120);
+        };
+      }
       userBar.addEventListener('click', (e) => {
         const b = e.target.closest('[data-role-tab]');
         if (!b) return;
@@ -5473,9 +5589,35 @@ const card = (x) => {
     document.getElementById('loginError').textContent = '';
   },
 
+  /* ---------- 按钮「在忙」 ----------
+     点了之后要立刻有反应：禁用 + 转圈 + 换文案，
+     结束（成功或失败）再恢复，避免「以为没点上」而连点刷屏。 */
+  busyOn(btn, label) {
+    if (!btn || btn.dataset.busy === '1') return null;
+    const html = btn.innerHTML;
+    const text = (btn.textContent || '').trim();
+    btn.dataset.busy = '1';
+    btn.classList.add('is-busy');
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<i class="btn-spin" aria-hidden="true"></i>' + esc(label || text);
+    return () => {
+      if (btn.dataset.busy !== '1') return;
+      delete btn.dataset.busy;
+      btn.classList.remove('is-busy');
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      btn.innerHTML = html;
+    };
+  },
+
   async handleLogin(e) {
     e.preventDefault();
     const form = e.target;
+    if (form.dataset.sending === '1') return;
+    form.dataset.sending = '1';
+    const done = this.busyOn(form.querySelector('button[type="submit"]'),
+      this.authMode === 'register' ? '创建中…' : '登录中…');
     const username = form.username.value.trim();
     const password = form.password.value;
     const errEl = document.getElementById('loginError');
@@ -5515,20 +5657,34 @@ const card = (x) => {
     } catch (err) {
       errEl.textContent = err.message;
       this.turnstileReset();
+    } finally {
+      if (done) done();
+      delete form.dataset.sending;
     }
   },
 
   async handleComment(e) {
     e.preventDefault();
     const form = e.target;
+    if (form.dataset.sending === '1') return;
+    const content = form.content.value.trim();
+    if (!content) { toast('写点什么再发吧', 'err'); return; }
+    const btn = form.querySelector('button[type="submit"]');
+    form.dataset.sending = '1';
+    const done = this.busyOn(btn, '发布中…');
+    if (btn) btn.dataset.wasText = '发布留言';
     try {
-      await API.post('/api/article/' + form.dataset.article + '/comments',
-        { content: form.content.value.trim() });
+      await API.post('/api/article/' + form.dataset.article + '/comments', { content });
       toast('留言已发布');
       // 只改缓存里的计数，不整份重取目录
       this.bumpCommentCount(Number(form.dataset.article), 1);
       this.route();
-    } catch (err) { toast(err.message, 'err'); }
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      if (done) done();
+      delete form.dataset.sending;
+    }
   },
 
   /* ---------- 编辑器插图：选本地文件 → 压缩 → 上传 → 插入 markdown ---------- */
@@ -5612,6 +5768,7 @@ const card = (x) => {
   async handleSaveAvatar() {
     let avatar = (document.getElementById('avatarUrl').value || '').trim();
     if (this.pendingAvatar) avatar = this.pendingAvatar;
+    const done = this.busyOn(document.getElementById('saveAvatar'), '保存中…');
     try {
       const { user } = await API.put('/api/me/avatar', { avatar });
       this.state.user = user;
@@ -5619,6 +5776,7 @@ const card = (x) => {
       toast('头像已更新');
       this.route();
     } catch (err) { toast(err.message, 'err'); }
+    finally { if (done) done(); }
   },
 
   async handleClearAvatar() {
@@ -5741,6 +5899,7 @@ const card = (x) => {
   async handleAdminForm(e) {
     e.preventDefault();
     const form = e.target;
+    if (form.dataset.sending === '1') return;
     const id = form.dataset.id || null;
     const category = form.category.value;
     if (category === 'main' && (!form.chapter_no.value || !form.section_no.value)) {
@@ -5775,13 +5934,22 @@ const card = (x) => {
     } else {
       payload.title = form.title.value.trim();
     }
+    form.dataset.sending = '1';
+    const done = this.busyOn(form.querySelector('button[type="submit"]'),
+      id ? '保存中…' : '发布中…');
     try {
       if (id) { await API.put('/api/admin/articles/' + id, payload); toast('文章已更新'); }
       else { await API.post('/api/admin/articles', payload); toast('文章已发布'); }
       this.state.menu = null;   // 目录变了，重新拉一次
+      this.apiForget('/api/admin/articles');   // 列表缓存也作废，回到文章管理才是新数据
       if (id) this.clearArticleCache(id);   // 正文缓存也要作废，否则读者会看到旧文字
       location.hash = '#/admin/articles';
-    } catch (err) { toast(err.message, 'err'); }
+    } catch (err) {
+      toast(err.message, 'err');
+    } finally {
+      if (done) done();
+      delete form.dataset.sending;
+    }
   },
 };
 
@@ -5794,13 +5962,19 @@ document.addEventListener('click', async (e) => {
   if (action === 'edit-article') { location.hash = '#/admin/edit/' + id; return; }
   if (action === 'delete-article') {
     if (confirm('确定删除这篇文章吗？')) {
+      const done = App.busyOn(el, '删除中…');
       try {
         await API.del('/api/admin/articles/' + id);
         App.state.menu = null;
+        App.apiForget('/api/admin/articles');
         App.clearArticleCache(id);
         toast('已删除');
         location.hash = '#/admin/articles';
-      } catch (err) { toast(err.message, 'err'); }
+      } catch (err) {
+        toast(err.message, 'err');
+      } finally {
+        if (done) done();
+      }
     }
     return;
   }
@@ -5821,7 +5995,8 @@ document.addEventListener('click', async (e) => {
     const role = el.dataset.role;
     if (confirm('确定将该用户角色设为「' + (role === 'admin' ? '管理员' : '普通用户') + '」吗？')) {
       try {
-        await API.put('/api/admin/users/' + id, { role });
+        await API.put('/api/admin/users/' + id, { role: el.dataset.role });
+        App.apiForget('/api/admin/users');
         toast('已更新');
         location.hash = '#/admin/users';
       } catch (err) { toast(err.message, 'err'); }
@@ -5832,6 +6007,7 @@ document.addEventListener('click', async (e) => {
     if (confirm('确定删除该用户吗？其留言将保留并标记为“已注销”。')) {
       try {
         await API.del('/api/admin/users/' + id);
+        App.apiForget('/api/admin/users');
         toast('已删除');
         location.hash = '#/admin/users';
       } catch (err) { toast(err.message, 'err'); }
